@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  /* Use the --text-color variable from App.css for default text */
+  color: var(--text-color);
+  @apply bg-gray-50 min-h-screen;
+}
+
+/* Dark mode styles */
+.dark-theme {
+  /* Form labels */
+  label {
+    @apply text-gray-200;
+  }
+
+  /* Form inputs, textareas, and select boxes */
+  input, textarea, select {
+    @apply bg-gray-800 text-white border-gray-700;
+  }
+
+  /* Select box options */
+  option {
+    @apply bg-gray-800 text-white;
+  }
+
+  /* Placeholder text */
+  ::placeholder {
+    @apply text-gray-400;
+  }
+
+  /* Form label class override */
+  .text-gray-700 {
+    @apply text-gray-200;
+  }
+
+  /* Error text should remain visible */
+  .text-red-500 {
+    @apply text-red-400;
+  }
+}
+
+/* Child-friendly UI elements */
+.btn-primary {
+  @apply bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg;
+}
+
+.btn-success {
+  @apply bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg;
+}
+
+.card {
+  /* Explicitly set text color using the theme variable */
+  @apply bg-white text-[color:var(--text-color)] rounded-2xl shadow-lg p-6 border-2 border-gray-100;
+}
+
+/* Dark mode card */
+.dark-theme .card {
+  @apply bg-gray-800 border-gray-700;
+}
+
+/* Dark mode glass card */
+.dark-theme .glass-card {
+  background: rgba(15, 23, 42, 0.8) !important;
+  border-color: rgba(30, 41, 59, 0.8) !important;
+}
+
+/* Dark mode for specific components */
+.dark-theme .bg-white {
+  @apply bg-gray-800;
+}
+
+.dark-theme .border-gray-100,
+.dark-theme .border-gray-200,
+.dark-theme .border-gray-300 {
+  @apply border-gray-700;
+}
+
+.dark-theme .text-gray-800,
+.dark-theme .text-gray-900 {
+  @apply text-gray-200;
+}
+
+.dark-theme .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+.input-field {
+  @apply px-4 py-3 border-2 border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg;
+}
+
+/* Dark mode input field */
+.dark-theme .input-field {
+  @apply border-gray-700 bg-gray-800 text-white;
+}
