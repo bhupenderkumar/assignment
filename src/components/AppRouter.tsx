@@ -7,6 +7,7 @@ import PlayAssignmentPage from './pages/PlayAssignmentPage';
 import AdminDashboard from './admin/AdminDashboard';
 import HomePage from './pages/HomePage';
 import UserDashboardPage from './pages/UserDashboardPage';
+import OrganizationManagementPage from './pages/OrganizationManagementPage';
 import HelpCenter from './pages/HelpCenter';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
@@ -15,6 +16,7 @@ import SignUpPage from './pages/SignUpPage';
 import StandaloneCertificatePage from '../pages/StandaloneCertificatePage';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { InteractiveAssignmentProvider } from '../context/InteractiveAssignmentContext';
+import { OrganizationProvider } from '../context/OrganizationContext';
 import toast from 'react-hot-toast';
 
 // Protected route component
@@ -91,6 +93,20 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <AdminDashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Organization management route */}
+      <Route
+        path="/organizations"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <OrganizationProvider>
+                <OrganizationManagementPage />
+              </OrganizationProvider>
             </Layout>
           </ProtectedRoute>
         }

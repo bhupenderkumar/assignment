@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Rect, Text, Circle, Line, Group, Image } from 'react-konva';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import { useOrganization } from '../../context/OrganizationContext';
 import { InteractiveSubmission } from '../../types/interactiveAssignment';
 
 interface CertificateTemplateProps {
@@ -23,7 +24,9 @@ const CertificateTemplate = ({
   const stageRef = useRef<any>(null);
   const { config } = useConfiguration();
   const { username } = useSupabaseAuth();
+  const { currentOrganization } = useOrganization();
   const [sealImage, setSealImage] = useState<HTMLImageElement | null>(null);
+  const [signatureImage, setSignatureImage] = useState<HTMLImageElement | null>(null);
 
   // Format date
   const formatDate = (date?: Date) => {
@@ -65,6 +68,20 @@ const CertificateTemplate = ({
     };
   }, []);
 
+  // Load signature image if organization has one
+  useEffect(() => {
+    if (currentOrganization?.signatureUrl) {
+      const image = new window.Image();
+      image.src = currentOrganization.signatureUrl;
+      image.onload = () => {
+        setSignatureImage(image);
+      };
+      image.onerror = () => {
+        console.log('Error loading signature image');
+      };
+    }
+  }, [currentOrganization]);
+
   // Export certificate as image
   useEffect(() => {
     if (stageRef.current && onExport && sealImage) {
@@ -76,7 +93,7 @@ const CertificateTemplate = ({
 
       return () => clearTimeout(timer);
     }
-  }, [sealImage, onExport]);
+  }, [sealImage, signatureImage, onExport]);
 
   // Convert hex to RGB
   const hexToRgb = (hex: string) => {
@@ -413,22 +430,44 @@ const CertificateTemplate = ({
             />
           </Group>
 
-          {/* Instructor signature - moved up and adjusted to stay within boundaries */}
+          {/* Organization signature - moved up and adjusted to stay within boundaries */}
           <Group x={width - 180} y={height - 100}>
             <Line
               points={[-80, 0, 0, 0]}
               stroke={rgba(config.primaryColor, 0.5)}
               strokeWidth={1}
             />
-            <Text
-              y={10}
-              text="Instructor Signature"
-              fontSize={13}
-              fill="#555"
-              align="right"
-              width={80}
-              fontFamily="Georgia, serif"
-            />
+            {signatureImage ? (
+              <Group>
+                <Image
+                  image={signatureImage}
+                  width={100}
+                  height={40}
+                  offsetX={50}
+                  offsetY={-20}
+                  opacity={0.9}
+                />
+                <Text
+                  y={10}
+                  text={currentOrganization?.name || "Instructor Signature"}
+                  fontSize={13}
+                  fill="#555"
+                  align="right"
+                  width={80}
+                  fontFamily="Georgia, serif"
+                />
+              </Group>
+            ) : (
+              <Text
+                y={10}
+                text="Instructor Signature"
+                fontSize={13}
+                fill="#555"
+                align="right"
+                width={80}
+                fontFamily="Georgia, serif"
+              />
+            )}
           </Group>
 
           {/* Enhanced decorative corners - adjusted to match inner border */}
