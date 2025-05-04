@@ -54,7 +54,19 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
   // Update currentAssignment when assignment prop changes
   useEffect(() => {
     if (assignment) {
+      console.log('Assignment prop changed, updating current assignment');
       setCurrentAssignment(assignment);
+
+      // If we have an assignment from props, also cache it for persistence
+      if (assignment.id) {
+        try {
+          const cachedAssignmentKey = `cached_assignment_${assignment.id}`;
+          localStorage.setItem(cachedAssignmentKey, JSON.stringify(assignment));
+          console.log('Cached assignment from props for persistence');
+        } catch (cacheError) {
+          console.warn('Error caching assignment from props:', cacheError);
+        }
+      }
     }
   }, [assignment]);
 
@@ -76,6 +88,13 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         setError('Database connection is initializing, please try again in a moment.');
       }
 
+      return;
+    }
+
+    // If we already have an assignment from props, don't try to fetch it
+    if (assignment) {
+      console.log('Using assignment from props:', assignment);
+      setCurrentAssignment(assignment);
       return;
     }
 
@@ -164,7 +183,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
     } finally {
       setLoading(false);
     }
-  }, [assignmentId, assignmentService, retryCount, isSupabaseLoading, isDatabaseReady, dbState]);
+  }, [assignment, assignmentId, assignmentService, retryCount, isSupabaseLoading, isDatabaseReady, dbState]);
 
   // Fetch assignment on mount or when database state changes
   useEffect(() => {
@@ -292,12 +311,16 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
     // Update response
     handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
 
+    console.log(`Question ${currentQuestionIndex + 1}/${currentAssignment.questions.length} completed. Correct: ${isCorrect}, Score: ${questionScore}`);
+
     // Auto-advance to next question after a delay
     setTimeout(() => {
       if (currentQuestionIndex < currentAssignment.questions!.length - 1) {
         setCurrentQuestionIndex(prev => prev + 1);
         playSound('click');
       } else {
+        // This is the last question, submit the assignment
+        console.log('Last question completed, submitting assignment');
         handleSubmit();
       }
     }, 2000);
@@ -307,26 +330,78 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
   const handleSubmit = () => {
     if (!currentAssignment || !submissionId) return;
 
-    // Calculate overall score
-    const totalQuestions = currentAssignment.questions?.length || 0;
-    const correctResponses = Object.values(responses).filter(r => r.isCorrect);
-    const calculatedScore = Math.round((correctResponses.length / totalQuestions) * 100);
-
-    setScore(calculatedScore);
+    // Set submitted state immediately to disable buttons
     setIsSubmitted(true);
 
+    // Make sure we have the current question's response before calculating score
+    const ensureCurrentQuestionResponse = () => {
+      // If we're on the last question and the user clicks Finish directly
+      // without the auto-advance from handleQuestionComplete, we need to
+      // make sure the current question's response is included
+      if (currentAssignment.questions && currentQuestionIndex < currentAssignment.questions.length) {
+        const currentQuestion = currentAssignment.questions[currentQuestionIndex];
+
+        // If we don't have a response for the current question yet, create a default one
+        if (currentQuestion && !responses[currentQuestion.id]) {
+          console.log('Adding default response for current question:', currentQuestion.id);
+          return {
+            ...responses,
+            [currentQuestion.id]: {
+              id: '',
+              submissionId: submissionId || '',
+              questionId: currentQuestion.id,
+              responseData: {},
+              isCorrect: false // Default to incorrect if no explicit response
+            }
+          };
+        }
+      }
+      return responses;
+    };
+
+    // Get final responses including current question if needed
+    const finalResponses = ensureCurrentQuestionResponse();
+
+    // Calculate overall score
+    const totalQuestions = currentAssignment.questions?.length || 0;
+    const correctResponses = Object.values(finalResponses).filter(r => r.isCorrect);
+    const calculatedScore = totalQuestions > 0
+      ? Math.round((correctResponses.length / totalQuestions) * 100)
+      : 0;
+
+    console.log('Final score calculation:', {
+      totalQuestions,
+      correctResponses: correctResponses.length,
+      calculatedScore
+    });
+
+    setScore(calculatedScore);
+
+    // Show a loading toast while submitting
+    const loadingToast = toast.loading('Saving your results...');
+
     // Submit responses to server
-    const responseArray = Object.values(responses);
+    const responseArray = Object.values(finalResponses);
 
     // Pass the calculated score to the submitResponses function
     submitResponses(submissionId, responseArray, calculatedScore)
       .then(() => {
-        // Show celebration overlay
-        setShowCelebration(true);
+        // Dismiss loading toast
+        toast.dismiss(loadingToast);
+        toast.success('Assignment completed!');
+
+        // Show celebration overlay with a slight delay to ensure UI updates
+        setTimeout(() => {
+          setShowCelebration(true);
+        }, 300);
       })
       .catch(error => {
+        // Dismiss loading toast
+        toast.dismiss(loadingToast);
         console.error('Error submitting responses:', error);
         toast.error('Failed to submit responses. Please try again.');
+        // Allow retry if submission fails
+        setIsSubmitted(false);
       });
   };
 
@@ -622,7 +697,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         <ProgressDisplay
           currentQuestion={currentQuestionIndex + 1}
           totalQuestions={currentAssignment.questions.length}
-          score={score !== null ? score : undefined}
+          score={score}
           timeSpent={timeSpent}
         />
       )}

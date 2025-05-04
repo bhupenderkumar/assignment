@@ -1,7 +1,6 @@
 // src/components/common/AudioRecorder.tsx
 import { useState, useRef, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
-import { ensureBucketExists } from '../../lib/utils/storageUtils';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
 
 interface AudioRecorderProps {
@@ -11,6 +10,7 @@ interface AudioRecorderProps {
 }
 
 const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instructions' }: AudioRecorderProps) => {
+  const { supabase } = useSupabaseAuth();
   const [isRecording, setIsRecording] = useState(false);
   const [audioURL, setAudioURL] = useState<string | null>(initialAudioUrl || null);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -85,15 +85,49 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
   };
 
   const handleUploadRecording = async (audioBlob: Blob) => {
+    if (!supabase) {
+      toast.error('Database connection not available. Please try again later.');
+      return;
+    }
+
     setIsUploading(true);
     setErrorMessage(null); // Clear any previous errors
     try {
-      // Ensure the bucket exists before uploading
+      // Define bucket name
       const bucketName = 'audio-instructions';
-      const bucketExists = await ensureBucketExists(bucketName);
-
       const fileName = `audio_${Date.now()}.wav`;
       const file = new File([audioBlob], fileName, { type: 'audio/wav' });
+
+      // Check if bucket exists
+      try {
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+        if (listError) {
+          console.error('Error listing buckets:', listError);
+          throw listError;
+        }
+
+        // Check if our bucket exists
+        const bucketExists = buckets && buckets.some(bucket => bucket.name === bucketName);
+
+        // Create bucket if it doesn't exist
+        if (!bucketExists) {
+          console.log(`Bucket "${bucketName}" doesn't exist, creating it...`);
+          const { error: createError } = await supabase.storage.createBucket(bucketName, {
+            public: true,
+            fileSizeLimit: 10485760 // 10MB
+          });
+
+          if (createError) {
+            console.error('Error creating bucket:', createError);
+            throw createError;
+          }
+          console.log(`Bucket "${bucketName}" created successfully`);
+        }
+      } catch (bucketError) {
+        console.error('Error checking/creating bucket:', bucketError);
+        // Continue anyway - the bucket might already exist
+      }
 
       // Try to upload to Supabase Storage
       let uploadResult;
@@ -102,29 +136,8 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
           .from(bucketName)
           .upload(fileName, file);
       } catch (uploadError) {
-        console.error('Initial upload error:', uploadError);
-
-        // If bucket doesn't exist or RLS policy issue, try creating a direct upload policy
-        try {
-          // Create a policy for this specific file
-          const { error: policyError } = await supabase.rpc('create_direct_upload_policy', {
-            bucket_name: bucketName,
-            file_path: fileName
-          });
-
-          if (policyError) {
-            console.error('Error creating direct upload policy:', policyError);
-            throw policyError;
-          }
-
-          // Try upload again
-          uploadResult = await supabase.storage
-            .from(bucketName)
-            .upload(fileName, file);
-        } catch (directPolicyError) {
-          console.error('Error with direct policy creation:', directPolicyError);
-          throw directPolicyError;
-        }
+        console.error('Upload error:', uploadError);
+        throw uploadError;
       }
 
       const { data, error } = uploadResult;
@@ -154,6 +167,11 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!supabase) {
+      toast.error('Database connection not available. Please try again later.');
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -172,11 +190,40 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
     setIsUploading(true);
     setErrorMessage(null); // Clear any previous errors
     try {
-      // Ensure the bucket exists before uploading
+      // Define bucket name
       const bucketName = 'audio-instructions';
-      const bucketExists = await ensureBucketExists(bucketName);
-
       const fileName = `audio_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+      // Check if bucket exists - reuse the same code as in handleUploadRecording
+      try {
+        const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+
+        if (listError) {
+          console.error('Error listing buckets:', listError);
+          throw listError;
+        }
+
+        // Check if our bucket exists
+        const bucketExists = buckets && buckets.some(bucket => bucket.name === bucketName);
+
+        // Create bucket if it doesn't exist
+        if (!bucketExists) {
+          console.log(`Bucket "${bucketName}" doesn't exist, creating it...`);
+          const { error: createError } = await supabase.storage.createBucket(bucketName, {
+            public: true,
+            fileSizeLimit: 10485760 // 10MB
+          });
+
+          if (createError) {
+            console.error('Error creating bucket:', createError);
+            throw createError;
+          }
+          console.log(`Bucket "${bucketName}" created successfully`);
+        }
+      } catch (bucketError) {
+        console.error('Error checking/creating bucket:', bucketError);
+        // Continue anyway - the bucket might already exist
+      }
 
       // Try to upload to Supabase Storage
       let uploadResult;
@@ -185,29 +232,8 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
           .from(bucketName)
           .upload(fileName, file);
       } catch (uploadError) {
-        console.error('Initial upload error:', uploadError);
-
-        // If bucket doesn't exist or RLS policy issue, try creating a direct upload policy
-        try {
-          // Create a policy for this specific file
-          const { error: policyError } = await supabase.rpc('create_direct_upload_policy', {
-            bucket_name: bucketName,
-            file_path: fileName
-          });
-
-          if (policyError) {
-            console.error('Error creating direct upload policy:', policyError);
-            throw policyError;
-          }
-
-          // Try upload again
-          uploadResult = await supabase.storage
-            .from(bucketName)
-            .upload(fileName, file);
-        } catch (directPolicyError) {
-          console.error('Error with direct policy creation:', directPolicyError);
-          throw directPolicyError;
-        }
+        console.error('Upload error:', uploadError);
+        throw uploadError;
       }
 
       const { data, error } = uploadResult;

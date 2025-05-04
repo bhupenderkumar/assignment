@@ -31,6 +31,7 @@ interface InteractiveAssignmentContextType {
   createAssignment: (assignment: Partial<InteractiveAssignment>) => Promise<InteractiveAssignment>;
   updateAssignment: (id: string, assignment: Partial<InteractiveAssignment>) => Promise<InteractiveAssignment>;
   deleteAssignment: (id: string) => Promise<void>;
+  deleteMultipleAssignments: (ids: string[]) => Promise<void>;
   createQuestion: (question: Partial<InteractiveQuestion>) => Promise<InteractiveQuestion>;
   updateQuestion: (id: string, question: Partial<InteractiveQuestion>) => Promise<InteractiveQuestion>;
   deleteQuestion: (id: string) => Promise<void>;
@@ -43,6 +44,10 @@ interface InteractiveAssignmentContextType {
   fetchUserSubmissions: () => Promise<InteractiveSubmission[]>;
   fetchUserProgress: () => Promise<UserProgress[]>;
   updateUserProgress: (progress: Partial<UserProgress>) => Promise<UserProgress>;
+  // Progress overlay methods
+  showProgress: (initialStatus?: string) => void;
+  updateProgress: (newProgress: number, newStatus: string) => void;
+  hideProgress: () => void;
 }
 
 // Create the context
@@ -83,7 +88,7 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [anonymousUser, setAnonymousUser] = useState<AnonymousUser | null>(null);
-  const { supabase, isAuthenticated, userId, isSupabaseLoading, user } = useSupabaseAuth();
+  const { supabase, isAuthenticated, userId, isSupabaseLoading, user, currentOrganization } = useSupabaseAuth();
   const { isReady: isDatabaseReady, executeWhenReady, state: dbState } = useDatabaseState();
 
   // Request cache to prevent duplicate requests
@@ -131,6 +136,11 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
   const fetchAssignments = useCallback(async () => {
     console.log('fetchAssignments called');
 
+    // Allow fetching assignments even if user is not authenticated (for gallery)
+    if (!userId) {
+      console.log('User not authenticated, but still fetching published assignments for gallery');
+    }
+
     // Check if there's a pending request already
     if (requestCache.current.pendingRequests.fetchAssignments) {
       console.log('Assignments fetch already in progress, waiting for it to complete');
@@ -150,36 +160,67 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     setLoading(true);
     setError(null);
 
-    // Show progress overlay
-    showProgress('Initializing database connection...');
-    updateProgress(5, 'Preparing to fetch assignments...');
+    // Only show progress overlay if this is a user-initiated action, not during initial load
+    // We'll check if we're in the initial loading phase by checking if assignments is empty
+    if (assignments.length > 0 || !isSupabaseLoading) {
+      showProgress('Fetching assignments...');
+      updateProgress(5, 'Preparing to fetch assignments...');
+    }
 
     // Check if database is ready using the DatabaseStateContext
     if (!isDatabaseReady) {
       console.log('Database is not ready yet, waiting...');
       updateProgress(10, 'Waiting for database connection to initialize...');
 
-      if (dbState === 'error') {
-        console.error('Database connection error');
-        setError('Database connection error. Please refresh the page and try again.');
-        updateProgress(15, 'Database connection error');
-      } else {
-        console.log('Database is still initializing, please try again...');
-        setError('Database connection is initializing, please try again in a moment.');
-        updateProgress(15, 'Database connection is still initializing...');
+      // Instead of returning immediately, let's try to wait for the database to be ready
+      try {
+        // Wait for up to 5 seconds for the database to be ready
+        let waitTime = 0;
+        const maxWaitTime = 5000; // 5 seconds
+        const checkInterval = 500; // Check every 500ms
+
+        while (!isDatabaseReady && waitTime < maxWaitTime) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waitTime += checkInterval;
+          updateProgress(10 + (waitTime / maxWaitTime * 5), 'Waiting for database connection...');
+        }
+
+        // If database is ready now, continue with the fetch
+        if (isDatabaseReady) {
+          console.log('Database is now ready, continuing with fetch');
+          updateProgress(20, 'Database connection established');
+        } else {
+          // If still not ready, show error and return
+          if (dbState === 'error') {
+            console.error('Database connection error');
+            setError('Database connection error. Please refresh the page and try again.');
+            updateProgress(15, 'Database connection error');
+          } else {
+            console.log('Database is still initializing, please try again...');
+            setError('Database connection is initializing, please try again in a moment.');
+            updateProgress(15, 'Database connection is still initializing...');
+          }
+
+          setLoading(false);
+
+          // Clear pending request flag
+          requestCache.current.pendingRequests.fetchAssignments = false;
+
+          // Hide progress after a delay
+          setTimeout(() => {
+            hideProgress();
+          }, 2000);
+
+          return assignments;
+        }
+      } catch (waitError) {
+        console.error('Error waiting for database:', waitError);
+        setError('Error connecting to database. Please refresh the page and try again.');
+        setLoading(false);
+        requestCache.current.pendingRequests.fetchAssignments = false;
+        setTimeout(() => hideProgress(), 2000);
+        return assignments;
       }
-
-      setLoading(false);
-
-      // Clear pending request flag
-      requestCache.current.pendingRequests.fetchAssignments = false;
-
-      // Hide progress after a delay
-      setTimeout(() => {
-        hideProgress();
-      }, 2000);
-
-      return assignments;
     }
 
     // Check if supabase is available
@@ -271,11 +312,17 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       requestCache.current.pendingRequests.fetchAssignments = false;
       console.log('Finished fetching assignments');
     }
-  }, [getService, isSupabaseLoading, supabase, showProgress, updateProgress, hideProgress, assignments]);
+  }, [getService, isSupabaseLoading, supabase, showProgress, updateProgress, hideProgress, assignments, isDatabaseReady, dbState, userId]);
 
   // Fetch assignment by ID
   const fetchAssignmentById = useCallback(async (id: string) => {
     console.log(`fetchAssignmentById called for ID: ${id}`);
+
+    // Always set the current assignment to the one being requested
+    // This ensures we're working with the correct assignment when editing
+    if (currentAssignment?.id !== id) {
+      console.log(`Current assignment ID (${currentAssignment?.id}) doesn't match requested ID (${id}), will update current assignment`);
+    }
 
     // Check if there's a pending request already for this ID
     if (requestCache.current.pendingRequests.fetchAssignmentById[id]) {
@@ -287,6 +334,11 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       // Otherwise return from cache if available
       const cachedAssignment = requestCache.current.assignmentsById[id];
       if (cachedAssignment) {
+        // Always update the current assignment to match the requested ID
+        if (cachedAssignment.data) {
+          console.log(`Setting current assignment from pending request cache for ID: ${id}`);
+          setCurrentAssignment(cachedAssignment.data);
+        }
         return cachedAssignment.data;
       }
       return null;
@@ -296,7 +348,9 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     const cachedData = requestCache.current.assignmentsById[id];
     if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION)) {
       console.log(`Using cached assignment data for ID: ${id}`);
-      if (cachedData.data && currentAssignment?.id !== id) {
+      // Always update the current assignment to match the requested ID
+      if (cachedData.data) {
+        console.log(`Setting current assignment from cache for ID: ${id}`);
         setCurrentAssignment(cachedData.data);
       }
       return cachedData.data;
@@ -308,6 +362,7 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     setLoading(true);
     setError(null);
     try {
+      console.log(`Fetching fresh data for assignment ID: ${id}`);
       const service = getService();
       const data = await service.getAssignmentById(id);
 
@@ -318,7 +373,10 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       };
 
       if (data) {
+        console.log(`Setting current assignment from fresh data for ID: ${id}`);
         setCurrentAssignment(data);
+      } else {
+        console.log(`No data returned from service for assignment ID: ${id}`);
       }
       return data;
     } catch (err) {
@@ -393,11 +451,11 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     setLoading(true);
     setError(null);
     try {
-      // Add the current user's ID as the creator if authenticated
-      // Note: The database expects a UUID format for the createdBy field
+      // Add the current user's ID as the creator and organization ID if available
       const assignmentWithCreator = {
         ...assignment,
-        createdBy: userId || 'anonymous'
+        createdBy: userId || 'anonymous',
+        organizationId: currentOrganization?.id // Add organization ID from context
       };
 
       const service = getService();
@@ -457,6 +515,82 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Delete multiple assignments
+  const deleteMultipleAssignments = async (ids: string[]) => {
+    if (ids.length === 0) return;
+
+    setLoading(true);
+    setError(null);
+    showProgress('Deleting assignments...');
+    updateProgress(5, 'Preparing to delete assignments...');
+
+    try {
+      const service = getService();
+      let successCount = 0;
+      let failCount = 0;
+      let lastError = null;
+
+      // Process each assignment deletion sequentially
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        updateProgress(
+          5 + Math.floor((i / ids.length) * 90),
+          `Deleting assignment ${i + 1} of ${ids.length}...`
+        );
+
+        try {
+          // First, check if the assignment exists
+          const assignmentExists = assignments.some(a => a.id === id);
+          if (!assignmentExists) {
+            console.log(`Assignment ${id} not found in state, skipping`);
+            continue;
+          }
+
+          await service.deleteAssignment(id);
+          successCount++;
+        } catch (error) {
+          console.error(`Error deleting assignment ${id}:`, error);
+          failCount++;
+          lastError = error;
+
+          // Continue with the next assignment instead of stopping the whole process
+        }
+      }
+
+      // Update the assignments state to remove the deleted assignments
+      if (successCount > 0) {
+        setAssignments(prev => prev.filter(a => !ids.includes(a.id)));
+
+        // If current assignment was deleted, set it to null
+        if (currentAssignment && ids.includes(currentAssignment.id)) {
+          setCurrentAssignment(null);
+        }
+      }
+
+      updateProgress(100, successCount > 0 ? 'Assignments deleted successfully' : 'Failed to delete assignments');
+
+      if (failCount === 0 && successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} assignment${successCount !== 1 ? 's' : ''}`);
+      } else if (successCount > 0) {
+        toast.success(`Deleted ${successCount} assignment${successCount !== 1 ? 's' : ''}, but failed to delete ${failCount}`);
+      } else {
+        const errorMessage = lastError instanceof Error ? lastError.message : 'Unknown error occurred';
+        toast.error(`Failed to delete assignments: ${errorMessage}`);
+        setError(errorMessage);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      updateProgress(100, `Error: ${errorMessage}`);
+      toast.error(`Failed to delete assignments: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+      setTimeout(() => {
+        hideProgress();
+      }, 1000);
     }
   };
 
@@ -836,6 +970,7 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     createAssignment,
     updateAssignment,
     deleteAssignment,
+    deleteMultipleAssignments,
     createQuestion,
     updateQuestion,
     deleteQuestion,
@@ -848,16 +983,25 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     fetchUserSubmissions,
     fetchUserProgress,
     updateUserProgress,
+    // Progress overlay methods
+    showProgress,
+    updateProgress,
+    hideProgress,
   };
+
+  // Only show progress overlay if it's explicitly requested
+  const shouldShowOverlay = progressVisible && !isSupabaseLoading;
 
   return (
     <InteractiveAssignmentContext.Provider value={value}>
       {children}
-      <ProgressOverlay
-        isVisible={progressVisible}
-        progress={progress}
-        status={progressStatus}
-      />
+      {shouldShowOverlay && (
+        <ProgressOverlay
+          isVisible={true}
+          progress={progress}
+          status={progressStatus}
+        />
+      )}
     </InteractiveAssignmentContext.Provider>
   );
 };

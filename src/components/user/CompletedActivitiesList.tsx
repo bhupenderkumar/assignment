@@ -33,6 +33,45 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
     }
   }, [activities]);
 
+  // Helper function to get assignment ID safely
+  const getAssignmentId = (activity: InteractiveSubmission | InteractiveSubmissionExtended): string => {
+    return (activity as InteractiveSubmissionExtended).assignment_id || activity.assignmentId;
+  };
+
+  // Helper function to get assignment title safely
+  const getAssignmentTitle = (activity: InteractiveSubmission | InteractiveSubmissionExtended): string => {
+    // Try to get title from various possible sources
+    const extendedActivity = activity as InteractiveSubmissionExtended;
+
+    if (extendedActivity.assignmentTitle) {
+      return extendedActivity.assignmentTitle;
+    }
+
+    if (extendedActivity.interactive_assignment?.title) {
+      return extendedActivity.interactive_assignment.title;
+    }
+
+    // Fallback to ID-based title
+    const id = getAssignmentId(activity);
+    return id ? `Assignment ${id.substring(0, 8)}` : 'Unknown Assignment';
+  };
+
+  // Helper function to get submission date safely
+  const getSubmissionDate = (activity: InteractiveSubmission | InteractiveSubmissionExtended): Date | undefined => {
+    if (activity.submittedAt) {
+      return activity.submittedAt;
+    }
+
+    const extendedActivity = activity as InteractiveSubmissionExtended;
+    if (extendedActivity.submitted_at) {
+      return typeof extendedActivity.submitted_at === 'string'
+        ? new Date(extendedActivity.submitted_at)
+        : extendedActivity.submitted_at;
+    }
+
+    return undefined;
+  };
+
   // Format date
   const formatDate = (date?: Date | string) => {
     if (!date) return 'N/A';
@@ -83,20 +122,22 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
 
   // Handle view certificate
   const handleViewCertificate = (activity: InteractiveSubmission | InteractiveSubmissionExtended) => {
-    // Normalize the activity to ensure it has the expected properties
-    const normalizedActivity: any = {
+    // Create a normalized activity with all required properties
+    const normalizedActivity: InteractiveSubmissionExtended = {
       ...activity,
-      // Ensure camelCase properties exist
+      // Ensure all required properties exist
       id: activity.id,
-      assignmentId: activity.assignmentId || activity.assignment_id,
-      userId: activity.userId || activity.user_id,
+      assignmentId: getAssignmentId(activity),
+      userId: (activity as InteractiveSubmissionExtended).user_id || activity.userId,
       status: activity.status,
       score: activity.score !== null && activity.score !== undefined ? activity.score : 0,
-      startedAt: activity.startedAt || activity.started_at,
-      submittedAt: activity.submittedAt || activity.submitted_at,
+      startedAt: activity.startedAt,
+      submittedAt: getSubmissionDate(activity),
       feedback: activity.feedback,
       // Preserve the interactive_assignment property for the certificate
-      interactive_assignment: activity.interactive_assignment
+      interactive_assignment: (activity as InteractiveSubmissionExtended).interactive_assignment,
+      // Add assignment title for display
+      assignmentTitle: getAssignmentTitle(activity)
     };
 
     console.log('Viewing certificate for activity:', normalizedActivity);
@@ -106,7 +147,7 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
 
   // Handle retry assignment
   const handleRetryAssignment = (activity: InteractiveSubmission | InteractiveSubmissionExtended) => {
-    const assignmentId = activity.assignmentId || activity.assignment_id;
+    const assignmentId = getAssignmentId(activity);
     if (!assignmentId) {
       console.error('No assignment ID found for activity:', activity);
       return;
@@ -114,51 +155,66 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
     navigate(`/play/assignment/${assignmentId}`);
   };
 
-  // Check if we're in a loading state - use a direct boolean check
-  const isLoading = Boolean(loading);
-  console.log('CompletedActivitiesList isLoading calculated:', isLoading, 'original loading prop:', loading);
+  // Track loading state with a ref to avoid re-renders
+  const loadingStartTimeRef = useRef<number>(Date.now());
+  const [loadingDuration, setLoadingDuration] = useState<number>(0);
 
-  // Track how long we've been in the loading state
-  const [loadingStartTime] = useState<number>(Date.now());
-  const loadingDuration = Date.now() - loadingStartTime;
-
-  // If loading for more than 10 seconds, show a message instead of spinner
-  const showLoadingTimeout = loadingDuration > 10000;
-
-  // If we have activities but loading is still true, force it to false
+  // Update loading duration periodically
   useEffect(() => {
-    if (isLoading && activities.length > 0) {
-      console.log('Activities found but still loading, forcing loading state to false');
-      // This is a workaround for when the loading state gets stuck
-      setTimeout(() => window.dispatchEvent(new Event('force-refresh')), 100);
-    }
-  }, [isLoading, activities.length]);
+    if (loading) {
+      const intervalId = setInterval(() => {
+        setLoadingDuration(Date.now() - loadingStartTimeRef.current);
+      }, 500);
 
-  if (isLoading && activities.length === 0) {
-    console.log('CompletedActivitiesList is in loading state, duration:', loadingDuration);
+      return () => clearInterval(intervalId);
+    } else {
+      // Reset loading start time when loading is complete
+      loadingStartTimeRef.current = Date.now();
+      setLoadingDuration(0);
+    }
+  }, [loading]);
+
+  // If loading for more than 5 seconds, show a message instead of spinner
+  const showLoadingTimeout = loadingDuration > 5000;
+
+  // Show skeleton loader while loading
+  if (loading && activities.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
         <h2 className="text-2xl font-bold mb-6" style={{ color: config.secondaryColor }}>
           Completed Activities
         </h2>
-        <div className="flex flex-col justify-center items-center py-12">
-          {showLoadingTimeout ? (
-            <>
-              <p className="text-gray-500 dark:text-gray-400 text-lg mb-4 text-center">
-                Taking longer than expected to load your activities.
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-6 py-2 rounded-lg font-medium transition-colors duration-300 mt-2"
-                style={{ backgroundColor: config.primaryColor, color: 'white' }}
-              >
-                Refresh Page
-              </button>
-            </>
-          ) : (
+
+        {showLoadingTimeout ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">
+              Loading your activities...
+            </p>
+            <div className="animate-pulse space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-gray-200 dark:bg-gray-700 rounded-lg p-4">
+                  <div className="flex justify-between">
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/3"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/4"></div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded"></div>
+                  </div>
+                  <div className="mt-4 flex space-x-4">
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col justify-center items-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 mb-4" style={{ borderColor: config.accentColor }}></div>
-          )}
-        </div>
+            <p className="text-gray-500 dark:text-gray-400 mt-4">Loading your activities...</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -271,16 +327,12 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
                 >
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900 dark:text-white">
-                      {activity.assignmentTitle ||
-                       (activity.interactive_assignment && activity.interactive_assignment.title) ||
-                       (activity.assignment_id && `Assignment ${activity.assignment_id.substring(0, 8)}`) ||
-                       (activity.assignmentId && `Assignment ${activity.assignmentId.substring(0, 8)}`) ||
-                       'Unknown Assignment'}
+                      {getAssignmentTitle(activity)}
                     </div>
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {formatDate(activity.submittedAt || activity.submitted_at)}
+                      {formatDate(getSubmissionDate(activity))}
                     </div>
                   </td>
                   <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -325,11 +377,7 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
             >
               <div className="flex justify-between items-start mb-2">
                 <h3 className="text-base font-medium text-gray-900 dark:text-white">
-                  {activity.assignmentTitle ||
-                   (activity.interactive_assignment && activity.interactive_assignment.title) ||
-                   (activity.assignment_id && `Assignment ${activity.assignment_id.substring(0, 8)}`) ||
-                   (activity.assignmentId && `Assignment ${activity.assignmentId.substring(0, 8)}`) ||
-                   'Unknown Assignment'}
+                  {getAssignmentTitle(activity)}
                 </h3>
                 {getBadge(activity.score)}
               </div>
@@ -338,7 +386,7 @@ const CompletedActivitiesList = ({ activities, loading }: CompletedActivitiesLis
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Completed On</p>
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {formatDate(activity.submittedAt || activity.submitted_at)}
+                    {formatDate(getSubmissionDate(activity))}
                   </p>
                 </div>
                 <div>

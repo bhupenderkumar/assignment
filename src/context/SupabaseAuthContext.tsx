@@ -27,8 +27,11 @@ interface SupabaseAuthContextType {
   signOut: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ user: User; session: Session; weakPassword?: WeakPassword }>;
   signUp: (email: string, password: string, metadata?: { name?: string }) => Promise<{ user: User | null; session: Session | null }>;
+  joinOrganization: (organizationId: string) => Promise<void>; // Add joinOrganization function
   supabase: SupabaseClient | null;
   user: User | null;
+  organizations: any[]; // Add organizations property
+  currentOrganization: any | null; // Add currentOrganization property
   // Database service
   db: {
     fetch: <T>(table: string, queryBuilder?: (query: any) => any) => Promise<T[]>;
@@ -63,6 +66,8 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
   const [username, setUsername] = useState<string | null>(null);
   const [userImageUrl, setUserImageUrl] = useState<string | null>(null);
   const { state: dbState, isReady: isDatabaseReady } = useDatabaseState();
+
+  // Organization-related state is now managed by OrganizationContext
 
   // Initialize Supabase client
   useEffect(() => {
@@ -182,6 +187,8 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
       setUserImageUrl(null);
     }
   }, [user]);
+
+  // Organization management is now handled by OrganizationContext
 
   // Sign in with email and password
   const signIn = async (email: string, password: string) => {
@@ -376,6 +383,62 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
     }
   };
 
+  // Organization management is now handled by OrganizationContext
+
+  // Join an organization directly (used for invitations)
+  const joinOrganization = async (organizationId: string) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      console.log('Joining organization:', organizationId);
+
+      // Check if the user is already a member of the organization
+      const { data: existingMembership, error: membershipError } = await supabase
+        .from('user_organization')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      if (membershipError) {
+        console.error('Error checking organization membership:', membershipError);
+        throw new Error('Failed to check organization membership');
+      }
+
+      // If already a member, just return
+      if (existingMembership) {
+        console.log('User is already a member of this organization');
+        toast.info('You are already a member of this organization');
+        return;
+      }
+
+      // Add the user to the organization
+      const { error: joinError } = await supabase
+        .from('user_organization')
+        .insert({
+          user_id: user.id,
+          organization_id: organizationId,
+          role: 'member'
+        });
+
+      if (joinError) {
+        console.error('Error joining organization:', joinError);
+        throw new Error('Failed to join organization');
+      }
+
+      // Set this as the current organization
+      localStorage.setItem('currentOrganizationId', organizationId);
+
+      toast.success('Successfully joined the organization');
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Error joining organization:', err);
+      toast.error(err.message || 'Failed to join organization');
+      throw error;
+    }
+  };
+
   const value: SupabaseAuthContextType = {
     isAuthenticated: !!user,
     isLoading,
@@ -386,8 +449,11 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
     signOut,
     signIn,
     signUp,
+    joinOrganization, // Add joinOrganization function
     supabase,
     user,
+    organizations: [], // Default empty array for organizations
+    currentOrganization: null, // Default null for currentOrganization
     db: dbMethods
   };
 

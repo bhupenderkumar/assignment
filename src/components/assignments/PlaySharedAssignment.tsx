@@ -30,11 +30,6 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
 
   // Function to fetch assignment with retry logic
   const fetchAssignment = useCallback(async () => {
-    if (isSupabaseLoading) {
-      console.log('Supabase is still initializing, waiting...');
-      return;
-    }
-
     if (!shareableLink) {
       console.error('No shareable link provided');
       setError('No shareable link provided');
@@ -46,12 +41,81 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
 
     try {
       console.log(`Attempting to fetch assignment by shareable link (attempt ${retryCount + 1})`);
+
+      // Try to get the assignment from localStorage first (for offline/fallback support)
+      try {
+        // First, check if we have a direct cache for this shareable link
+        const directCachedAssignment = localStorage.getItem(`cached_shared_assignment_${shareableLink}`);
+        if (directCachedAssignment) {
+          try {
+            const parsedAssignment = JSON.parse(directCachedAssignment);
+            console.log('Found directly cached assignment data, using it');
+            setCurrentAssignment(parsedAssignment);
+            setLoading(false);
+            return; // Exit early since we have the data
+          } catch (parseError) {
+            console.warn('Error parsing cached assignment:', parseError);
+            // Continue to next approach
+          }
+        }
+
+        // Extract the assignment ID from the shareable link (format: randomString-assignmentId)
+        const parts = shareableLink.split('-');
+        if (parts.length >= 2) {
+          const assignmentId = parts[parts.length - 1];
+
+          // Check if we have this assignment in cache
+          const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+          const cachedAssignmentData = shareableLinkCache[assignmentId];
+
+          if (cachedAssignmentData && cachedAssignmentData.assignment) {
+            console.log('Found cached assignment data in shareableLinkCache, using it');
+            setCurrentAssignment(cachedAssignmentData.assignment);
+            setLoading(false);
+            return; // Exit early since we have the data
+          } else if (cachedAssignmentData) {
+            console.log('Found cached link data, but no assignment, will try to fetch');
+            // We have cached data, but we still need to try to get the full assignment
+            // We'll continue with the normal flow but with this knowledge
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Error checking localStorage cache:', cacheError);
+        // Continue with normal flow
+      }
+
+      // Create service with or without user (works for anonymous users too)
       const service = assignmentService();
       const assignment = await service.getAssignmentByShareableLink(shareableLink);
 
       if (assignment) {
         console.log('Assignment fetched successfully:', assignment);
         setCurrentAssignment(assignment);
+
+        // Cache the assignment data in localStorage for persistence
+        try {
+          // Extract the assignment ID from the shareable link
+          const parts = shareableLink.split('-');
+          if (parts.length >= 2) {
+            const assignmentId = parts[parts.length - 1];
+
+            // Store in localStorage with a key that includes both the shareable link and assignment ID
+            localStorage.setItem(`cached_shared_assignment_${shareableLink}`, JSON.stringify(assignment));
+
+            // Also update the shareableLinkCache
+            const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+            shareableLinkCache[assignmentId] = {
+              link: shareableLink,
+              assignment: assignment,
+              timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('shareableLinkCache', JSON.stringify(shareableLinkCache));
+            console.log('Assignment cached successfully for persistence');
+          }
+        } catch (cacheError) {
+          console.warn('Error caching assignment data:', cacheError);
+          // Continue with normal flow even if caching fails
+        }
       } else {
         console.log('Assignment not found or link expired');
         setError('Assignment not found or link has expired');
@@ -59,20 +123,30 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
     } catch (err) {
       console.error('Error fetching assignment by shareable link:', err);
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
+
+      // Provide a more user-friendly error message
+      if (errorMessage.includes('JWT') || errorMessage.includes('auth') || errorMessage.includes('401')) {
+        setError('This assignment requires authentication. Please sign in to view it.');
+      } else if (errorMessage.includes('network') || errorMessage.includes('connection')) {
+        setError('Network error. Please check your internet connection and try again.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
-  }, [shareableLink, assignmentService, retryCount, isSupabaseLoading]);
+  }, [shareableLink, assignmentService, retryCount]);
 
   // Fetch assignment on mount or when Supabase initialization state changes
   useEffect(() => {
     const controller = new AbortController();
 
-    if (!isSupabaseLoading) {
-      fetchAssignment();
-    } else if (retryCount < 3) {
-      // If Supabase is still loading, set a timeout to retry
+    // Always try to fetch the assignment, even if Supabase is still loading
+    // This is important for anonymous users who don't need authentication
+    fetchAssignment();
+
+    // If the first attempt fails and Supabase is still loading, retry a few times
+    if (isSupabaseLoading && retryCount < 3) {
       const timeoutId = setTimeout(() => {
         setRetryCount(prev => prev + 1);
       }, 1000); // Wait 1 second before retrying
@@ -192,8 +266,8 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
           </div>
         </div>
 
-        {/* Pass the assignment ID to the PlayAssignment component */}
-        <PlayAssignment />
+        {/* Pass the assignment to the PlayAssignment component */}
+        <PlayAssignment assignment={currentAssignment} />
       </motion.div>
 
       {/* Anonymous User Registration Modal */}

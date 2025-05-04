@@ -1,9 +1,11 @@
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import Header from './Header';
+import Sidebar from './Sidebar';
 import Footer from './Footer';
 import { Toaster } from 'react-hot-toast';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import DatabaseStatusIndicator from '../common/DatabaseStatusIndicator';
+import { hexToRgbString as hexToRgb } from '../../utils/colorUtils';
 
 interface LayoutProps {
   children?: ReactNode;
@@ -12,6 +14,25 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => {
   const { config } = useConfiguration();
+  // Initialize sidebar as closed by default, will open on desktop based on path
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+
+  // Handle window resize to detect mobile/desktop
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+
+      // Only auto-close on mobile if it was open
+      if (mobile && sidebarOpen) {
+        setSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     // Add stars to the background
@@ -41,18 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
     createStars();
   }, [config.animationsEnabled]);
 
-  // Convert hex colors to RGB for CSS variables
-  const hexToRgb = (hex: string) => {
-    // Remove # if present
-    hex = hex.replace('#', '');
-
-    // Parse the hex values
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-
-    return `${r}, ${g}, ${b}`;
-  };
+  // Using hexToRgbString from utils/colorUtils
 
   // Set RGB variables for CSS use
   useEffect(() => {
@@ -85,39 +95,75 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
         </>
       )}
 
-      <Header hideNavigation={hideNavigation} />
-      <main className="flex-grow w-full z-10 pt-20">
-        <div className="container mx-auto px-4">
+      {/* Header - pass toggle function for sidebar */}
+      <Header
+        hideNavigation={hideNavigation}
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+      />
+
+      {/* Sidebar */}
+      {!hideNavigation && (
+        <Sidebar
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* Main content - adjust padding when sidebar is open on desktop */}
+      <main
+        className={`flex-grow w-full z-10 transition-all duration-500 ${
+          sidebarOpen && !isMobile ? 'lg:pl-64' : ''
+        }`}
+        style={{
+          marginTop: '20px', // Add more margin to create space between header and content
+        }}
+      >
+        <div className={`mx-auto ${sidebarOpen && !isMobile ? 'lg:container' : 'container'}`}>
           {children}
         </div>
       </main>
+
       <Footer />
       <Toaster
-        position="top-right"
+        position="bottom-right"
         toastOptions={{
-          duration: 3000,
+          duration: 4000,
           style: {
-            background: config.darkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+            background: config.darkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)',
             backdropFilter: 'blur(10px)',
             color: config.darkMode ? '#fff' : '#333',
             padding: '16px',
-            borderRadius: '10px',
+            borderRadius: '12px',
             fontSize: '16px',
-            boxShadow: `0 4px 20px rgba(0, 0, 0, 0.3), 0 0 10px rgba(${hexToRgb(config.accentColor)}, 0.2)`,
-            border: `1px solid rgba(${hexToRgb(config.accentColor)}, 0.1)`,
+            boxShadow: `0 8px 30px rgba(0, 0, 0, 0.4), 0 0 10px rgba(${hexToRgb(config.accentColor)}, 0.3)`,
+            border: `1px solid rgba(${hexToRgb(config.accentColor)}, 0.15)`,
+            transform: 'translateY(-10px)',
+            transition: 'all 0.3s ease-in-out',
           },
           success: {
             iconTheme: {
               primary: '#4ade80',
               secondary: config.darkMode ? '#0f172a' : '#ffffff',
             },
+            style: {
+              background: config.darkMode ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)',
+            }
           },
           error: {
             iconTheme: {
               primary: '#ef4444',
               secondary: config.darkMode ? '#0f172a' : '#ffffff',
             },
+            style: {
+              background: config.darkMode ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.1)',
+            }
           },
+          loading: {
+            style: {
+              background: config.darkMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)',
+            }
+          }
         }}
       />
 

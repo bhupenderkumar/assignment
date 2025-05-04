@@ -1,5 +1,6 @@
 // src/lib/db/runMigrations.ts
 import { SupabaseClient } from '@supabase/supabase-js';
+import { organizationJoinRequestTableSQL } from './migrations/organizationJoinRequestMigration';
 
 // Migration history table SQL
 const migrationHistoryTableSQL = `
@@ -125,7 +126,14 @@ export const runMigrations = async (
     {
       name: 'User Progress Table',
       sql: userProgressTableSQL,
-      weight: 90, // Percentage weight of this migration in the overall progress
+      weight: 45, // Percentage weight of this migration in the overall progress
+      completed: false,
+      attempts: 0
+    },
+    {
+      name: 'Organization Join Request Table',
+      sql: organizationJoinRequestTableSQL,
+      weight: 45, // Percentage weight of this migration in the overall progress
       completed: false,
       attempts: 0
     }

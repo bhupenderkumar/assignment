@@ -48,6 +48,7 @@ export interface InteractiveAssignment {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+  organizationId?: string; // ID of the organization this assignment belongs to
   audioInstructions?: string; // URL to audio file with instructions
   difficultyLevel?: 'beginner' | 'intermediate' | 'advanced';
   estimatedTimeMinutes?: number;
@@ -57,6 +58,14 @@ export interface InteractiveAssignment {
   requiresHelp?: boolean;
   shareableLink?: string;
   shareableLinkExpiresAt?: Date;
+  category?: string; // Category for filtering in gallery
+  topic?: string; // Topic for filtering in gallery
+  featured?: boolean; // Whether this assignment is featured in the gallery
+  viewCount?: number; // Number of times this assignment has been viewed
+  averageRating?: number; // Average rating (1-5)
+  ratingCount?: number; // Number of ratings
+  isTemplate?: boolean; // Whether this assignment is a template/blueprint in the gallery
+  sourceAssignmentId?: string; // ID of the original assignment if this is an imported copy
   questions?: InteractiveQuestion[];
   attachments?: FileAttachment[];
 }
@@ -194,4 +203,17 @@ export interface UserProgress {
   attempts: number;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
   feedback?: string;
+}
+
+// Rating and review interface
+export interface RatingReview {
+  id: string;
+  assignmentId: string;
+  userId: string;
+  organizationId?: string; // Organization context for the rating
+  rating: number; // 1-5 stars
+  reviewText?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  userName?: string; // Display name of the reviewer
 }

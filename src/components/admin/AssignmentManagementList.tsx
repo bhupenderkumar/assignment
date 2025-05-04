@@ -12,11 +12,13 @@ interface AssignmentManagementListProps {
 }
 
 const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListProps) => {
-  const { assignments, loading, error, fetchAssignments, deleteAssignment } = useInteractiveAssignment();
+  const { assignments, loading, error, fetchAssignments, deleteAssignment, deleteMultipleAssignments } = useInteractiveAssignment();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const navigate = useNavigate();
 
   // Track if component is mounted to prevent state updates after unmount
@@ -42,7 +44,15 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
   }, [fetchAssignments, assignments.length, loading]);
 
   // Filter assignments based on search term, filter type, and status
+  // Also filter out template assignments that don't belong to the organization
   const filteredAssignments = assignments.filter(assignment => {
+    // First, filter out template assignments that don't belong to an organization
+    // These should only be shown in the gallery, not in the management list
+    if (assignment.isTemplate === true && !assignment.organizationId) {
+      return false;
+    }
+
+    // Then apply the user's filters
     const matchesSearch = assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       assignment.description.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -51,6 +61,12 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
 
     return matchesSearch && matchesType && matchesStatus;
   });
+
+  // Clear selected assignments when filters change
+  useEffect(() => {
+    setSelectedAssignments([]);
+    setConfirmBulkDelete(false);
+  }, [searchTerm, filterType, filterStatus]);
 
   // Get unique assignment types and statuses
   const assignmentTypes = [...new Set(assignments.map(a => a.type))];
@@ -68,6 +84,40 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
     } catch (error) {
       console.error('Error deleting assignment:', error);
       toast.error(`Failed to delete assignment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handle select all assignments
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // Select all filtered assignments
+      setSelectedAssignments(filteredAssignments.map(a => a.id));
+    } else {
+      // Deselect all
+      setSelectedAssignments([]);
+    }
+  };
+
+  // Handle select individual assignment
+  const handleSelectAssignment = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedAssignments(prev => [...prev, id]);
+    } else {
+      setSelectedAssignments(prev => prev.filter(assignmentId => assignmentId !== id));
+    }
+  };
+
+  // Handle delete selected assignments
+  const handleDeleteSelected = async () => {
+    if (selectedAssignments.length === 0) return;
+
+    try {
+      await deleteMultipleAssignments(selectedAssignments);
+      setSelectedAssignments([]);
+      setConfirmBulkDelete(false);
+    } catch (error) {
+      console.error('Error deleting assignments:', error);
+      toast.error(`Failed to delete assignments: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -98,7 +148,45 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
   return (
     <div>
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h2 className="text-xl font-bold mb-4">Assignments</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">Assignments</h2>
+
+          {/* Bulk Actions */}
+          {selectedAssignments.length > 0 && (
+            <div className="flex items-center">
+              <span className="mr-2 text-sm text-gray-600">
+                {selectedAssignments.length} selected
+              </span>
+              {confirmBulkDelete ? (
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-red-600">Delete {selectedAssignments.length} assignments?</span>
+                  <button
+                    onClick={handleDeleteSelected}
+                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    onClick={() => setConfirmBulkDelete(false)}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded text-sm"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmBulkDelete(true)}
+                  className="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm flex items-center"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Delete Selected
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Search and Filter */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -153,6 +241,16 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th scope="col" className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        checked={filteredAssignments.length > 0 && selectedAssignments.length === filteredAssignments.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </div>
+                  </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Title
                   </th>
@@ -179,8 +277,18 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="hover:bg-gray-50"
+                      className={`hover:bg-gray-50 ${selectedAssignments.includes(assignment.id) ? 'bg-blue-50' : ''}`}
                     >
+                      <td className="px-3 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            checked={selectedAssignments.includes(assignment.id)}
+                            onChange={(e) => handleSelectAssignment(assignment.id, e.target.checked)}
+                          />
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{assignment.title}</div>
                         <div className="text-sm text-gray-500 truncate max-w-xs">{assignment.description}</div>

@@ -1,15 +1,65 @@
 // src/components/pages/SharedAssignmentPage.tsx
-import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import PlaySharedAssignment from '../assignments/PlaySharedAssignment';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import toast from 'react-hot-toast';
 
 const SharedAssignmentPage = () => {
-  const { shareableLink } = useParams<{ shareableLink: string }>();
+  const { shareableLink: urlShareableLink } = useParams<{ shareableLink: string }>();
+  const [shareableLink, setShareableLink] = useState<string | undefined>(urlShareableLink);
+  const { isSupabaseLoading } = useSupabaseAuth();
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+
+  // Try to recover the shareable link from sessionStorage if it's not in the URL
+  useEffect(() => {
+    if (!urlShareableLink) {
+      const storedLink = sessionStorage.getItem('current_shareable_link');
+      if (storedLink) {
+        console.log('Recovered shareable link from sessionStorage:', storedLink);
+        setShareableLink(storedLink);
+      } else {
+        console.error('No shareable link in URL or sessionStorage');
+      }
+    } else {
+      setShareableLink(urlShareableLink);
+    }
+  }, [urlShareableLink]);
 
   // Set document title
   useEffect(() => {
     document.title = 'Interactive Assignment';
   }, []);
+
+  // Handle loading state
+  useEffect(() => {
+    if (!isSupabaseLoading) {
+      setIsLoading(false);
+    }
+  }, [isSupabaseLoading]);
+
+  // Handle invalid shareable link
+  useEffect(() => {
+    if (!shareableLink) {
+      toast.error('Invalid shareable link');
+      navigate('/');
+    } else {
+      // Log the shareable link for debugging
+      console.log('SharedAssignmentPage received shareable link:', shareableLink);
+
+      // Store the current shareable link in sessionStorage to help with page refreshes
+      sessionStorage.setItem('current_shareable_link', shareableLink);
+    }
+  }, [shareableLink, navigate]);
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-6 flex justify-center items-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-6">

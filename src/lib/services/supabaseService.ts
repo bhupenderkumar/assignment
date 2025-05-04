@@ -44,18 +44,7 @@ export class SupabaseService {
   async getClient(): Promise<SupabaseClient> {
     if (!this.client) {
       this.client = await getSupabaseClient(this.user);
-
-      // Test the connection
-      try {
-        // Try a simple query that doesn't depend on specific functions
-        await this.client.from('_pgsql_reserved_dummy').select('*').limit(1).maybeSingle();
-        console.log('Supabase connection test completed');
-      } catch (e) {
-        // This error is expected (table doesn't exist), but we just want to test the connection
-        if (e.code !== 'PGRST116') {
-          console.warn('Supabase connection test warning:', e.message);
-        }
-      }
+      // No need to test connection here - it's already tested in getSupabaseClient
     }
     return this.client;
   }
@@ -222,6 +211,10 @@ export class SupabaseService {
 
 // Global singleton Supabase client instance
 let _supabaseClientInstance: SupabaseClient | null = null;
+// Flag to track if initialization is in progress
+let _initializationInProgress = false;
+// Promise for initialization
+let _initializationPromise: Promise<SupabaseClient> | null = null;
 
 /**
  * Creates and returns a Supabase client (singleton pattern)
@@ -235,29 +228,55 @@ export const getSupabaseClient = async (user: User | null): Promise<SupabaseClie
     return _supabaseClientInstance;
   }
 
-  // Validate configuration
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase configuration is missing. Check your environment variables.');
+  // If initialization is already in progress, return the promise
+  if (_initializationInProgress && _initializationPromise) {
+    console.log('Supabase client initialization already in progress, waiting for it to complete');
+    return _initializationPromise;
   }
 
-  // Create client if it doesn't exist
-  console.log('Creating new Supabase client instance');
-  _supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey);
+  // Set flag to prevent multiple initializations
+  _initializationInProgress = true;
 
-  // Test the connection before setting the ready flag
-  try {
-    console.log('Testing Supabase connection...');
-    await _supabaseClientInstance.from('_pgsql_reserved_dummy').select('*').limit(1).maybeSingle();
-    console.log('Supabase connection test completed');
+  // Create a promise for the initialization
+  _initializationPromise = (async () => {
+    try {
+      // Validate configuration
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase configuration is missing. Check your environment variables.');
+      }
 
-    // Don't set the ready flag here - let SupabaseAuthContext handle it
-    // This prevents race conditions where the flag is set before full initialization
-  } catch (e) {
-    // This error is expected (table doesn't exist), but we just want to test the connection
-    console.log('Supabase connection test completed with expected error');
-  }
+      // Create client if it doesn't exist
+      console.log('Creating new Supabase client instance');
+      _supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey);
 
-  return _supabaseClientInstance;
+      // We'll test the connection with a more reliable method
+      try {
+        console.log('Testing Supabase connection...');
+        // Use a more reliable method to test connection - auth.getSession() always exists
+        await _supabaseClientInstance.auth.getSession();
+        console.log('Supabase connection test completed');
+
+        // Don't set the ready flag here - let SupabaseAuthContext handle it
+        // This prevents race conditions where the flag is set before full initialization
+      } catch (e) {
+        console.error('Supabase connection test failed:', e);
+        // Even if this fails, we'll continue and let the app handle reconnection
+      }
+
+      return _supabaseClientInstance;
+    } catch (error) {
+      console.error('Error initializing Supabase client:', error);
+      // Reset flags so we can try again
+      _initializationInProgress = false;
+      _initializationPromise = null;
+      throw error;
+    } finally {
+      // Reset the initialization flag
+      _initializationInProgress = false;
+    }
+  })();
+
+  return _initializationPromise;
 };
 
 // Singleton instance

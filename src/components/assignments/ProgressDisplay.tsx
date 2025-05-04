@@ -16,14 +16,14 @@ const ProgressDisplay = ({
 }: ProgressDisplayProps) => {
   // Calculate progress percentage
   const progressPercentage = Math.round((currentQuestion / totalQuestions) * 100);
-  
+
   // Format time spent
   const formatTimeSpent = (seconds?: number) => {
     if (!seconds) return '00:00';
-    
+
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    
+
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
@@ -36,14 +36,14 @@ const ProgressDisplay = ({
             Question {currentQuestion} of {totalQuestions}
           </p>
         </div>
-        
+
         {score !== undefined && (
           <div className="mb-2 md:mb-0 text-center">
             <h3 className="text-lg font-bold">Score</h3>
-            <p className="text-blue-600 font-bold">{score}%</p>
+            <p className="text-blue-600 font-bold">{score !== null ? score : 0}%</p>
           </div>
         )}
-        
+
         {timeSpent !== undefined && (
           <div className="mb-2 md:mb-0 text-center">
             <h3 className="text-lg font-bold">Time</h3>
@@ -51,7 +51,7 @@ const ProgressDisplay = ({
           </div>
         )}
       </div>
-      
+
       <div className="mt-3">
         <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
           <motion.div

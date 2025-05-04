@@ -6,8 +6,13 @@ import SharedAssignmentPage from './pages/SharedAssignmentPage';
 import PlayAssignmentPage from './pages/PlayAssignmentPage';
 import AdminDashboard from './admin/AdminDashboard';
 import HomePage from './pages/HomePage';
+import LandingPage from './pages/LandingPage';
 import UserDashboardPage from './pages/UserDashboardPage';
-import OrganizationManagementPage from './pages/OrganizationManagementPage';
+import AssignmentGalleryPage from './pages/AssignmentGalleryPage';
+import OrganizationManagementPage from '../pages/OrganizationManagementPage';
+import OrganizationSettingsPage from '../pages/OrganizationSettingsPage';
+import JoinOrganizationPage from '../pages/JoinOrganizationPage';
+import SettingsPage from '../pages/settings';
 import HelpCenter from './pages/HelpCenter';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
@@ -47,9 +52,19 @@ const AppRouter = () => {
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/" element={<Layout><HomePage /></Layout>} />
+      <Route path="/" element={<Layout><LandingPage /></Layout>} />
+      <Route path="/home" element={<Layout><HomePage /></Layout>} />
       <Route path="/play/share/:shareableLink" element={<Layout hideNavigation><SharedAssignmentPage /></Layout>} />
       <Route path="/play/assignment/:assignmentId" element={<Layout hideNavigation><PlayAssignmentPage /></Layout>} />
+      <Route path="/gallery" element={
+        <Layout>
+          <InteractiveAssignmentProvider>
+            <OrganizationProvider>
+              <AssignmentGalleryPage />
+            </OrganizationProvider>
+          </InteractiveAssignmentProvider>
+        </Layout>
+      } />
       <Route path="/help" element={<Layout><HelpCenter /></Layout>} />
       <Route path="/privacy" element={<Layout><PrivacyPolicy /></Layout>} />
       <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
@@ -98,7 +113,7 @@ const AppRouter = () => {
         }
       />
 
-      {/* Organization management route */}
+      {/* Organization routes */}
       <Route
         path="/organizations"
         element={
@@ -107,6 +122,70 @@ const AppRouter = () => {
               <OrganizationProvider>
                 <OrganizationManagementPage />
               </OrganizationProvider>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/organizations/:organizationId"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <OrganizationProvider>
+                <OrganizationManagementPage />
+              </OrganizationProvider>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Organization invitation route */}
+      <Route
+        path="/join-organization"
+        element={
+          <JoinOrganizationPage />
+        }
+      />
+
+      {/* British spelling redirect for organization */}
+      <Route
+        path="/organisation"
+        element={<Navigate to="/organizations" replace />}
+      />
+
+      {/* British spelling redirect for organization with ID */}
+      <Route
+        path="/organisation/:organizationId"
+        element={
+          <Navigate
+            to={location => `/organizations/${location.pathname.split('/').pop()}`}
+            replace
+          />
+        }
+      />
+
+      {/* Organization settings route */}
+      <Route
+        path="/organization-settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <OrganizationProvider>
+                <OrganizationSettingsPage />
+              </OrganizationProvider>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Settings route */}
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <SettingsPage />
             </Layout>
           </ProtectedRoute>
         }

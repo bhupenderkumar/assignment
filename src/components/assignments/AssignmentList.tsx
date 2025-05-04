@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 
 interface AssignmentListProps {
@@ -13,18 +14,22 @@ interface AssignmentListProps {
 const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
   const { assignments, loading, error, fetchAssignments } = useInteractiveAssignment();
   const { isReady: isDatabaseReady, executeWhenReady } = useDatabaseState();
+  const { isAuthenticated } = useSupabaseAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Fetch assignments on mount, but only when database is ready
+  // Fetch assignments on mount, but only when database is ready, user is authenticated, and we don't already have assignments
   useEffect(() => {
     console.log('AssignmentList mounted, current assignments:', assignments.length);
     console.log('Database ready status:', isDatabaseReady);
+    console.log('Authentication status:', isAuthenticated);
 
-    if (isDatabaseReady) {
+    // Only fetch if database is ready, user is authenticated, AND we don't already have assignments
+    // This prevents multiple fetches during initialization and fetching when not authenticated
+    if (isDatabaseReady && isAuthenticated && assignments.length === 0 && !loading) {
       setLocalLoading(true);
 
       // Use executeWhenReady to ensure database operations are queued if needed
@@ -42,11 +47,25 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
             setLocalLoading(false);
           });
       });
+    } else if (assignments.length > 0) {
+      // We already have assignments, no need to fetch
+      console.log('AssignmentList: Already have assignments, skipping fetch');
+    } else if (!isAuthenticated) {
+      // User is not authenticated, no need to fetch
+      console.log('AssignmentList: User not authenticated, skipping fetch');
     }
-  }, [fetchAssignments, isDatabaseReady, executeWhenReady]);
+  }, [fetchAssignments, isDatabaseReady, executeWhenReady, assignments.length, loading, isAuthenticated]);
 
   // Filter assignments based on search term and filter type
+  // Also filter out template assignments that don't belong to the organization
   const filteredAssignments = assignments.filter(assignment => {
+    // First, filter out template assignments that don't belong to an organization
+    // These should only be shown in the gallery, not in the assignment list
+    if (assignment.isTemplate === true && !assignment.organizationId) {
+      return false;
+    }
+
+    // Then apply the user's filters
     const matchesSearch = assignment.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       assignment.description.toLowerCase().includes(searchTerm.toLowerCase());
 

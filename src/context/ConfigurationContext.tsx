@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 
 // Define the configuration type
 export interface AppConfiguration {
@@ -30,9 +30,9 @@ const defaultConfiguration: AppConfiguration = {
   companyTagline: 'EXPLORE · LEARN · MASTER',
   companyLogo: 'star', // Default icon key (we'll use a switch statement to render the right icon)
 
-  primaryColor: '#0891b2', // cyan-600
-  secondaryColor: '#7e22ce', // purple-700
-  accentColor: '#06b6d4', // cyan-500
+  primaryColor: '#10b981', // emerald-500
+  secondaryColor: '#8b5cf6', // violet-500
+  accentColor: '#f59e0b', // amber-500
 
   darkMode: false, // Changed to false for better readability
   animationsEnabled: true,
@@ -92,8 +92,8 @@ export const ConfigurationProvider: React.FC<ConfigurationProviderProps> = ({
 
   const [config, setConfig] = useState<AppConfiguration>(loadSavedConfig);
 
-  // Update configuration
-  const updateConfig = (newConfig: Partial<AppConfiguration>) => {
+  // Update configuration - memoized with useCallback to prevent infinite loops
+  const updateConfig = useCallback((newConfig: Partial<AppConfiguration>) => {
     setConfig(prevConfig => {
       const updatedConfig = { ...prevConfig, ...newConfig };
       // Save to localStorage
@@ -104,17 +104,17 @@ export const ConfigurationProvider: React.FC<ConfigurationProviderProps> = ({
       }
       return updatedConfig;
     });
-  };
+  }, []);
 
-  // Reset to default
-  const resetConfig = () => {
+  // Reset to default - also memoized with useCallback
+  const resetConfig = useCallback(() => {
     setConfig(defaultConfiguration);
     try {
       localStorage.removeItem('appConfiguration');
     } catch (error) {
       console.error('Failed to reset configuration:', error);
     }
-  };
+  }, []);
 
   // Apply CSS variables for theme colors
   useEffect(() => {

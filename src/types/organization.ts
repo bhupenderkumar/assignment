@@ -11,7 +11,7 @@ export interface Organization {
   primaryColor?: string;
   secondaryColor?: string;
   headerText?: string;
-  signatureUrl: string;
+  signatureUrl?: string;
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
@@ -63,4 +63,45 @@ export interface OrganizationUpdateInput {
   secondaryColor?: string;
   headerText?: string;
   signatureUrl?: string;
+}
+
+/**
+ * Organization invitation
+ */
+export interface OrganizationInvitation {
+  id: string;
+  organizationId: string;
+  email: string;
+  role: OrganizationRole;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'EXPIRED';
+  invitedBy: string;
+  createdAt: Date;
+  expiresAt: Date;
+  acceptedAt?: Date;
+}
+
+/**
+ * Organization join request status
+ */
+export type OrganizationJoinRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/**
+ * Organization join request
+ */
+export interface OrganizationJoinRequest {
+  id: string;
+  organizationId: string;
+  userId: string;
+  status: OrganizationJoinRequestStatus;
+  requestMessage?: string;
+  responseMessage?: string;
+  requestedAt: Date;
+  respondedAt?: Date;
+  respondedBy?: string;
+
+  // Additional fields for UI display
+  organizationName?: string;
+  organizationLogo?: string;
+  userName?: string;
+  userEmail?: string;
 }

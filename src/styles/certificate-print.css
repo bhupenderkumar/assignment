@@ -32,6 +32,29 @@
   }
 }
 
+/* Responsive certificate container */
+.certificate-container {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .certificate-content {
+    padding: 1rem 0.5rem !important;
+    margin-top: 4rem;
+  }
+
+  .certificate-container {
+    transform-origin: top center;
+  }
+}
+
 /* Standalone certificate page styles */
 .standalone-certificate-page {
   min-height: 100vh;

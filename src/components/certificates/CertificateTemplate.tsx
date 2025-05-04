@@ -27,6 +27,38 @@ const CertificateTemplate = ({
   const { currentOrganization } = useOrganization();
   const [sealImage, setSealImage] = useState<HTMLImageElement | null>(null);
   const [signatureImage, setSignatureImage] = useState<HTMLImageElement | null>(null);
+  const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
+  const [stageSize, setStageSize] = useState({ width, height });
+
+  // Make certificate responsive
+  useEffect(() => {
+    const updateDimensions = () => {
+      const container = document.querySelector('.certificate-container');
+      if (container) {
+        const containerWidth = container.clientWidth;
+        // If on mobile or small screen, scale down proportionally
+        if (containerWidth < width) {
+          const scale = containerWidth / width;
+          setStageSize({
+            width: containerWidth,
+            height: height * scale
+          });
+        } else {
+          setStageSize({ width, height });
+        }
+      }
+    };
+
+    // Initial update
+    updateDimensions();
+
+    // Update on resize
+    window.addEventListener('resize', updateDimensions);
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+    };
+  }, [width, height]);
 
   // Format date
   const formatDate = (date?: Date) => {
@@ -82,18 +114,46 @@ const CertificateTemplate = ({
     }
   }, [currentOrganization]);
 
+  // Load organization logo if available
+  useEffect(() => {
+    if (currentOrganization?.logoUrl) {
+      const image = new window.Image();
+      image.src = currentOrganization.logoUrl;
+      image.onload = () => {
+        setLogoImage(image);
+      };
+      image.onerror = () => {
+        console.log('Error loading organization logo');
+      };
+    }
+  }, [currentOrganization]);
+
   // Export certificate as image
   useEffect(() => {
-    if (stageRef.current && onExport && sealImage) {
+    if (stageRef.current && onExport) {
       // Add a small delay to ensure the stage is fully rendered
       const timer = setTimeout(() => {
-        const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 });
-        onExport(dataUrl);
-      }, 300);
+        try {
+          // Always export at full resolution regardless of screen size
+          const dataUrl = stageRef.current.toDataURL({
+            pixelRatio: 2,
+            width: width,
+            height: height,
+            x: 0,
+            y: 0
+          });
+          console.log('Certificate image generated successfully');
+          onExport(dataUrl);
+        } catch (error) {
+          console.error('Error generating certificate image:', error);
+          // Still call onExport with null to indicate failure but allow UI to update
+          onExport('');
+        }
+      }, 1000); // Increased delay to ensure all elements are loaded
 
       return () => clearTimeout(timer);
     }
-  }, [sealImage, signatureImage, onExport]);
+  }, [stageRef, onExport, width, height]);
 
   // Convert hex to RGB
   const hexToRgb = (hex: string) => {
@@ -112,11 +172,15 @@ const CertificateTemplate = ({
   };
 
   return (
-    <div className="certificate-container">
+    <div className="certificate-container w-full overflow-hidden">
       <Stage
-        width={width}
-        height={height}
+        width={stageSize.width}
+        height={stageSize.height}
         ref={stageRef}
+        scale={{
+          x: stageSize.width / width,
+          y: stageSize.height / height
+        }}
       >
         <Layer>
           {/* Background with subtle gradient */}
@@ -164,10 +228,37 @@ const CertificateTemplate = ({
             cornerRadius={5}
           />
 
-          {/* Certificate Header with shadow effect */}
+          {/* Organization Logo */}
+          {logoImage && (
+            <Group x={width / 2} y={60}>
+              <Image
+                image={logoImage}
+                width={80}
+                height={80}
+                offsetX={40}
+                offsetY={40}
+              />
+            </Group>
+          )}
+
+          {/* Organization Name */}
           <Text
             x={width / 2}
-            y={80}
+            y={logoImage ? 110 : 70}
+            text={currentOrganization?.name || "Interactive Learning"}
+            fontSize={24}
+            fontStyle="bold"
+            fill={config.secondaryColor}
+            align="center"
+            width={width}
+            offsetX={width / 2}
+            fontFamily="Arial, sans-serif"
+          />
+
+          {/* Certificate Header with shadow effect - Repositioned for better visibility */}
+          <Text
+            x={width / 2}
+            y={logoImage ? 160 : 120}
             text="Certificate of Achievement"
             fontSize={38}
             fontStyle="bold"
@@ -181,8 +272,8 @@ const CertificateTemplate = ({
             fontFamily="Arial, sans-serif"
           />
 
-          {/* Achievement Type with decorative elements */}
-          <Group>
+          {/* Achievement Type with decorative elements - Moved below the title with proper spacing */}
+          <Group y={logoImage ? 90 : 60}>
             <Line
               points={[width / 2 - 120, 125, width / 2 - 20, 125]}
               stroke={rgba(config.secondaryColor, 0.5)}
@@ -209,10 +300,10 @@ const CertificateTemplate = ({
             />
           </Group>
 
-          {/* Decorative line with gradient */}
+          {/* Decorative line with gradient - Further adjusted position */}
           <Rect
             x={width / 2 - 150}
-            y={155}
+            y={logoImage ? 225 : 195}
             width={300}
             height={3}
             fillLinearGradientStartPoint={{ x: 0, y: 0 }}
@@ -225,10 +316,10 @@ const CertificateTemplate = ({
             cornerRadius={1.5}
           />
 
-          {/* Certificate Body */}
+          {/* Certificate Body - Further increased spacing */}
           <Text
             x={width / 2}
-            y={185}
+            y={logoImage ? 255 : 225}
             text="This certificate is proudly presented to"
             fontSize={18}
             align="center"
@@ -239,7 +330,7 @@ const CertificateTemplate = ({
 
           <Text
             x={width / 2}
-            y={225}
+            y={currentOrganization?.logoUrl ? 295 : 265}
             text={username || 'Dedicated Learner'}
             fontSize={30}
             fontStyle="bold"
@@ -255,7 +346,7 @@ const CertificateTemplate = ({
 
           {/* Decorative underline for name */}
           <Line
-            points={[width / 2 - 150, 245, width / 2 + 150, 245]}
+            points={[width / 2 - 150, currentOrganization?.logoUrl ? 315 : 285, width / 2 + 150, currentOrganization?.logoUrl ? 315 : 285]}
             stroke={rgba(config.secondaryColor, 0.3)}
             strokeWidth={1}
             dash={[1, 2]}
@@ -263,7 +354,7 @@ const CertificateTemplate = ({
 
           <Text
             x={width / 2}
-            y={275}
+            y={currentOrganization?.logoUrl ? 345 : 315}
             text="for successfully completing"
             fontSize={18}
             align="center"
@@ -274,7 +365,7 @@ const CertificateTemplate = ({
 
           <Text
             x={width / 2}
-            y={315}
+            y={currentOrganization?.logoUrl ? 385 : 355}
             text={assignmentTitle || 'Interactive Assignment'}
             fontSize={26}
             fontStyle="bold"
@@ -288,8 +379,8 @@ const CertificateTemplate = ({
             shadowOffset={{ x: 1, y: 1 }}
           />
 
-          {/* Assignment details in a decorative box */}
-          <Group>
+          {/* Assignment details in a decorative box - Further adjusted position */}
+          <Group y={currentOrganization?.logoUrl ? 70 : 40}>
             <Rect
               x={width / 2 - 150}
               y={345}
@@ -324,10 +415,26 @@ const CertificateTemplate = ({
             />
           </Group>
 
-          {/* Score section with improved layout - positioned lower */}
-          <Group>
+          {/* Organization Type - Adjusted position */}
+          {currentOrganization?.type && (
+            <Group x={width / 2} y={logoImage ? 470 : 440}>
+              <Text
+                text={`Issued by: ${currentOrganization.type.charAt(0).toUpperCase() + currentOrganization.type.slice(1)}`}
+                fontSize={16}
+                fontStyle="italic"
+                fill={config.secondaryColor}
+                align="center"
+                width={width}
+                offsetX={width / 2}
+                fontFamily="Georgia, serif"
+              />
+            </Group>
+          )}
+
+          {/* Score section with improved layout - Repositioned with better spacing */}
+          <Group y={logoImage ? 40 : 20}>
             {/* Score label and value in a horizontal layout */}
-            <Group x={width / 2 - 150} y={470}>
+            <Group x={width / 2 - 150} y={490}>
               <Text
                 text="With a score of:"
                 fontSize={20}
@@ -340,7 +447,7 @@ const CertificateTemplate = ({
             </Group>
 
             {/* Score Circle with decorative elements */}
-            <Group x={width / 2 + 80} y={470}>
+            <Group x={width / 2 + 80} y={490}>
               {/* Outer decorative circle */}
               <Circle
                 radius={45}
@@ -374,31 +481,41 @@ const CertificateTemplate = ({
 
             {/* Decorative line connecting the elements */}
             <Line
-              points={[width / 2 - 140, 490, width / 2 + 140, 490]}
+              points={[width / 2 - 140, 510, width / 2 + 140, 510]}
               stroke={rgba(config.accentColor, 0.2)}
               strokeWidth={1}
               dash={[3, 3]}
             />
           </Group>
 
-          {/* Certificate Footer with improved styling - moved up to avoid touching bottom */}
-          <Group x={120} y={height - 100}>
+          {/* Certificate Footer - Properly spaced and positioned */}
+          <Group x={120} y={height - 120}>
             <Line
               points={[0, 0, 120, 0]}
               stroke={rgba(config.primaryColor, 0.5)}
               strokeWidth={1}
             />
             <Text
-              y={10}
+              y={15}
               text={`Date: ${formatDate(submission.submittedAt)}`}
               fontSize={14}
               fill="#555"
               fontFamily="Georgia, serif"
             />
+            {currentOrganization?.headerText && (
+              <Text
+                y={35}
+                text={currentOrganization.headerText}
+                fontSize={12}
+                fill="#777"
+                fontFamily="Georgia, serif"
+                fontStyle="italic"
+              />
+            )}
           </Group>
 
-          {/* Certificate ID with improved seal - moved up */}
-          <Group x={width / 2} y={height - 100}>
+          {/* Certificate ID with improved seal - Better positioned */}
+          <Group x={width / 2} y={height - 120}>
             {sealImage && (
               <Group>
                 {/* Background glow for seal */}
@@ -406,20 +523,20 @@ const CertificateTemplate = ({
                   radius={30}
                   fill={rgba(config.primaryColor, 0.1)}
                   x={0}
-                  y={-15}
+                  y={-30}
                 />
                 <Image
                   image={sealImage}
                   width={50}
                   height={50}
                   offsetX={25}
-                  offsetY={-15}
+                  offsetY={-30}
                   opacity={0.9}
                 />
               </Group>
             )}
             <Text
-              y={10}
+              y={15}
               text={`Certificate ID: ${certificateId}`}
               fontSize={14}
               fill="#555"
@@ -430,8 +547,8 @@ const CertificateTemplate = ({
             />
           </Group>
 
-          {/* Organization signature - moved up and adjusted to stay within boundaries */}
-          <Group x={width - 180} y={height - 100}>
+          {/* Organization signature - Repositioned with signature above text */}
+          <Group x={width - 180} y={height - 120}>
             <Line
               points={[-80, 0, 0, 0]}
               stroke={rgba(config.primaryColor, 0.5)}
@@ -439,34 +556,61 @@ const CertificateTemplate = ({
             />
             {signatureImage ? (
               <Group>
+                {/* Signature image positioned above the text */}
                 <Image
                   image={signatureImage}
                   width={100}
                   height={40}
                   offsetX={50}
-                  offsetY={-20}
+                  offsetY={-40}
                   opacity={0.9}
                 />
+                {/* Text positioned below the signature */}
                 <Text
-                  y={10}
+                  y={15}
                   text={currentOrganization?.name || "Instructor Signature"}
                   fontSize={13}
                   fill="#555"
                   align="right"
-                  width={80}
+                  width={120}
                   fontFamily="Georgia, serif"
                 />
               </Group>
             ) : (
-              <Text
-                y={10}
-                text="Instructor Signature"
-                fontSize={13}
-                fill="#555"
-                align="right"
-                width={80}
-                fontFamily="Georgia, serif"
-              />
+              <Group>
+                {/* Simulated signature positioned above the text */}
+                <Text
+                  y={-40}
+                  text="✓ Verified"
+                  fontSize={18}
+                  fontStyle="italic"
+                  fill={config.primaryColor}
+                  align="right"
+                  width={120}
+                  fontFamily="Brush Script MT, cursive"
+                />
+                {/* Organization name */}
+                <Text
+                  y={-15}
+                  text={currentOrganization?.name || "Organization"}
+                  fontSize={14}
+                  fontStyle="bold"
+                  fill="#555"
+                  align="right"
+                  width={120}
+                  fontFamily="Georgia, serif"
+                />
+                {/* Signature text */}
+                <Text
+                  y={15}
+                  text="Instructor Signature"
+                  fontSize={13}
+                  fill="#555"
+                  align="right"
+                  width={120}
+                  fontFamily="Georgia, serif"
+                />
+              </Group>
             )}
           </Group>
 

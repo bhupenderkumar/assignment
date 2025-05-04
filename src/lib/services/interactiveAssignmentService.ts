@@ -249,7 +249,59 @@ export const interactiveAssignmentService = {
       if (fetchError) throw fetchError;
       if (!existingData) throw new Error(`Assignment with ID ${id} not found`);
 
-      // Delete related questions first (due to foreign key constraints)
+      // Delete user progress records first (due to foreign key constraints)
+      try {
+        const { error: progressError } = await supabase
+          .from('user_progress')
+          .delete()
+          .eq('assignment_id', id);
+
+        if (progressError) {
+          console.warn(`Error deleting user progress for assignment ${id}:`, progressError);
+          // Continue anyway - the CASCADE constraint should handle it if migration was run
+        }
+      } catch (progressError) {
+        console.warn(`Error deleting user progress for assignment ${id}:`, progressError);
+        // Continue anyway - the CASCADE constraint should handle it if migration was run
+      }
+
+      // Delete related submissions and responses
+      try {
+        // Get all submissions for this assignment
+        const { data: submissions } = await supabase
+          .from('interactive_submission')
+          .select('id')
+          .eq('assignment_id', id);
+
+        if (submissions && submissions.length > 0) {
+          // For each submission, delete its responses
+          for (const submission of submissions) {
+            const { error: responseError } = await supabase
+              .from('interactive_response')
+              .delete()
+              .eq('submission_id', submission.id);
+
+            if (responseError) {
+              console.warn(`Error deleting responses for submission ${submission.id}:`, responseError);
+            }
+          }
+
+          // Delete all submissions
+          const { error: submissionsError } = await supabase
+            .from('interactive_submission')
+            .delete()
+            .eq('assignment_id', id);
+
+          if (submissionsError) {
+            console.warn(`Error deleting submissions for assignment ${id}:`, submissionsError);
+          }
+        }
+      } catch (submissionError) {
+        console.warn(`Error handling submissions for assignment ${id}:`, submissionError);
+        // Continue anyway
+      }
+
+      // Delete related questions
       const { error: questionsError } = await supabase
         .from('interactive_question')
         .delete()
@@ -263,7 +315,16 @@ export const interactiveAssignmentService = {
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        // Check for foreign key constraint error
+        if (error.message && (
+            error.message.includes('violates foreign key constraint') ||
+            error.message.includes('user_progress_assignment_id_fkey')
+        )) {
+          throw new Error('Cannot delete this assignment because it has user progress records. Please run the database migration to fix this issue.');
+        }
+        throw error;
+      }
 
       // Verify the deletion
       const { data: checkData, error: checkError } = await supabase

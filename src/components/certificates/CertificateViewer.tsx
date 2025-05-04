@@ -14,6 +14,7 @@ interface CertificateViewerProps {
 const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
   const [downloading, setDownloading] = useState(false);
   const [certificateDataUrl, setCertificateDataUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(true);
   const { config } = useConfiguration();
   const navigate = useNavigate();
   const componentMounted = useRef(true);
@@ -27,7 +28,14 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
 
   // Handle export from Konva
   const handleExport = (dataUrl: string) => {
-    setCertificateDataUrl(dataUrl);
+    setIsGenerating(false);
+    setCertificateDataUrl(dataUrl || null);
+
+    if (dataUrl) {
+      console.log('Certificate image received in viewer');
+    } else {
+      console.warn('Failed to generate certificate image');
+    }
   };
 
   // Handle download as image
@@ -150,14 +158,20 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
             <div className="flex space-x-2">
               <button
                 onClick={handleDownloadImage}
-                disabled={downloading || !certificateDataUrl}
+                disabled={downloading || !certificateDataUrl || isGenerating}
                 className="px-4 py-2 rounded-lg text-white font-medium flex items-center space-x-1 transition-all duration-300 disabled:opacity-50 shadow-sm hover:shadow-md"
                 style={{ backgroundColor: config.secondaryColor }}
+                title={isGenerating ? "Certificate is being generated..." : !certificateDataUrl ? "Certificate generation failed" : "Download certificate as image"}
               >
                 {downloading ? (
                   <>
                     <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
                     <span>Downloading...</span>
+                  </>
+                ) : isGenerating ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                    <span>Generating...</span>
                   </>
                 ) : (
                   <>
@@ -180,13 +194,23 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
               </button>
               <button
                 onClick={handlePrint}
-                disabled={!certificateDataUrl}
+                disabled={!certificateDataUrl || isGenerating}
                 className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 font-medium flex items-center space-x-1 hover:bg-gray-200 transition-all duration-300 disabled:opacity-50 shadow-sm hover:shadow-md border border-gray-200"
+                title={isGenerating ? "Certificate is being generated..." : !certificateDataUrl ? "Certificate generation failed" : "Print certificate"}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                </svg>
-                <span>Print</span>
+                {isGenerating ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-gray-800 border-t-transparent rounded-full mr-2"></span>
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>Print</span>
+                  </>
+                )}
               </button>
               <button
                 onClick={onClose}

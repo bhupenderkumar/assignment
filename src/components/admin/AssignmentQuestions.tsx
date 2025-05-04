@@ -12,7 +12,15 @@ interface AssignmentQuestionsProps {
 }
 
 const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuestionsProps) => {
-  const { createQuestion, updateQuestion, deleteQuestion, fetchAssignmentById } = useInteractiveAssignment();
+  const {
+    createQuestion,
+    updateQuestion,
+    deleteQuestion,
+    fetchAssignmentById,
+    showProgress,
+    updateProgress,
+    hideProgress
+  } = useInteractiveAssignment();
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<InteractiveQuestion | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,8 +124,15 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
   const handleDeleteQuestion = async (questionId: string) => {
     if (!confirm('Are you sure you want to delete this question?')) return;
 
+    // Show loading progress
+    showProgress('Deleting question...');
+    updateProgress(10, 'Preparing to delete question...');
+    setIsLoading(true);
+
     try {
+      updateProgress(30, 'Deleting question...');
       await deleteQuestion(questionId);
+      updateProgress(70, 'Question deleted successfully');
 
       // Update local state
       setLocalQuestions(prev => prev.filter(q => q.id !== questionId));
@@ -125,10 +140,18 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
       toast.success('Question deleted successfully');
 
       // Refresh assignment data
+      updateProgress(80, 'Refreshing assignment data...');
       await refreshAssignmentData();
+
+      updateProgress(100, 'Complete');
+      setTimeout(() => hideProgress(), 500);
     } catch (error) {
       console.error('Error deleting question:', error);
       toast.error('Failed to delete question');
+      updateProgress(100, 'Failed to delete question');
+      setTimeout(() => hideProgress(), 1000);
+    } finally {
+      setIsLoading(false);
     }
   };
 

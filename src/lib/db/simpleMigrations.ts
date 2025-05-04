@@ -1,6 +1,7 @@
 // src/lib/db/simpleMigrations.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import { runOrganizationMigration } from './migrations/organizationMigration';
+import { assignmentRlsSQL } from './migrations/assignmentRlsMigration';
 
 // Define a type for migration progress callbacks
 export type MigrationProgressCallback = (progress: number, status: string) => void;
@@ -57,15 +58,51 @@ export const runMigrations = async (
       const orgMigrationSuccess = await runOrganizationMigration(supabase);
       if (orgMigrationSuccess) {
         console.log('Organization migration completed successfully');
-        updateProgress(70, 'Organization tables created');
+        updateProgress(60, 'Organization tables created');
       } else {
         console.warn('Organization migration failed, but we can continue');
-        updateProgress(50, 'Organization migration failed');
+        updateProgress(40, 'Organization migration failed');
       }
     } catch (error) {
       console.error('Error running organization migration:', error);
       // Continue anyway - we can still use the application without organization features
-      updateProgress(50, 'Organization migration failed');
+      updateProgress(40, 'Organization migration failed');
+    }
+
+    // Run assignment RLS migration
+    updateProgress(70, 'Setting up assignment RLS policies');
+    try {
+      // First check if the exec_sql function exists by trying to call it with a simple query
+      try {
+        const testResult = await supabase.rpc('exec_sql', { sql: 'SELECT 1 as test' });
+
+        if (!testResult.error) {
+          // If the function exists, run the migration
+          const { error } = await supabase.rpc('exec_sql', { sql: assignmentRlsSQL });
+
+          if (error) {
+            console.warn('Assignment RLS migration failed, but we can continue:', error.message);
+            updateProgress(80, 'Assignment RLS migration failed');
+          } else {
+            console.log('Assignment RLS migration completed successfully');
+            updateProgress(90, 'Assignment RLS policies created');
+          }
+        } else {
+          // If the function doesn't exist, log a warning and continue
+          console.warn('exec_sql RPC function not available, skipping assignment RLS migration');
+          console.warn('Please run the assignment RLS migration SQL manually in the Supabase SQL editor');
+          updateProgress(80, 'Assignment RLS migration skipped');
+        }
+      } catch (testError) {
+        // If the test fails, the function doesn't exist
+        console.warn('exec_sql RPC function not available, skipping assignment RLS migration');
+        console.warn('Please run the assignment RLS migration SQL manually in the Supabase SQL editor');
+        updateProgress(80, 'Assignment RLS migration skipped');
+      }
+    } catch (error) {
+      console.error('Error running assignment RLS migration:', error);
+      // Continue anyway - we can still use the application without RLS features
+      updateProgress(80, 'Assignment RLS migration failed');
     }
 
     updateProgress(100, 'Database initialization completed');

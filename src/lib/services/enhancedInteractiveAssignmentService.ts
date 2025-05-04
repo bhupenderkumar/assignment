@@ -28,6 +28,7 @@ const mapRowToAssignment = (row: any): InteractiveAssignment => {
     createdBy: row.created_by,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
+    organizationId: row.organization_id, // Add organization ID
     audioInstructions: row.audio_instructions,
     difficultyLevel: row.difficulty_level,
     estimatedTimeMinutes: row.estimated_time_minutes,
@@ -37,6 +38,18 @@ const mapRowToAssignment = (row: any): InteractiveAssignment => {
     requiresHelp: row.requires_help,
     shareableLink: row.shareable_link,
     shareableLinkExpiresAt: row.shareable_link_expires_at ? new Date(row.shareable_link_expires_at) : undefined,
+    // Gallery fields
+    category: row.category,
+    topic: row.topic,
+    featured: row.featured || false,
+    viewCount: row.view_count || 0,
+    averageRating: row.average_rating || 0,
+    ratingCount: row.rating_count || 0,
+    // Template/import fields
+    isTemplate: row.is_template || false,
+    sourceAssignmentId: row.source_assignment_id,
+    questions: [],
+    attachments: row.attachments || [],
   };
 };
 
@@ -66,6 +79,7 @@ const mapAssignmentToRow = (assignment: Partial<InteractiveAssignment>) => {
     type: assignment.type,
     status: assignment.status,
     due_date: assignment.dueDate?.toISOString(),
+    organization_id: assignment.organizationId, // Add organization ID
     audio_instructions: assignment.audioInstructions,
     difficulty_level: assignment.difficultyLevel,
     estimated_time_minutes: assignment.estimatedTimeMinutes,
@@ -75,6 +89,14 @@ const mapAssignmentToRow = (assignment: Partial<InteractiveAssignment>) => {
     requires_help: assignment.requiresHelp,
     shareable_link: assignment.shareableLink,
     shareable_link_expires_at: assignment.shareableLinkExpiresAt?.toISOString(),
+    // Gallery fields
+    category: assignment.category,
+    topic: assignment.topic,
+    featured: assignment.featured,
+    view_count: assignment.viewCount,
+    // Template/import fields
+    is_template: assignment.isTemplate,
+    source_assignment_id: assignment.sourceAssignmentId,
   };
 };
 
@@ -100,17 +122,71 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
   async getAssignments(): Promise<InteractiveAssignment[]> {
     console.log('enhancedInteractiveAssignmentService.getAssignments called');
 
-    const data = await fetchData<any>(
-      'interactive_assignment',
-      (query) => query.select('*').order('created_at', { ascending: false }),
-      user
-    );
+    // For the gallery, we want to fetch all published assignments
+    // If user is authenticated, also fetch their organization's assignments
+    let query;
+
+    if (user) {
+      // First, get the user's organizations
+      const userOrgs = await fetchData<any>(
+        'user_organization',
+        (query) => query.select('organization_id'),
+        user
+      );
+
+      console.log('User organizations:', userOrgs.length);
+
+      // If user has organizations, include their organization's assignments
+      if (userOrgs.length > 0) {
+        const orgIds = userOrgs.map(org => org.organization_id);
+        console.log('Including assignments from organizations:', orgIds);
+
+        query = (q: any) => q
+          .select('*')
+          .or(`status.eq.PUBLISHED,organization_id.in.(${orgIds.join(',')})`)
+          .order('created_at', { ascending: false });
+      } else {
+        // If no organizations, get published assignments and user's own assignments
+        query = (q: any) => q
+          .select('*')
+          .or(`status.eq.PUBLISHED,created_by.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+      }
+    } else {
+      // If no user, just get published assignments
+      query = (q: any) => q
+        .select('*')
+        .eq('status', 'PUBLISHED')
+        .order('created_at', { ascending: false });
+    }
+
+    const data = await fetchData<any>('interactive_assignment', query, user);
 
     console.log('Assignments data received from Supabase:', data.length, 'records');
     const assignments = data.map(mapRowToAssignment);
     console.log('Mapped assignments data:', assignments.length, 'assignments');
 
-    return assignments;
+    // Post-process assignments to handle organization context
+    // When viewing organization assignments, we should only see:
+    // 1. Assignments that belong to the organization
+    // 2. Template assignments (is_template=true) for the gallery
+    // We should NOT see both the template and the imported copy in organization views
+    const processedAssignments = assignments.filter(assignment => {
+      // For gallery view (no organization context), show only templates
+      if (!assignment.organizationId) {
+        return assignment.isTemplate === true;
+      }
+
+      // For organization view, don't show templates unless they belong to the organization
+      if (assignment.isTemplate === true && !assignment.organizationId) {
+        return false;
+      }
+
+      return true;
+    });
+
+    console.log('Processed assignments after filtering:', processedAssignments.length, 'assignments');
+    return processedAssignments;
   },
 
   // Get assignment by ID
@@ -200,19 +276,148 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
       throw new Error(`Assignment with ID ${id} not found`);
     }
 
-    // Delete related questions first (due to foreign key constraints)
-    await executeCustomQuery(
-      async (client) => {
-        return await client
-          .from('interactive_question')
-          .delete()
-          .eq('assignment_id', id);
-      },
-      user
-    );
+    // Check if this is a gallery assignment (no organization_id) or an imported assignment
+    const isGalleryAssignment = !existingData.organization_id;
 
-    // Then delete the assignment
-    await deleteRecord('interactive_assignment', id, user);
+    // Add additional safety check - only allow deleting assignments that:
+    // 1. Have an organization_id (imported/user-created assignments)
+    // 2. OR were created by the current user
+    const isCreatedByCurrentUser = user && existingData.created_by === user.id;
+
+    if (isGalleryAssignment && !isCreatedByCurrentUser) {
+      console.error(`Cannot delete gallery assignment ${id} that was not created by the current user`);
+      throw new Error('You cannot delete assignments from the gallery. You can only delete assignments that you have imported or created.');
+    }
+
+    try {
+      console.log(`Deleting assignment ${id} (Gallery: ${isGalleryAssignment}, Created by user: ${isCreatedByCurrentUser})`);
+
+      // Delete user progress records first (due to foreign key constraints)
+      try {
+        await executeCustomQuery(
+          async (client) => {
+            return await client
+              .from('user_progress')
+              .delete()
+              .eq('assignment_id', id);
+          },
+          user
+        );
+        console.log(`Deleted user progress records for assignment ${id}`);
+      } catch (progressError) {
+        console.warn(`Error deleting user progress for assignment ${id}:`, progressError);
+        // If this fails, the CASCADE constraint should handle it, but we'll log it
+      }
+
+      // First, get all submissions for this assignment
+      const submissions = await executeCustomQuery(
+        async (client) => {
+          return await client
+            .from('interactive_submission')
+            .select('id')
+            .eq('assignment_id', id);
+        },
+        user
+      );
+
+      if (submissions && submissions.length > 0) {
+        console.log(`Found ${submissions.length} submissions for assignment ${id}`);
+
+        // For each submission, delete its responses
+        for (const submission of submissions) {
+          await executeCustomQuery(
+            async (client) => {
+              return await client
+                .from('interactive_response')
+                .delete()
+                .eq('submission_id', submission.id);
+            },
+            user
+          );
+        }
+
+        // Delete all submissions for this assignment
+        await executeCustomQuery(
+          async (client) => {
+            return await client
+              .from('interactive_submission')
+              .delete()
+              .eq('assignment_id', id);
+          },
+          user
+        );
+      }
+
+      // Get all questions for this assignment
+      const questions = await executeCustomQuery(
+        async (client) => {
+          return await client
+            .from('interactive_question')
+            .select('id')
+            .eq('assignment_id', id);
+        },
+        user
+      );
+
+      if (questions && questions.length > 0) {
+        console.log(`Found ${questions.length} questions for assignment ${id}`);
+
+        // For each question, delete any responses that reference it
+        for (const question of questions) {
+          await executeCustomQuery(
+            async (client) => {
+              return await client
+                .from('interactive_response')
+                .delete()
+                .eq('question_id', question.id);
+            },
+            user
+          );
+        }
+
+        // Now delete all questions for this assignment
+        await executeCustomQuery(
+          async (client) => {
+            return await client
+              .from('interactive_question')
+              .delete()
+              .eq('assignment_id', id);
+          },
+          user
+        );
+      }
+
+      // Delete any ratings/reviews for this assignment
+      try {
+        await executeCustomQuery(
+          async (client) => {
+            return await client
+              .from('ratings_reviews')
+              .delete()
+              .eq('assignment_id', id);
+          },
+          user
+        );
+      } catch (error) {
+        console.warn(`Error deleting ratings/reviews for assignment ${id}:`, error);
+        // Continue with deletion even if this fails
+      }
+
+      // Finally, delete the assignment
+      await deleteRecord('interactive_assignment', id, user);
+      console.log(`Successfully deleted assignment ${id}`);
+    } catch (error) {
+      // Check for foreign key constraint error
+      if (error instanceof Error &&
+          (error.message.includes('violates foreign key constraint') ||
+           error.message.includes('user_progress_assignment_id_fkey'))) {
+        console.error(`Foreign key constraint error when deleting assignment ${id}:`, error);
+        throw new Error('Cannot delete this assignment because it has user progress records. Please run the database migration to fix this issue.');
+      }
+
+      console.error(`Error deleting assignment ${id}:`, error);
+      throw error;
+    }
   },
 
   // Create question
@@ -229,7 +434,54 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
 
   // Delete question
   async deleteQuestion(id: string): Promise<void> {
-    await deleteRecord('interactive_question', id, user);
+    try {
+      // First, get the question to check if it belongs to a gallery assignment
+      const question = await fetchById<any>('interactive_question', id, user);
+
+      if (!question) {
+        throw new Error(`Question with ID ${id} not found`);
+      }
+
+      // Get the assignment this question belongs to
+      const assignment = await fetchById<any>('interactive_assignment', question.assignment_id, user);
+
+      if (!assignment) {
+        throw new Error(`Assignment for question ${id} not found`);
+      }
+
+      // Check if this is a gallery assignment (no organization_id) or an imported assignment
+      const isGalleryAssignment = !assignment.organization_id;
+
+      // Add additional safety check - only allow deleting questions from assignments that:
+      // 1. Have an organization_id (imported/user-created assignments)
+      // 2. OR were created by the current user
+      const isCreatedByCurrentUser = user && assignment.created_by === user.id;
+
+      if (isGalleryAssignment && !isCreatedByCurrentUser) {
+        console.error(`Cannot delete question ${id} from gallery assignment ${assignment.id}`);
+        throw new Error('You cannot delete questions from gallery assignments. You can only delete questions from assignments that you have imported or created.');
+      }
+
+      console.log(`Deleting question ${id} from assignment ${assignment.id} (Gallery: ${isGalleryAssignment}, Created by user: ${isCreatedByCurrentUser})`);
+
+      // First, delete any responses that reference this question
+      await executeCustomQuery(
+        async (client) => {
+          return await client
+            .from('interactive_response')
+            .delete()
+            .eq('question_id', id);
+        },
+        user
+      );
+
+      // Then delete the question
+      await deleteRecord('interactive_question', id, user);
+      console.log(`Successfully deleted question ${id}`);
+    } catch (error) {
+      console.error(`Error deleting question ${id}:`, error);
+      throw error;
+    }
   },
 
   // Create submission
@@ -321,71 +573,235 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
     console.log('Fetching assignment with shareable link:', shareableLink);
 
     try {
-      const data = await executeCustomQuery(
-        async (client) => {
-          return await client
-            .from('interactive_assignment')
-            .select('*')
-            .eq('shareable_link', shareableLink)
-            .single();
-        },
-        user
-      );
-
-      if (!data) {
-        console.log('No assignment found with shareable link:', shareableLink);
+      // Extract the assignment ID from the shareable link
+      // Format is randomString-assignmentId
+      const parts = shareableLink.split('-');
+      if (parts.length < 2) {
+        console.error('Invalid shareable link format:', shareableLink);
         return null;
       }
 
-      const assignment = mapRowToAssignment(data);
-      console.log('Assignment found:', assignment.title);
+      const assignmentId = parts[parts.length - 1];
+
+      // Check if we have this assignment in cache first
+      try {
+        const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+        const cachedLink = Object.entries(shareableLinkCache).find(
+          ([id, data]: [string, any]) => id === assignmentId || data.link === shareableLink
+        );
+
+        if (cachedLink) {
+          const [id, linkData] = cachedLink;
+
+          // Check if the link has expired
+          const now = new Date();
+          const expiresAt = new Date(linkData.expiresAt);
+
+          if (expiresAt > now) {
+            console.log('Found valid cached link, trying to get assignment');
+            // We'll continue with the database query, but we know we have a valid link
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Error checking localStorage cache:', cacheError);
+        // Continue with database query
+      }
+
+      // Try to get the assignment from the database using a direct approach
+      // This is more likely to work for anonymous users
+      try {
+        // First try with a direct query that doesn't rely on RLS policies
+        const { data: supabase } = await import('@supabase/supabase-js');
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error('Supabase configuration missing');
+        }
+
+        // Create a temporary client just for this query
+        // This avoids any issues with the singleton client
+        const tempClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
+
+        const { data, error } = await tempClient
+          .from('interactive_assignment')
+          .select('*')
+          .eq('shareable_link', shareableLink)
+          .single();
+
+        if (!error && data) {
+          const assignment = mapRowToAssignment(data);
+          console.log('Assignment found in database using direct query:', assignment.title);
+
+          // Check if the link has expired
+          const now = new Date();
+          const expiresAt = assignment.shareableLinkExpiresAt;
+
+          if (expiresAt && new Date(expiresAt) < now) {
+            console.log('Shareable link has expired:', shareableLink);
+            return null;
+          }
+
+          // Get questions for this assignment
+          const { data: questionsData, error: questionsError } = await tempClient
+            .from('interactive_question')
+            .select('*')
+            .eq('assignment_id', assignment.id)
+            .order('order', { ascending: true });
+
+          if (!questionsError && questionsData) {
+            console.log(`Found ${questionsData.length} questions for assignment`);
+            assignment.questions = questionsData.map(mapRowToQuestion);
+            return assignment;
+          }
+        }
+      } catch (directQueryError) {
+        console.warn('Error with direct query approach:', directQueryError);
+        // Continue to next approach
+      }
+
+      // Try the normal approach with executeCustomQuery
+      try {
+        const data = await executeCustomQuery(
+          async (client) => {
+            return await client
+              .from('interactive_assignment')
+              .select('*')
+              .eq('shareable_link', shareableLink)
+              .single();
+          },
+          user
+        );
+
+        if (data) {
+          const assignment = mapRowToAssignment(data);
+          console.log('Assignment found in database:', assignment.title);
+
+          // Check if the link has expired
+          const now = new Date();
+          const expiresAt = assignment.shareableLinkExpiresAt;
+
+          if (expiresAt && new Date(expiresAt) < now) {
+            console.log('Shareable link has expired:', shareableLink);
+            return null;
+          }
+
+          // Get questions for this assignment
+          const questionsData = await fetchData<any>(
+            'interactive_question',
+            (query) => query.select('*').eq('assignment_id', assignment.id).order('order', { ascending: true }),
+            user
+          );
+
+          console.log(`Found ${questionsData.length} questions for assignment`);
+          assignment.questions = questionsData.map(mapRowToQuestion);
+          return assignment;
+        }
+      } catch (dbError) {
+        console.warn('Error fetching assignment from database:', dbError);
+        // Continue to fallback
+      }
+
+      // If we get here, we couldn't find the assignment in the database
+      // Try to find it in localStorage
+      console.log('Trying to find assignment in localStorage cache');
+
+      // Check if we have this assignment in cache
+      const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+      const cachedLink = Object.entries(shareableLinkCache).find(
+        ([id, data]: [string, any]) => id === assignmentId || data.link === shareableLink
+      );
+
+      if (!cachedLink) {
+        console.log('No cached link found for assignment');
+        return null;
+      }
+
+      const [id, linkData] = cachedLink;
 
       // Check if the link has expired
       const now = new Date();
-      const expiresAt = assignment.shareableLinkExpiresAt;
+      const expiresAt = new Date(linkData.expiresAt);
 
-      if (expiresAt && new Date(expiresAt) < now) {
-        console.log('Shareable link has expired:', shareableLink);
+      if (expiresAt < now) {
+        console.log('Cached shareable link has expired');
         return null;
       }
 
-      // Get questions for this assignment
-      const questionsData = await fetchData<any>(
-        'interactive_question',
-        (query) => query.select('*').eq('assignment_id', assignment.id).order('order', { ascending: true }),
-        user
-      );
+      // Try to get the assignment by ID
+      try {
+        const assignment = await this.getAssignmentById(id);
+        if (assignment) {
+          console.log('Found assignment in cache:', assignment.title);
+          return assignment;
+        }
+      } catch (cacheError) {
+        console.error('Error fetching cached assignment:', cacheError);
+      }
 
-      console.log(`Found ${questionsData.length} questions for assignment`);
-      assignment.questions = questionsData.map(mapRowToQuestion);
-      return assignment;
+      return null;
     } catch (error) {
       console.error('Error fetching assignment by shareable link:', error);
-      throw error;
+      return null; // Return null instead of throwing to prevent UI errors
     }
   },
 
   // Generate shareable link
   async generateShareableLink(assignmentId: string, expiresInDays = 30): Promise<string> {
-    // Generate a random string for the link
-    const randomString = Math.random().toString(36).substring(2, 15);
-    const shareableLink = `${randomString}-${assignmentId}`;
+    try {
+      // Generate a random string for the link
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const shareableLink = `${randomString}-${assignmentId}`;
 
-    // Calculate expiration date
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+      // Calculate expiration date
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    // Update assignment with shareable link
-    await updateRecord<any>(
-      'interactive_assignment',
-      assignmentId,
-      {
-        shareable_link: shareableLink,
-        shareable_link_expires_at: expiresAt.toISOString(),
-      },
-      user
-    );
+      try {
+        // Update assignment with shareable link
+        await updateRecord<any>(
+          'interactive_assignment',
+          assignmentId,
+          {
+            shareable_link: shareableLink,
+            shareable_link_expires_at: expiresAt.toISOString(),
+          },
+          user
+        );
+      } catch (updateError: any) {
+        console.warn('Error updating assignment with shareable link:', updateError);
 
-    return shareableLink;
+        // If the update fails, store the link in localStorage as a fallback
+        const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+        shareableLinkCache[assignmentId] = {
+          link: shareableLink,
+          expiresAt: expiresAt.toISOString()
+        };
+        localStorage.setItem('shareableLinkCache', JSON.stringify(shareableLinkCache));
+
+        console.log('Stored shareable link in localStorage as fallback');
+      }
+
+      return shareableLink;
+    } catch (error) {
+      console.error('Error generating shareable link:', error);
+
+      // Generate a link anyway even if there's an error
+      const fallbackRandomString = Math.random().toString(36).substring(2, 15);
+      const fallbackShareableLink = `${fallbackRandomString}-${assignmentId}`;
+
+      // Store in localStorage
+      const shareableLinkCache = JSON.parse(localStorage.getItem('shareableLinkCache') || '{}');
+      const fallbackExpiresAt = new Date();
+      fallbackExpiresAt.setDate(fallbackExpiresAt.getDate() + expiresInDays);
+
+      shareableLinkCache[assignmentId] = {
+        link: fallbackShareableLink,
+        expiresAt: fallbackExpiresAt.toISOString()
+      };
+      localStorage.setItem('shareableLinkCache', JSON.stringify(shareableLinkCache));
+
+      return fallbackShareableLink;
+    }
   },
 });

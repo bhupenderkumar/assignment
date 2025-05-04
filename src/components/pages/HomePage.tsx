@@ -7,12 +7,14 @@ import AssignmentList from '../assignments/AssignmentList';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 
 const HomePage = () => {
   const [showRegistration, setShowRegistration] = useState(false);
   const [databaseError, setDatabaseError] = useState<string | null>(null);
   const { anonymousUser } = useInteractiveAssignment();
   const { isReady: isDatabaseReady, state: dbState, error: dbError } = useDatabaseState();
+  const { isAuthenticated, isLoading: isAuthLoading } = useSupabaseAuth();
   const navigate = useNavigate();
 
   // Check database state and set error if needed
@@ -39,6 +41,10 @@ const HomePage = () => {
       // Use React Router navigation
       navigate(`/play/assignment/${assignment.id}`);
     }
+  };
+
+  const handleSignIn = () => {
+    navigate('/sign-in');
   };
 
   return (
@@ -79,8 +85,52 @@ const HomePage = () => {
         </motion.div>
       )}
 
-      {/* Assignment List - only show when database is ready */}
-      {(isDatabaseReady || dbState === 'ready') && (
+      {/* Auth Loading State */}
+      {isAuthLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-12"
+        >
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-600 text-center">
+            Checking authentication status...
+          </p>
+        </motion.div>
+      )}
+
+      {/* Login Prompt - show when not authenticated and not loading */}
+      {!isAuthenticated && !isAuthLoading && isDatabaseReady && (
+        <motion.div
+          key="login-prompt"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="bg-white rounded-xl shadow-lg p-8 my-8 text-center"
+        >
+          <h2 className="text-2xl font-bold mb-4">Welcome to Interactive Assignments</h2>
+          <p className="text-gray-600 mb-6">
+            Please sign in to view and access your assignments.
+          </p>
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={handleSignIn}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => navigate('/sign-up')}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg transition-colors duration-300"
+            >
+              Sign Up
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Assignment List - only show when database is ready AND user is authenticated */}
+      {(isDatabaseReady || dbState === 'ready') && isAuthenticated && !isAuthLoading && (
         <motion.div
           key="assignment-list"
           initial={{ opacity: 0, y: 20 }}

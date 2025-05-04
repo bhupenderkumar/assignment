@@ -50,7 +50,7 @@ const mapOrganizationToRow = (organization: OrganizationInput, userId: string): 
  */
 const mapOrganizationUpdateToRow = (organization: OrganizationUpdateInput): any => {
   const row: any = {};
-  
+
   if (organization.name !== undefined) row.name = organization.name;
   if (organization.type !== undefined) row.type = organization.type;
   if (organization.logoUrl !== undefined) row.logo_url = organization.logoUrl;
@@ -58,10 +58,10 @@ const mapOrganizationUpdateToRow = (organization: OrganizationUpdateInput): any 
   if (organization.secondaryColor !== undefined) row.secondary_color = organization.secondaryColor;
   if (organization.headerText !== undefined) row.header_text = organization.headerText;
   if (organization.signatureUrl !== undefined) row.signature_url = organization.signatureUrl;
-  
+
   // Always update the updated_at timestamp
   row.updated_at = new Date().toISOString();
-  
+
   return row;
 };
 
@@ -73,15 +73,21 @@ const mapOrganizationUpdateToRow = (organization: OrganizationUpdateInput): any 
 export const createOrganizationService = (user: User | null = null) => {
   // Get the Supabase client
   let supabasePromise: Promise<SupabaseClient> | null = null;
-  
+
   const getClient = async (): Promise<SupabaseClient> => {
     if (!supabasePromise) {
       supabasePromise = getSupabaseClient(user);
     }
     return supabasePromise;
   };
-  
+
   return {
+    /**
+     * Get the Supabase client
+     * @returns Promise that resolves to a Supabase client
+     */
+    getClient,
+
     /**
      * Get all organizations for the current user
      * @returns Promise that resolves to an array of organizations
@@ -89,14 +95,44 @@ export const createOrganizationService = (user: User | null = null) => {
     async getOrganizations(): Promise<Organization[]> {
       try {
         const supabase = await getClient();
-        
+
+        // Get the current user ID
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (!currentUser) {
+          console.log('No current user, returning empty organizations array');
+          return [];
+        }
+
+        // First get the user's organization memberships
+        const { data: userOrgs, error: userOrgsError } = await supabase
+          .from('user_organization')
+          .select('organization_id')
+          .eq('user_id', currentUser.id);
+
+        if (userOrgsError) {
+          console.error('Error fetching user organizations:', userOrgsError);
+          throw userOrgsError;
+        }
+
+        // If user has no organizations, return empty array
+        if (!userOrgs || userOrgs.length === 0) {
+          console.log('User has no organization memberships');
+          return [];
+        }
+
+        // Get the organization IDs the user is a member of
+        const orgIds = userOrgs.map(uo => uo.organization_id);
+        console.log('User is a member of organizations:', orgIds);
+
+        // Fetch the organizations the user is a member of
         const { data, error } = await supabase
           .from('organization')
           .select('*')
+          .in('id', orgIds)
           .order('created_at', { ascending: false });
-        
+
         if (error) throw error;
-        
+
         return (data || []).map(mapRowToOrganization);
       } catch (error) {
         console.error('Error getting organizations:', error);
@@ -104,7 +140,55 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
+    /**
+     * Search for organizations by name
+     * @param searchTerm Search term to match against organization names
+     * @returns Promise that resolves to an array of organizations
+     */
+    async searchOrganizations(searchTerm: string): Promise<Organization[]> {
+      try {
+        const supabase = await getClient();
+
+        // If search term is empty, return a limited set of organizations
+        if (!searchTerm.trim()) {
+          console.log('Empty search term, returning limited set of organizations');
+          const { data, error } = await supabase
+            .from('organization')
+            .select('*')
+            .order('name', { ascending: true })
+            .limit(10);
+
+          if (error) throw error;
+          return (data || []).map(mapRowToOrganization);
+        }
+
+        // Normalize the search term - convert to lowercase
+        const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+        console.log('Normalized search term:', normalizedSearchTerm);
+
+        // Search for organizations by name (case insensitive)
+        // Try multiple search patterns to increase chances of finding matches
+        const { data, error } = await supabase
+          .from('organization')
+          .select('*')
+          .or(`name.ilike.%${normalizedSearchTerm}%,name.ilike.${normalizedSearchTerm}%,name.ilike.%${normalizedSearchTerm}`)
+          .order('name', { ascending: true })
+          .limit(20);
+
+        if (error) throw error;
+
+        console.log('Raw search results:', data);
+
+        // Return the search results
+        return (data || []).map(mapRowToOrganization);
+      } catch (error) {
+        console.error('Error searching organizations:', error);
+        toast.error('Failed to search organizations');
+        throw error;
+      }
+    },
+
     /**
      * Get an organization by ID
      * @param id Organization ID
@@ -113,15 +197,15 @@ export const createOrganizationService = (user: User | null = null) => {
     async getOrganizationById(id: string): Promise<Organization | null> {
       try {
         const supabase = await getClient();
-        
+
         const { data, error } = await supabase
           .from('organization')
           .select('*')
           .eq('id', id)
           .maybeSingle();
-        
+
         if (error) throw error;
-        
+
         return data ? mapRowToOrganization(data) : null;
       } catch (error) {
         console.error(`Error getting organization ${id}:`, error);
@@ -129,7 +213,7 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
     /**
      * Create a new organization
      * @param organization Organization data
@@ -138,19 +222,19 @@ export const createOrganizationService = (user: User | null = null) => {
     async createOrganization(organization: OrganizationInput): Promise<Organization> {
       try {
         const supabase = await getClient();
-        
+
         // Get the current user ID
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         if (!currentUser) throw new Error('User not authenticated');
-        
+
         const { data, error } = await supabase
           .from('organization')
           .insert(mapOrganizationToRow(organization, currentUser.id))
           .select()
           .single();
-        
+
         if (error) throw error;
-        
+
         // Also create a user_organization record to establish ownership
         const { error: userOrgError } = await supabase
           .from('user_organization')
@@ -159,12 +243,12 @@ export const createOrganizationService = (user: User | null = null) => {
             organization_id: data.id,
             role: 'owner'
           });
-        
+
         if (userOrgError) {
           console.error('Error creating user_organization record:', userOrgError);
           // Continue anyway - the organization was created successfully
         }
-        
+
         return mapRowToOrganization(data);
       } catch (error) {
         console.error('Error creating organization:', error);
@@ -172,7 +256,7 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
     /**
      * Update an organization
      * @param id Organization ID
@@ -182,16 +266,16 @@ export const createOrganizationService = (user: User | null = null) => {
     async updateOrganization(id: string, updates: OrganizationUpdateInput): Promise<Organization> {
       try {
         const supabase = await getClient();
-        
+
         const { data, error } = await supabase
           .from('organization')
           .update(mapOrganizationUpdateToRow(updates))
           .eq('id', id)
           .select()
           .single();
-        
+
         if (error) throw error;
-        
+
         return mapRowToOrganization(data);
       } catch (error) {
         console.error(`Error updating organization ${id}:`, error);
@@ -199,7 +283,7 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
     /**
      * Delete an organization
      * @param id Organization ID
@@ -208,14 +292,14 @@ export const createOrganizationService = (user: User | null = null) => {
     async deleteOrganization(id: string): Promise<boolean> {
       try {
         const supabase = await getClient();
-        
+
         const { error } = await supabase
           .from('organization')
           .delete()
           .eq('id', id);
-        
+
         if (error) throw error;
-        
+
         return true;
       } catch (error) {
         console.error(`Error deleting organization ${id}:`, error);
@@ -223,7 +307,7 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
     /**
      * Upload an organization logo
      * @param file Logo file
@@ -233,7 +317,7 @@ export const createOrganizationService = (user: User | null = null) => {
     async uploadLogo(file: File, organizationId: string): Promise<string> {
       try {
         const supabase = await getClient();
-        
+
         // Upload to storage
         const { data, error } = await supabase.storage
           .from('organization-logos')
@@ -241,14 +325,14 @@ export const createOrganizationService = (user: User | null = null) => {
             cacheControl: '3600',
             upsert: true
           });
-        
+
         if (error) throw error;
-        
+
         // Get the public URL
         const { data: { publicUrl } } = supabase.storage
           .from('organization-logos')
           .getPublicUrl(data.path);
-        
+
         return publicUrl;
       } catch (error) {
         console.error('Error uploading logo:', error);
@@ -256,7 +340,7 @@ export const createOrganizationService = (user: User | null = null) => {
         throw error;
       }
     },
-    
+
     /**
      * Upload an organization signature
      * @param file Signature file
@@ -266,7 +350,7 @@ export const createOrganizationService = (user: User | null = null) => {
     async uploadSignature(file: File, organizationId: string): Promise<string> {
       try {
         const supabase = await getClient();
-        
+
         // Upload to storage
         const { data, error } = await supabase.storage
           .from('organization-signatures')
@@ -274,14 +358,14 @@ export const createOrganizationService = (user: User | null = null) => {
             cacheControl: '3600',
             upsert: true
           });
-        
+
         if (error) throw error;
-        
+
         // Get the public URL
         const { data: { publicUrl } } = supabase.storage
           .from('organization-signatures')
           .getPublicUrl(data.path);
-        
+
         return publicUrl;
       } catch (error) {
         console.error('Error uploading signature:', error);

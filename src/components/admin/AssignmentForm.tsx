@@ -12,30 +12,38 @@ interface AssignmentFormProps {
 }
 
 const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps) => {
-  const { fetchAssignmentById } = useInteractiveAssignment();
-  const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(initialData || null);
+  const { fetchAssignmentById, currentAssignment: contextAssignment } = useInteractiveAssignment();
+
+  // Use the initialData or the currentAssignment from context if they match
+  const effectiveInitialData = initialData?.id && contextAssignment?.id === initialData.id
+    ? contextAssignment
+    : initialData;
+
+  const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(effectiveInitialData || null);
+
+  // Initialize form data from the effective initial data
   const [formData, setFormData] = useState<Partial<InteractiveAssignment>>(() => {
     // If we're editing, include the ID in the form data
     const baseData = {
-      title: initialData?.title || '',
-      description: initialData?.description || '',
-      type: initialData?.type || 'MULTIPLE_CHOICE',
-      status: initialData?.status || 'DRAFT',
-      dueDate: initialData?.dueDate ? new Date(initialData.dueDate) : new Date(),
-      difficultyLevel: initialData?.difficultyLevel || 'beginner',
-      estimatedTimeMinutes: initialData?.estimatedTimeMinutes || 15,
-      hasAudioFeedback: initialData?.hasAudioFeedback ?? false,
-      hasCelebration: initialData?.hasCelebration ?? true,
-      requiresHelp: initialData?.requiresHelp ?? false,
-      ageGroup: initialData?.ageGroup || '',
-      audioInstructions: initialData?.audioInstructions || '',
+      title: effectiveInitialData?.title || '',
+      description: effectiveInitialData?.description || '',
+      type: effectiveInitialData?.type || 'MULTIPLE_CHOICE',
+      status: effectiveInitialData?.status || 'DRAFT',
+      dueDate: effectiveInitialData?.dueDate ? new Date(effectiveInitialData.dueDate) : new Date(),
+      difficultyLevel: effectiveInitialData?.difficultyLevel || 'beginner',
+      estimatedTimeMinutes: effectiveInitialData?.estimatedTimeMinutes || 15,
+      hasAudioFeedback: effectiveInitialData?.hasAudioFeedback ?? false,
+      hasCelebration: effectiveInitialData?.hasCelebration ?? true,
+      requiresHelp: effectiveInitialData?.requiresHelp ?? false,
+      ageGroup: effectiveInitialData?.ageGroup || '',
+      audioInstructions: effectiveInitialData?.audioInstructions || '',
     };
 
-    // If initialData has an ID, include it
-    if (initialData?.id) {
+    // If effectiveInitialData has an ID, include it
+    if (effectiveInitialData?.id) {
       return {
         ...baseData,
-        id: initialData.id
+        id: effectiveInitialData.id
       };
     }
 
@@ -49,11 +57,31 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
     if (initialData?.id) {
       try {
         console.log('Refreshing assignment data for ID:', initialData.id);
+        // Force a fresh fetch by bypassing cache
         const refreshedAssignment = await fetchAssignmentById(initialData.id);
         if (refreshedAssignment) {
           console.log('Refreshed assignment data:', refreshedAssignment);
           console.log('Questions count:', refreshedAssignment.questions?.length || 0);
           setCurrentAssignment(refreshedAssignment);
+
+          // Update form data with refreshed assignment data
+          setFormData(prev => ({
+            ...prev,
+            title: refreshedAssignment.title,
+            description: refreshedAssignment.description,
+            type: refreshedAssignment.type,
+            status: refreshedAssignment.status,
+            dueDate: refreshedAssignment.dueDate ? new Date(refreshedAssignment.dueDate) : new Date(),
+            difficultyLevel: refreshedAssignment.difficultyLevel || 'beginner',
+            estimatedTimeMinutes: refreshedAssignment.estimatedTimeMinutes || 15,
+            hasAudioFeedback: refreshedAssignment.hasAudioFeedback ?? false,
+            hasCelebration: refreshedAssignment.hasCelebration ?? true,
+            requiresHelp: refreshedAssignment.requiresHelp ?? false,
+            ageGroup: refreshedAssignment.ageGroup || '',
+            audioInstructions: refreshedAssignment.audioInstructions || '',
+          }));
+        } else {
+          console.error('Failed to refresh assignment data - no data returned');
         }
       } catch (error) {
         console.error('Error refreshing assignment data:', error);
@@ -61,12 +89,38 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
     }
   }, [initialData?.id, fetchAssignmentById]);
 
-  // Fetch assignment data when component mounts
+  // Fetch assignment data when component mounts or initialData changes
   useEffect(() => {
     if (initialData?.id) {
+      console.log('Initial data changed, refreshing assignment data');
       refreshAssignmentData();
     }
-  }, [initialData?.id, refreshAssignmentData]);
+  }, [initialData, refreshAssignmentData]);
+
+  // Update form data when contextAssignment changes
+  useEffect(() => {
+    if (contextAssignment && initialData?.id === contextAssignment.id) {
+      console.log('Context assignment updated, updating form data:', contextAssignment.title);
+      setCurrentAssignment(contextAssignment);
+
+      // Update form data with context assignment data
+      setFormData(prev => ({
+        ...prev,
+        title: contextAssignment.title,
+        description: contextAssignment.description,
+        type: contextAssignment.type,
+        status: contextAssignment.status,
+        dueDate: contextAssignment.dueDate ? new Date(contextAssignment.dueDate) : new Date(),
+        difficultyLevel: contextAssignment.difficultyLevel || 'beginner',
+        estimatedTimeMinutes: contextAssignment.estimatedTimeMinutes || 15,
+        hasAudioFeedback: contextAssignment.hasAudioFeedback ?? false,
+        hasCelebration: contextAssignment.hasCelebration ?? true,
+        requiresHelp: contextAssignment.requiresHelp ?? false,
+        ageGroup: contextAssignment.ageGroup || '',
+        audioInstructions: contextAssignment.audioInstructions || '',
+      }));
+    }
+  }, [contextAssignment, initialData?.id]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;

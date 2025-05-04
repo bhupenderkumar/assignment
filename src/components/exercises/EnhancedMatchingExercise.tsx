@@ -410,6 +410,23 @@ const EnhancedMatchingExercise = ({
   const [showResetConfirmation, setShowResetConfirmation] = useState(false);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
   const [selectedItem, setSelectedItem] = useState<{ id: string; isSource: boolean } | null>(null);
+  const [audioError, setAudioError] = useState<string | null>(null);
+
+  // Log audio instructions for debugging
+  useEffect(() => {
+    if (audioInstructions) {
+      console.log('EnhancedMatchingExercise: Audio instructions URL:', audioInstructions);
+
+      // Validate the URL
+      try {
+        new URL(audioInstructions);
+        setAudioError(null);
+      } catch (e) {
+        console.error('EnhancedMatchingExercise: Invalid audio URL:', audioInstructions, e);
+        setAudioError('Invalid audio URL');
+      }
+    }
+  }, [audioInstructions]);
 
   // Generate colors for matches
   const matchColors = useMemo(() => generateMatchColors(data.sourceItems.length), [data.sourceItems.length]);
@@ -1089,11 +1106,19 @@ const EnhancedMatchingExercise = ({
                       </svg>
                     </button>
                   </div>
-                  <AudioPlayer
-                    audioUrl={audioInstructions}
-                    autoPlay={true}
-                    showLabel={false}
-                  />
+                  {audioError ? (
+                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+                      <p className="font-bold">Error loading audio</p>
+                      <p className="text-sm">{audioError}</p>
+                      <p className="text-xs mt-2">URL: {audioInstructions}</p>
+                    </div>
+                  ) : (
+                    <AudioPlayer
+                      audioUrl={audioInstructions || ''}
+                      autoPlay={true}
+                      showLabel={false}
+                    />
+                  )}
                 </motion.div>
               </motion.div>
             )}

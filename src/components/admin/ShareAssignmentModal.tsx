@@ -52,7 +52,7 @@ const ShareAssignmentModal = ({ assignment, onClose }: ShareAssignmentModalProps
     if (!shareableLink) return;
 
     // Create the full URL
-    const fullUrl = `${window.location.origin}/play/${shareableLink}`;
+    const fullUrl = `${window.location.origin}/play/share/${shareableLink}`;
 
     navigator.clipboard.writeText(fullUrl)
       .then(() => {
@@ -116,7 +116,7 @@ const ShareAssignmentModal = ({ assignment, onClose }: ShareAssignmentModalProps
                   <input
                     type="text"
                     readOnly
-                    value={`${window.location.origin}/play/${shareableLink}`}
+                    value={`${window.location.origin}/play/share/${shareableLink}`}
                     className="flex-1 px-4 py-2 rounded-l-lg border border-gray-300 bg-gray-50 text-gray-800"
                   />
                   <button

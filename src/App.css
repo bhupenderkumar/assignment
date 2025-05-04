@@ -216,3 +216,30 @@
   background-color: #1f2937;
   color: white;
 }
+
+/* Sidebar styles */
+.sidebar {
+  transition: transform 0.3s ease-in-out;
+}
+
+.sidebar-open {
+  transform: translateX(0);
+}
+
+.sidebar-closed {
+  transform: translateX(-100%);
+}
+
+/* Adjust main content when sidebar is open */
+@media (min-width: 768px) {
+  .main-content-with-sidebar {
+    margin-left: 16rem; /* 256px - width of sidebar */
+    width: calc(100% - 16rem);
+  }
+}
+
+/* Sidebar overlay */
+.sidebar-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  transition: opacity 0.3s ease-in-out;
+}

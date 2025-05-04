@@ -29,11 +29,14 @@ const CelebrationOverlay = ({
 
   // Get celebration message based on score
   const getCelebrationMessage = (score: number) => {
-    if (score >= 90) {
+    // Ensure score is a valid number
+    const validScore = score !== null && score !== undefined ? score : 0;
+
+    if (validScore >= 90) {
       return 'Amazing job! You\'re a superstar!';
-    } else if (score >= 70) {
+    } else if (validScore >= 70) {
       return 'Great work! You did awesome!';
-    } else if (score >= 50) {
+    } else if (validScore >= 50) {
       return 'Good job! Keep practicing!';
     } else {
       return 'Nice try! Let\'s practice more!';
@@ -42,10 +45,13 @@ const CelebrationOverlay = ({
 
   // Get star rating based on score
   const getStarRating = (score: number) => {
-    if (score >= 90) return 5;
-    if (score >= 70) return 4;
-    if (score >= 50) return 3;
-    if (score >= 30) return 2;
+    // Ensure score is a valid number
+    const validScore = score !== null && score !== undefined ? score : 0;
+
+    if (validScore >= 90) return 5;
+    if (validScore >= 70) return 4;
+    if (validScore >= 50) return 3;
+    if (validScore >= 30) return 2;
     return 1;
   };
 
@@ -170,7 +176,7 @@ const CelebrationOverlay = ({
                 {renderStars(getStarRating(score))}
               </div>
               <p className="text-2xl font-bold text-blue-600">
-                Score: {score}%
+                Score: {score !== null && score !== undefined ? score : 0}%
               </p>
             </motion.div>
 

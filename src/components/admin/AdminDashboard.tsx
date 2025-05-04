@@ -13,7 +13,15 @@ const AdminDashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<InteractiveAssignment | null>(null);
   const [sharingAssignment, setSharingAssignment] = useState<InteractiveAssignment | null>(null);
-  const { createAssignment, updateAssignment, fetchAssignmentById } = useInteractiveAssignment();
+  const {
+    createAssignment,
+    updateAssignment,
+    fetchAssignmentById,
+    currentAssignment,
+    showProgress,
+    updateProgress,
+    hideProgress
+  } = useInteractiveAssignment();
   const navigate = useNavigate();
   const { assignmentId } = useParams<{ assignmentId: string }>();
 
@@ -27,29 +35,34 @@ const AdminDashboard = () => {
         try {
           console.log('Loading assignment for edit from URL parameter:', assignmentId);
 
-          // Check if we already have this assignment loaded
-          if (editingAssignment && editingAssignment.id === assignmentId) {
-            console.log('Assignment already loaded, skipping fetch');
-            return;
-          }
+          // Show loading progress
+          showProgress('Loading assignment...');
+          updateProgress(10, 'Preparing to load assignment...');
 
-          const assignment = await fetchAssignmentById(assignmentId);
+          // Always fetch the assignment when the URL parameter changes
+          // This ensures we're always working with the latest data
+          console.log('Fetching assignment data for editing...');
+          updateProgress(30, 'Fetching assignment data...');
 
-          // Only update state if component is still mounted
-          if (isMounted.current) {
-            if (assignment) {
-              setEditingAssignment(assignment);
-            } else {
-              toast.error('Assignment not found');
-              navigate('/manage-assignments');
-            }
-          }
+          await fetchAssignmentById(assignmentId);
+
+          updateProgress(100, 'Assignment loaded successfully');
+          setTimeout(() => hideProgress(), 500);
         } catch (error) {
           console.error('Error loading assignment for edit:', error);
+          updateProgress(100, 'Failed to load assignment');
+          setTimeout(() => hideProgress(), 1000);
+
           if (isMounted.current) {
             toast.error('Failed to load assignment for editing');
             navigate('/manage-assignments');
           }
+        }
+      } else {
+        // If no assignment ID in URL, make sure we're not in edit mode
+        if (editingAssignment) {
+          console.log('No assignment ID in URL, clearing editing state');
+          setEditingAssignment(null);
         }
       }
     };
@@ -60,7 +73,29 @@ const AdminDashboard = () => {
     return () => {
       isMounted.current = false;
     };
-  }, [assignmentId, fetchAssignmentById, navigate, editingAssignment]);
+  }, [assignmentId, fetchAssignmentById, navigate, editingAssignment, showProgress, updateProgress, hideProgress]);
+
+  // Update editingAssignment when currentAssignment changes
+  useEffect(() => {
+    if (currentAssignment && assignmentId && currentAssignment.id === assignmentId) {
+      console.log('Setting editingAssignment from currentAssignment:', currentAssignment.title);
+      setEditingAssignment(currentAssignment);
+    } else if (!assignmentId && editingAssignment) {
+      // Clear editing state if no assignment ID in URL
+      setEditingAssignment(null);
+    }
+  }, [currentAssignment, assignmentId, editingAssignment]);
+
+  // Debug log to help diagnose rendering issues
+  useEffect(() => {
+    console.log('Render state:', {
+      isCreating,
+      hasEditingAssignment: !!editingAssignment,
+      editingAssignmentId: editingAssignment?.id,
+      currentAssignmentId: currentAssignment?.id,
+      assignmentIdFromURL: assignmentId
+    });
+  }, [isCreating, editingAssignment, currentAssignment, assignmentId]);
 
   const handleCreateAssignment = async (assignmentData: Partial<InteractiveAssignment>) => {
     try {
@@ -74,15 +109,31 @@ const AdminDashboard = () => {
   };
 
   const handleUpdateAssignment = async (id: string, assignmentData: Partial<InteractiveAssignment>) => {
+    // Show loading progress
+    showProgress('Updating assignment...');
+    updateProgress(10, 'Preparing to update assignment...');
+
     try {
       // Make sure we're passing the ID in the assignment data
       const dataWithId = { ...assignmentData, id };
+      updateProgress(30, 'Saving assignment data...');
       await updateAssignment(id, dataWithId);
+
+      updateProgress(80, 'Assignment updated successfully');
       setEditingAssignment(null);
       toast.success('Assignment updated successfully');
+
+      // Redirect to manage assignments page
+      updateProgress(90, 'Redirecting to manage assignments...');
+      navigate('/manage-assignments');
+
+      updateProgress(100, 'Complete');
+      setTimeout(() => hideProgress(), 500);
     } catch (error) {
       console.error('Error updating assignment:', error);
       toast.error(`Error updating assignment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      updateProgress(100, 'Failed to update assignment');
+      setTimeout(() => hideProgress(), 1000);
     }
   };
 
