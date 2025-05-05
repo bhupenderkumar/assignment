@@ -101,7 +101,7 @@ const OrganizationBranding: React.FC<OrganizationBrandingProps> = ({ organizatio
       }
 
       // Update organization in database
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('organization')
         .update({
           name,

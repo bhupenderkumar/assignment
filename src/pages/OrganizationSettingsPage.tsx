@@ -8,10 +8,10 @@ import { Helmet } from 'react-helmet-async';
 
 const OrganizationSettingsPage: React.FC = () => {
   const { currentOrganization, isLoading: orgLoading } = useOrganization();
-  const { user, isLoading: authLoading, supabase } = useSupabaseAuth();
+  const { isLoading: authLoading, supabase } = useSupabaseAuth();
   const [activeTab, setActiveTab] = useState<'general' | 'members' | 'joinRequests'>('general');
   const [pendingJoinRequestsCount, setPendingJoinRequestsCount] = useState(0);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [, setIsLoadingRequests] = useState(false);
 
   // Fetch pending join requests count
   useEffect(() => {

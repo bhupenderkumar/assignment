@@ -144,9 +144,9 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
   // Handle showing join request form
   const handleShowJoinRequest = (organization: Organization) => {
     // Pass the organization to the parent component to handle join request
-    if (onOrganizationSelect) {
-      onOrganizationSelect(organization, 'join-request');
-    }
+    // Use a different approach to handle join requests
+    setSelectedOrganization(organization);
+    setMode('request');
   };
 
   // Handle submitting a join request

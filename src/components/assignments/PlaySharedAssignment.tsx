@@ -7,7 +7,6 @@ import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import PlayAssignment from './PlayAssignment';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
-import toast from 'react-hot-toast';
 
 interface PlaySharedAssignmentProps {
   shareableLink: string;

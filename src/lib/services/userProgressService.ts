@@ -1,7 +1,7 @@
 // src/lib/services/userProgressService.ts
 import { SupabaseClient } from '@supabase/supabase-js';
 import { InteractiveSubmission, UserProgress } from '../../types/interactiveAssignment';
-import { handleSupabaseError } from '../utils/errorUtils';
+
 import { ensureUuidFormat } from '../utils/userIdMapping';
 
 export const createUserProgressService = (supabase: SupabaseClient) => ({
@@ -353,7 +353,7 @@ export const createUserProgressService = (supabase: SupabaseClient) => ({
         score: progress.score || 0,
         timeSpent: progress.timeSpent || 0,
         attempts: 1,
-        status: progress.status || 'ERROR',
+        status: progress.status || 'ABANDONED',
         feedback: progress.feedback || 'Error saving progress'
       };
     }
@@ -362,8 +362,8 @@ export const createUserProgressService = (supabase: SupabaseClient) => ({
   // Helper method to create fallback progress when UUID issues occur
   async createFallbackProgress(
     progress: Partial<UserProgress>,
-    userId: string,
-    supabase: SupabaseClient
+    _userId: string,
+    _supabase: SupabaseClient
   ): Promise<UserProgress> {
     try {
       // Try to create a progress entry without user_id validation
@@ -410,7 +410,7 @@ export const createUserProgressService = (supabase: SupabaseClient) => ({
         score: progress.score || 0,
         timeSpent: progress.timeSpent || 0,
         attempts: 1,
-        status: 'ERROR',
+        status: 'ABANDONED',
         feedback: 'Error saving progress'
       };
     }

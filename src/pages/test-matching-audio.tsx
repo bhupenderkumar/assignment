@@ -1,5 +1,5 @@
 // src/pages/test-matching-audio.tsx
-import React from 'react';
+
 import EnhancedMatchingExercise, { MatchingExerciseData } from '../components/exercises/EnhancedMatchingExercise';
 
 const TestMatchingAudioPage = () => {

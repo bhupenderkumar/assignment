@@ -110,7 +110,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
 
     if (cachedAssignment) {
       console.log('Using cached assignment data');
-      setCurrentAssignment(cachedAssignment);
+      setCurrentAssignment(cachedAssignment as InteractiveAssignment);
       return;
     }
 
@@ -697,7 +697,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         <ProgressDisplay
           currentQuestion={currentQuestionIndex + 1}
           totalQuestions={currentAssignment.questions.length}
-          score={score}
+          score={score || 0}
           timeSpent={timeSpent}
         />
       )}

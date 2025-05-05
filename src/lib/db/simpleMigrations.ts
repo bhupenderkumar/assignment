@@ -36,7 +36,7 @@ export const runMigrations = async (
 
     // Check if we can connect to the database
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('interactive_assignment')
         .select('id')
         .limit(1);

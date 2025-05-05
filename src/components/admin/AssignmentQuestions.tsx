@@ -23,7 +23,6 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
   } = useInteractiveAssignment();
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<InteractiveQuestion | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [localQuestions, setLocalQuestions] = useState<InteractiveQuestion[]>(assignment.questions || []);
 
@@ -70,7 +69,7 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
 
   // Handle adding a new question
   const handleAddQuestion = async (question: Partial<InteractiveQuestion>) => {
-    setIsSubmitting(true);
+    setIsLoading(true);
     try {
       const newQuestion = await createQuestion({
         ...question,
@@ -90,7 +89,7 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
       console.error('Error adding question:', error);
       toast.error('Failed to add question');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
@@ -98,7 +97,7 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
   const handleUpdateQuestion = async (question: Partial<InteractiveQuestion>) => {
     if (!editingQuestion) return;
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     try {
       const updatedQuestion = await updateQuestion(editingQuestion.id, question);
 
@@ -116,7 +115,7 @@ const AssignmentQuestions = ({ assignment, onAssignmentUpdate }: AssignmentQuest
       console.error('Error updating question:', error);
       toast.error('Failed to update question');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 

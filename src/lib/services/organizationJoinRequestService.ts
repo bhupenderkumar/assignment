@@ -79,7 +79,7 @@ export const createOrganizationJoinRequestService = (user: User | null = null) =
 
         // If there's already a pending request, return it
         if (existingRequests && existingRequests.length > 0) {
-          toast.info('You already have a pending request to join this organization');
+          toast('You already have a pending request to join this organization');
           return mapRowToJoinRequest(existingRequests[0]);
         }
 

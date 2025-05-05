@@ -1,5 +1,5 @@
 // src/components/exercises/MultipleChoiceExercise.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { playSound } from '../../lib/utils/soundUtils';
 import toast from 'react-hot-toast';
@@ -45,7 +45,7 @@ const MultipleChoiceExercise = ({
 
     if (data.allowMultiple) {
       // Toggle selection for multiple choice
-      setSelectedOptions(prev => 
+      setSelectedOptions(prev =>
         prev.includes(optionId)
           ? prev.filter(id => id !== optionId)
           : [...prev, optionId]
@@ -102,18 +102,18 @@ const MultipleChoiceExercise = ({
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 my-6">
       <h3 className="text-xl font-bold mb-6">{data.question}</h3>
-      
+
       <div className="space-y-4 mb-6">
         {data.options.map((option) => {
           const isSelected = selectedOptions.includes(option.id);
           const isCorrect = option.isCorrect;
-          
+
           // Determine background color based on state
           let bgColor = "bg-white border-gray-300";
-          
+
           if (showFeedback && isSelected) {
-            bgColor = isCorrect 
-              ? "bg-green-100 border-green-500" 
+            bgColor = isCorrect
+              ? "bg-green-100 border-green-500"
               : "bg-red-100 border-red-500";
           } else if (showFeedback && isCorrect) {
             bgColor = "bg-green-50 border-green-300";
@@ -141,7 +141,7 @@ const MultipleChoiceExercise = ({
                     />
                   )}
                 </div>
-                
+
                 <div className="flex-1 flex items-center">
                   {option.imageUrl && (
                     <img
@@ -152,7 +152,7 @@ const MultipleChoiceExercise = ({
                   )}
                   <span className="text-lg">{option.text}</span>
                 </div>
-                
+
                 {showFeedback && (
                   <div className="ml-2">
                     {isCorrect ? (
@@ -190,7 +190,7 @@ const MultipleChoiceExercise = ({
             className="mt-8 text-center"
           >
             <h3 className="text-xl font-bold mb-2">
-              {selectedOptions.every(id => isOptionCorrect(id)) && 
+              {selectedOptions.every(id => isOptionCorrect(id)) &&
                data.options.filter(o => o.isCorrect).every(o => selectedOptions.includes(o.id))
                 ? '🎉 Great job! Your answer is correct!'
                 : '😊 Good try! Review the correct answers above.'}

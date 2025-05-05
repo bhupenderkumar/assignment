@@ -395,7 +395,7 @@ const CertificateTemplate = ({
             <Text
               x={width / 2}
               y={360}
-              text={`Assignment Type: ${submission.assignmentType || 'Interactive Exercise'}`}
+              text={`Assignment Type: ${'Interactive Exercise'}`}
               fontSize={16}
               align="center"
               width={width}
@@ -406,7 +406,7 @@ const CertificateTemplate = ({
             <Text
               x={width / 2}
               y={385}
-              text={`Difficulty Level: ${submission.difficultyLevel?.charAt(0).toUpperCase() + submission.difficultyLevel?.slice(1) || 'Standard'}`}
+              text={`Difficulty Level: ${'Standard'}`}
               fontSize={16}
               align="center"
               width={width}

@@ -1,6 +1,6 @@
 // src/components/organization/UserManagement.tsx
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { Organization, OrganizationRole, UserOrganization } from '../../types/organization';
 import { getUsersByIds } from '../../lib/auth/userUtils';
@@ -46,12 +46,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ organization, userOrgan
         if (error) throw error;
 
         // Map to UserOrganization objects
-        const userOrgs = (data || []).map(row => ({
-          id: row.id,
-          organizationId: row.organization_id,
-          userId: row.user_id,
-          role: row.role as OrganizationRole
-        }));
+        const userOrgs = (data || []).map(row => {
+          // Add default timestamps if not available
+          const rowData = row as any; // Type assertion to access properties
+          const created_at = rowData.created_at || new Date().toISOString();
+          const updated_at = rowData.updated_at || new Date().toISOString();
+
+          return {
+            id: rowData.id,
+            organizationId: rowData.organization_id,
+            userId: rowData.user_id,
+            role: rowData.role as OrganizationRole,
+            createdAt: new Date(created_at),
+            updatedAt: new Date(updated_at)
+          };
+        });
 
         setLocalUserOrganizations(userOrgs);
       } catch (err) {

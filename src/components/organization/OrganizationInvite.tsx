@@ -196,7 +196,7 @@ const OrganizationInvite: React.FC<OrganizationInviteProps> = ({ organization, u
       // Always copy to clipboard as a backup
       navigator.clipboard.writeText(inviteLink)
         .then(() => {
-          toast.info('Invitation link copied to clipboard as a backup');
+          toast('Invitation link copied to clipboard as a backup');
         })
         .catch((err) => {
           console.warn('Could not copy invitation link to clipboard:', err);
@@ -223,7 +223,7 @@ const OrganizationInvite: React.FC<OrganizationInviteProps> = ({ organization, u
         const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
         window.open(mailtoLink, '_blank');
 
-        toast.info('Email client opened as a fallback');
+        toast('Email client opened as a fallback');
       } catch (mailtoErr) {
         console.error('Fallback email method also failed:', mailtoErr);
       }

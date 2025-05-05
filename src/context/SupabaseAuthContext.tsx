@@ -409,7 +409,7 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
       // If already a member, just return
       if (existingMembership) {
         console.log('User is already a member of this organization');
-        toast.info('You are already a member of this organization');
+        toast('You are already a member of this organization');
         return;
       }
 

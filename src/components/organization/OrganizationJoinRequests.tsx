@@ -1,6 +1,6 @@
 // src/components/organization/OrganizationJoinRequests.tsx
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { OrganizationJoinRequest, OrganizationJoinRequestStatus } from '../../types/organization';

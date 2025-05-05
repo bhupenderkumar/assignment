@@ -1,7 +1,6 @@
 // src/components/admin/AssignmentManagementList.tsx
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import toast from 'react-hot-toast';
@@ -19,7 +18,7 @@ const AssignmentManagementList = ({ onEdit, onShare }: AssignmentManagementListP
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
-  const navigate = useNavigate();
+
 
   // Track if component is mounted to prevent state updates after unmount
   const isMounted = useRef(true);

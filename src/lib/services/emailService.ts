@@ -22,15 +22,14 @@ export interface InvitationEmailParams {
 export const sendInvitationEmail = async (params: InvitationEmailParams): Promise<void> => {
   try {
     console.log('Sending invitation email with params:', params);
-    
+
     const response = await emailjs.send(
       EMAIL_SERVICE_ID,
       EMAIL_TEMPLATE_ID,
-      params
+      params as unknown as Record<string, unknown>
     );
-    
+
     console.log('Email sent successfully:', response);
-    return response;
   } catch (error) {
     console.error('Error sending email:', error);
     throw error;

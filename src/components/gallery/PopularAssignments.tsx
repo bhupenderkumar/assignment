@@ -17,10 +17,10 @@ const PopularAssignments = ({ assignments, onSelectAssignment }: PopularAssignme
   // Scroll the container left or right
   const scroll = (direction: 'left' | 'right') => {
     if (!scrollContainerRef.current) return;
-    
+
     const container = scrollContainerRef.current;
     const scrollAmount = container.clientWidth * 0.8;
-    
+
     if (direction === 'left') {
       container.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
     } else {
@@ -63,7 +63,7 @@ const PopularAssignments = ({ assignments, onSelectAssignment }: PopularAssignme
       </button>
 
       {/* Scrollable Container */}
-      <div 
+      <div
         ref={scrollContainerRef}
         className="flex overflow-x-auto pb-4 hide-scrollbar"
         style={{ scrollbarWidth: 'none' }}
@@ -87,13 +87,13 @@ const PopularAssignments = ({ assignments, onSelectAssignment }: PopularAssignme
                     </span>
                   )}
                 </div>
-                
+
                 <RatingDisplay rating={assignment.averageRating || 0} size="sm" />
-                
+
                 <p className="text-gray-600 dark:text-gray-300 text-sm mt-2 line-clamp-2">
                   {assignment.description}
                 </p>
-                
+
                 <div className="mt-3 flex flex-wrap gap-2">
                   {assignment.difficultyLevel && (
                     <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded dark:bg-blue-900 dark:text-blue-300">
@@ -111,9 +111,9 @@ const PopularAssignments = ({ assignments, onSelectAssignment }: PopularAssignme
           ))}
         </div>
       </div>
-      
+
       {/* Add custom styles to hide scrollbar */}
-      <style jsx>{`
+      <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }

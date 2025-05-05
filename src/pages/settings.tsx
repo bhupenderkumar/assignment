@@ -10,7 +10,7 @@ import AppearanceSettings from '../components/settings/AppearanceSettings';
 import DatabaseSettings from '../components/settings/DatabaseSettings';
 
 const SettingsPage: React.FC = () => {
-  const { isAuthenticated, isLoading, user } = useSupabaseAuth();
+  const { isAuthenticated, isLoading } = useSupabaseAuth();
   const { config } = useConfiguration();
   const { currentOrganization } = useOrganization();
   const [activeTab, setActiveTab] = useState<'profile' | 'account' | 'appearance' | 'organization' | 'database'>('profile');
@@ -167,7 +167,7 @@ const SettingsPage: React.FC = () => {
                             {currentOrganization.name}
                           </h5>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {currentOrganization.description || 'No description'}
+                            {currentOrganization.headerText || 'No description'}
                           </p>
                         </div>
                       </div>

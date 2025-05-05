@@ -1,6 +1,6 @@
 // src/components/Router.tsx
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+
 import Layout from './layout/Layout';
 import SharedAssignmentPage from './pages/SharedAssignmentPage';
 import PlayAssignmentPage from './pages/PlayAssignmentPage';
@@ -20,8 +20,7 @@ const Router = () => {
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { isAuthenticated, isLoading: isAuthLoading } = useSupabaseAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
+  // Navigation is handled through custom events
 
   useEffect(() => {
     const handleNavigation = (path: string) => {
@@ -160,11 +159,11 @@ const Router = () => {
   // Get the content based on the current route
   const getContent = () => {
     if (currentRoute === 'shared' && shareableLink) {
-      return <SharedAssignmentPage shareableLink={shareableLink} />;
+      return <SharedAssignmentPage />;
     }
 
     if (currentRoute === 'assignment' && assignmentId) {
-      return <PlayAssignmentPage assignmentId={assignmentId} />;
+      return <PlayAssignmentPage />;
     }
 
     if (currentRoute === 'manage') {

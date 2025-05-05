@@ -1,6 +1,6 @@
 // src/components/AppRouter.tsx
-import { useState, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './layout/Layout';
 import SharedAssignmentPage from './pages/SharedAssignmentPage';
 import PlayAssignmentPage from './pages/PlayAssignmentPage';
@@ -28,7 +28,7 @@ import toast from 'react-hot-toast';
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useSupabaseAuth();
-  const navigate = useNavigate();
+
 
   if (isLoading) {
     return (
@@ -47,8 +47,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppRouter = () => {
-  const location = useLocation();
-  const { isAuthenticated } = useSupabaseAuth();
+
 
   return (
     <Routes>
@@ -160,7 +159,7 @@ const AppRouter = () => {
         path="/organisation/:organizationId"
         element={
           <Navigate
-            to={location => `/organizations/${location.pathname.split('/').pop()}`}
+            to={`/organizations/${window.location.pathname.split('/').pop()}`}
             replace
           />
         }

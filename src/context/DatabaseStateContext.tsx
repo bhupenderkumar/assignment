@@ -30,7 +30,7 @@ interface QueuedOperation<T> {
 export const DatabaseStateProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, setState] = useState<DatabaseState>('initializing');
   const [error, setError] = useState<string | null>(null);
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+  const [, setSupabase] = useState<SupabaseClient | null>(null);
   const [operationQueue, setOperationQueue] = useState<QueuedOperation<any>[]>([]);
   const [retryCount, setRetryCount] = useState(0);
   const [lastRetryTime, setLastRetryTime] = useState(0);

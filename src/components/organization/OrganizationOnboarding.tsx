@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useConfiguration } from '../../context/ConfigurationContext';
+import { useOrganization } from '../../context/OrganizationContext';
 import { OrganizationType } from '../../types/organization';
 import toast from 'react-hot-toast';
 
@@ -15,7 +16,8 @@ const OrganizationOnboarding: React.FC<OrganizationOnboardingProps> = ({
   onComplete,
   isPostSignup = false
 }) => {
-  const { createOrganization, joinOrganization } = useSupabaseAuth();
+  const { joinOrganization } = useSupabaseAuth();
+  const { createOrganization } = useOrganization();
   const { config } = useConfiguration();
 
   // State for the onboarding flow - if post-signup, go directly to create
@@ -41,7 +43,11 @@ const OrganizationOnboarding: React.FC<OrganizationOnboardingProps> = ({
     setIsSubmitting(true);
 
     try {
-      await createOrganization(orgName, orgType);
+      await createOrganization({
+        name: orgName,
+        type: orgType,
+        signatureUrl: 'https://via.placeholder.com/200x100?text=Signature'
+      });
       toast.success('Organization created successfully!');
       onComplete();
     } catch (error) {

@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 const AccountSettings: React.FC = () => {
   const { supabase, signOut } = useSupabaseAuth();
   const { config } = useConfiguration();
-  
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,9 +32,13 @@ const AccountSettings: React.FC = () => {
 
     setIsChangingPassword(true);
     try {
+      // Get the user's email first
+      const { data: userData } = await supabase.auth.getUser();
+      const userEmail = userData.user?.email || '';
+
       // First verify the current password by attempting to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: supabase.auth.getUser().then(res => res.data.user?.email || ''),
+        email: userEmail,
         password: currentPassword
       });
 
@@ -65,7 +69,7 @@ const AccountSettings: React.FC = () => {
 
   const handleAccountDeletion = async () => {
     if (!supabase) return;
-    
+
     if (deleteConfirmText !== 'DELETE') {
       toast.error('Please type DELETE to confirm account deletion');
       return;
@@ -77,10 +81,10 @@ const AccountSettings: React.FC = () => {
       // In a real implementation, you would need to:
       // 1. Create a server-side function with admin privileges
       // 2. Call that function to delete the user
-      
+
       // For now, we'll just sign the user out
       toast.error('Account deletion requires admin assistance. Please contact support.');
-      
+
       // Reset the form
       setDeleteConfirmText('');
       setShowDeleteConfirm(false);
@@ -189,7 +193,7 @@ const AccountSettings: React.FC = () => {
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Permanently delete your account and all associated data. This action cannot be undone.
           </p>
-          
+
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}

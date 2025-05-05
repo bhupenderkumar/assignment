@@ -1,7 +1,7 @@
 // src/components/gallery/AssignmentCard.tsx
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
@@ -18,7 +18,7 @@ const AssignmentCard = ({ assignment, onSelect }: AssignmentCardProps) => {
   const [showImportOptions, setShowImportOptions] = useState(false);
   const { config } = useConfiguration();
   const { organizations, importAssignmentToOrganization } = useOrganization();
-  const navigate = useNavigate();
+  // Navigation is handled by parent component
 
   // Format the difficulty level for display
   const formatDifficulty = (difficulty?: string) => {

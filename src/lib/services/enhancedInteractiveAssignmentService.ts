@@ -24,7 +24,7 @@ const mapRowToAssignment = (row: any): InteractiveAssignment => {
     description: row.description,
     type: row.type,
     status: row.status,
-    dueDate: row.due_date ? new Date(row.due_date) : undefined,
+    dueDate: row.due_date ? new Date(row.due_date) : new Date(),
     createdBy: row.created_by,
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
@@ -591,11 +591,12 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
         );
 
         if (cachedLink) {
-          const [id, linkData] = cachedLink;
+          const [, linkData] = cachedLink;
 
           // Check if the link has expired
           const now = new Date();
-          const expiresAt = new Date(linkData.expiresAt);
+          const typedLinkData = linkData as { expiresAt: string };
+          const expiresAt = new Date(typedLinkData.expiresAt);
 
           if (expiresAt > now) {
             console.log('Found valid cached link, trying to get assignment');
@@ -611,7 +612,7 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
       // This is more likely to work for anonymous users
       try {
         // First try with a direct query that doesn't rely on RLS policies
-        const { data: supabase } = await import('@supabase/supabase-js');
+        const supabase = await import('@supabase/supabase-js');
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -721,7 +722,8 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
 
       // Check if the link has expired
       const now = new Date();
-      const expiresAt = new Date(linkData.expiresAt);
+      const typedLinkData = linkData as { expiresAt: string };
+      const expiresAt = new Date(typedLinkData.expiresAt);
 
       if (expiresAt < now) {
         console.log('Cached shareable link has expired');

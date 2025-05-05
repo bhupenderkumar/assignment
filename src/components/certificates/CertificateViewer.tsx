@@ -1,10 +1,9 @@
 // src/components/certificates/CertificateViewer.tsx
-import { useRef, useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
-import { InteractiveSubmission, InteractiveAssignment } from '../../types/interactiveAssignment';
+import { InteractiveSubmission } from '../../types/interactiveAssignment';
 import CertificateTemplate from './CertificateTemplate';
-import { useNavigate } from 'react-router-dom';
 
 interface CertificateViewerProps {
   submission: InteractiveSubmission;
@@ -16,13 +15,8 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
   const [certificateDataUrl, setCertificateDataUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(true);
   const { config } = useConfiguration();
-  const navigate = useNavigate();
-  const componentMounted = useRef(true);
-
   // Extract assignment title from submission
-  const assignmentTitle = submission.assignmentTitle ||
-    (submission.interactive_assignment && submission.interactive_assignment.title) ||
-    'Interactive Assignment';
+  const assignmentTitle = 'Interactive Assignment';
 
   // No need to load assignment data separately - we already have what we need in the submission
 
@@ -72,7 +66,7 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Certificate - ${assignment?.title || 'Interactive Assignment'}</title>
+          <title>Certificate - Interactive Assignment</title>
           <style>
             body {
               margin: 0;

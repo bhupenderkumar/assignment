@@ -1,8 +1,7 @@
 import React from 'react';
-import { useConfiguration } from '../../context/ConfigurationContext';
 
 const Footer: React.FC = () => {
-  const { config } = useConfiguration();
+  // Configuration not needed in this component
 
   const handleNavigation = (path: string) => {
     const event = new CustomEvent('navigationChange', {
@@ -78,7 +77,7 @@ const Footer: React.FC = () => {
           <p className="text-sm text-gray-400 text-center md:text-left mb-3 md:mb-0 font-light">
             © {new Date().getFullYear()} Interactive Assignments. All rights reserved.
           </p>
-          
+
           {/* Social Links */}
           <div className="flex space-x-4">
             {[

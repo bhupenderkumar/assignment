@@ -122,7 +122,6 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
   const [showJoinRequestForm, setShowJoinRequestForm] = useState(false);
   const [joinRequestMessage, setJoinRequestMessage] = useState('');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [joinRequestStatus, setJoinRequestStatus] = useState<'none' | 'pending' | 'approved' | 'rejected'>('none');
 
   // Handle submitting a join request
   const handleSubmitJoinRequest = async (e: React.FormEvent) => {
@@ -145,7 +144,6 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
       // Show success message
       setShowJoinRequestForm(false);
       setError(`Your request to join ${selectedOrganization.name} has been submitted. An administrator will review your request.`);
-      setJoinRequestStatus('pending');
     } catch (err: any) {
       console.error('Error submitting join request:', err);
       setError(err.message || 'Failed to submit join request. Please try again.');
@@ -217,8 +215,6 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
 
         // If there's a pending join request, show appropriate message
         if (joinRequest) {
-          setJoinRequestStatus(joinRequest.status);
-
           if (joinRequest.status === 'PENDING') {
             setError(`You have a pending request to join ${selectedOrganization.name}. Please wait for an administrator to approve your request.`);
           } else if (joinRequest.status === 'REJECTED') {

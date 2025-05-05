@@ -140,7 +140,7 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
         throw uploadError;
       }
 
-      const { data, error } = uploadResult;
+      const { error } = uploadResult;
 
       if (error) {
         console.error('Upload error:', error);
@@ -236,7 +236,7 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
         throw uploadError;
       }
 
-      const { data, error } = uploadResult;
+      const { error } = uploadResult;
 
       if (error) {
         console.error('Upload error:', error);

@@ -46,8 +46,9 @@ export const getInitializedClient = async (
         console.log('Supabase client initialized and connected successfully');
       } catch (e) {
         // This error is expected (table doesn't exist), but we just want to test the connection
-        if (e.code !== 'PGRST116') {
-          console.warn('Supabase connection test warning:', e.message);
+        const err = e as { code?: string; message?: string };
+        if (err.code !== 'PGRST116') {
+          console.warn('Supabase connection test warning:', err.message);
         }
       }
     }
@@ -85,7 +86,7 @@ export const executeWithRetry = async <T>(
     console.error(`Error executing Supabase operation (attempt ${retries + 1}):`, error);
 
     // Check if this is an authentication error
-    const errorMessage = error?.message || '';
+    const errorMessage = (error as { message?: string })?.message || '';
     const isAuthError =
       errorMessage.includes('JWT') ||
       errorMessage.includes('auth') ||
@@ -136,10 +137,10 @@ export const fetchData = async <T>(
     // Add more detailed logging for debugging
     console.error(`Failed to fetch data from ${table} after retries:`, error);
     console.error(`Error details:`, {
-      message: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint
+      message: (error as any).message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint
     });
     throw error;
   }

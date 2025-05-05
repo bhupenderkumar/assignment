@@ -1,6 +1,6 @@
 // src/lib/db/runOrganizationMigration.ts
 import { SupabaseClient } from '@supabase/supabase-js';
-import { organizationTableSQL, runOrganizationMigration } from './migrations/organizationMigration';
+import { organizationTableSQL } from './migrations/organizationMigration';
 import toast from 'react-hot-toast';
 
 /**
@@ -11,15 +11,15 @@ import toast from 'react-hot-toast';
 export const executeOrganizationMigration = async (supabase: SupabaseClient): Promise<boolean> => {
   try {
     console.log('Running organization migration directly...');
-    
+
     // Execute the SQL directly
     const { error } = await supabase.rpc('exec_sql', { sql: organizationTableSQL });
-    
+
     if (error) {
       // If the RPC function doesn't exist, try to run the SQL directly
       if (error.code === 'PGRST202' || error.message?.includes('Could not find the function')) {
         console.warn('exec_sql RPC function not available, trying to create tables directly');
-        
+
         // Try to create the organization_invitation table directly
         const invitationTableSQL = `
         CREATE TABLE IF NOT EXISTS organization_invitation (
@@ -34,14 +34,14 @@ export const executeOrganizationMigration = async (supabase: SupabaseClient): Pr
           accepted_at TIMESTAMP WITH TIME ZONE,
           UNIQUE(organization_id, email)
         );
-        
+
         -- Create index for faster queries
         CREATE INDEX IF NOT EXISTS idx_organization_invitation_organization_id ON organization_invitation(organization_id);
         CREATE INDEX IF NOT EXISTS idx_organization_invitation_email ON organization_invitation(email);
-        
+
         -- Add RLS policies
         ALTER TABLE organization_invitation ENABLE ROW LEVEL SECURITY;
-        
+
         -- Policy for organization admins to see invitations for their organizations
         DROP POLICY IF EXISTS organization_invitation_select_policy ON organization_invitation;
         CREATE POLICY organization_invitation_select_policy ON organization_invitation
@@ -54,25 +54,25 @@ export const executeOrganizationMigration = async (supabase: SupabaseClient): Pr
             email = (SELECT email FROM auth.users WHERE id = auth.uid())
           );
         `;
-        
+
         // Execute the SQL directly
         const { error: directError } = await supabase.rpc('exec_sql', { sql: invitationTableSQL });
-        
+
         if (directError) {
           console.error('Error creating organization_invitation table directly:', directError);
           toast.error('Failed to create organization_invitation table');
           return false;
         }
-        
+
         console.log('Organization invitation table created successfully');
         return true;
       }
-      
+
       console.error('Error running organization migration:', error);
       toast.error('Failed to run organization migration');
       return false;
     }
-    
+
     console.log('Organization migration completed successfully');
     toast.success('Organization migration completed successfully');
     return true;

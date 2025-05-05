@@ -77,8 +77,6 @@ const CompletionQuestionForm = ({
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) return;
 
-    const range = selection.getRangeAt(0);
-
     // Get the textarea element
     const textarea = document.getElementById('completionText') as HTMLTextAreaElement;
     if (!textarea) return;

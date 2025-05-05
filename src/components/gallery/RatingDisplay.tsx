@@ -1,5 +1,5 @@
 // src/components/gallery/RatingDisplay.tsx
-import { useConfiguration } from '../../context/ConfigurationContext';
+
 
 interface RatingDisplayProps {
   rating: number;
@@ -8,17 +8,17 @@ interface RatingDisplayProps {
   showCount?: boolean;
 }
 
-const RatingDisplay = ({ 
-  rating, 
-  count = 0, 
-  size = 'md', 
-  showCount = true 
+const RatingDisplay = ({
+  rating,
+  count = 0,
+  size = 'md',
+  showCount = true
 }: RatingDisplayProps) => {
-  const { config } = useConfiguration();
-  
+  // Configuration not needed in this component
+
   // Round rating to nearest half star
   const roundedRating = Math.round(rating * 2) / 2;
-  
+
   // Determine star size based on prop
   const starSize = {
     sm: 'text-sm',
@@ -29,7 +29,7 @@ const RatingDisplay = ({
   // Generate stars
   const renderStars = () => {
     const stars = [];
-    
+
     // Full stars
     const fullStars = Math.floor(roundedRating);
     for (let i = 0; i < fullStars; i++) {
@@ -37,7 +37,7 @@ const RatingDisplay = ({
         <span key={`full-${i}`} className="text-yellow-400">★</span>
       );
     }
-    
+
     // Half star
     if (roundedRating % 1 !== 0) {
       stars.push(
@@ -50,7 +50,7 @@ const RatingDisplay = ({
         </span>
       );
     }
-    
+
     // Empty stars
     const emptyStars = 5 - Math.ceil(roundedRating);
     for (let i = 0; i < emptyStars; i++) {
@@ -58,7 +58,7 @@ const RatingDisplay = ({
         <span key={`empty-${i}`} className="text-gray-300">☆</span>
       );
     }
-    
+
     return stars;
   };
 
@@ -67,7 +67,7 @@ const RatingDisplay = ({
       <div className={`flex ${starSize}`}>
         {renderStars()}
       </div>
-      
+
       {showCount && (
         <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
           {count > 0 ? `(${count})` : 'No ratings yet'}

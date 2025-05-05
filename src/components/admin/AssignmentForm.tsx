@@ -1,6 +1,6 @@
 // src/components/admin/AssignmentForm.tsx
 import { useState, useCallback, useEffect } from 'react';
-import { InteractiveAssignment, InteractiveAssignmentType, InteractiveAssignmentStatus } from '../../types/interactiveAssignment';
+import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import AssignmentQuestions from './AssignmentQuestions';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import AudioRecorder from '../common/AudioRecorder';

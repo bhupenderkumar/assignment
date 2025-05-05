@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
-import { useUserRole } from '../../hooks/useUserRole';
+
 import { hexToRgba } from '../../utils/colorUtils';
 import toast from 'react-hot-toast';
 
@@ -26,21 +26,18 @@ interface SolanaTransaction {
 
 const PaymentDemoPage: React.FC = () => {
   const { config } = useConfiguration();
-  const { isAuthenticated, user, supabase } = useSupabaseAuth();
-  const { isAdmin } = useUserRole();
+  const { user } = useSupabaseAuth();
 
   // Payment history state
   const [paymentHistory, setPaymentHistory] = useState<SolanaTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [network, setNetwork] = useState<'mainnet' | 'devnet' | 'testnet'>('devnet');
-  const [walletAddress, setWalletAddress] = useState(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
-  const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [showCryptoForm, setShowCryptoForm] = useState(true); // Set to true by default now
+  const [walletAddress] = useState(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
   const [verifyingTransaction, setVerifyingTransaction] = useState(false);
   const [transactionDetails, setTransactionDetails] = useState<any>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [senderWallet, setSenderWallet] = useState('');
-  const [amount, setAmount] = useState('0.5');
+  const [amount] = useState('0.5');
 
   // Solana network endpoints
   const networkEndpoints = {
@@ -316,7 +313,7 @@ const PaymentDemoPage: React.FC = () => {
         {/* Transaction History */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
           <h2 className="text-xl font-semibold mb-4 dark:text-white">Transaction History</h2>
-          
+
           {isLoading ? (
             <div className="flex justify-center items-center py-8">
               <svg className="animate-spin h-8 w-8 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

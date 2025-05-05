@@ -13,7 +13,7 @@ export const getSupabase = async (): Promise<SupabaseClient> => {
 
 // Export a getter that will initialize the client on first use
 export const supabase = new Proxy({} as SupabaseClient, {
-  get: (target, prop) => {
+  get: (_target, prop) => {
     // This is a synchronous proxy, so we need to handle the async nature of getSupabaseClient
     // We'll initialize the client immediately if it's not already initialized
     getSupabaseClient(null).then(client => {
@@ -31,7 +31,9 @@ export const supabase = new Proxy({} as SupabaseClient, {
       return () => Promise.reject(new Error('Supabase client not initialized'));
     }
 
-    return client.then ? client.then((c: SupabaseClient) => c[prop]) : client[prop];
+    return client.then
+      ? client.then((c: SupabaseClient) => c[prop as keyof SupabaseClient])
+      : client[prop as keyof SupabaseClient];
   }
 });
 

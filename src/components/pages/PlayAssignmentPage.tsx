@@ -7,7 +7,7 @@ import { useInteractiveAssignment } from '../../context/InteractiveAssignmentCon
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
-import Layout from '../layout/Layout';
+
 import toast from 'react-hot-toast';
 
 // We don't need the props anymore since we're using useParams
@@ -55,7 +55,7 @@ const PlayAssignmentPage = () => {
     try {
       console.log(`Attempting to fetch assignment (attempt ${retryCount + 1})`);
       const service = assignmentService();
-      const assignment = await service.getPublicAssignmentById(assignmentId);
+      const assignment = await service.getPublicAssignmentById(assignmentId || '');
 
       if (assignment) {
         console.log('Assignment fetched successfully:', assignment);

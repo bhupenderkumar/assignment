@@ -222,7 +222,7 @@ let _initializationPromise: Promise<SupabaseClient> | null = null;
  * @param user The Supabase user object (null for anonymous users)
  * @returns A Supabase client
  */
-export const getSupabaseClient = async (user: User | null): Promise<SupabaseClient> => {
+export const getSupabaseClient = async (_user: User | null): Promise<SupabaseClient> => {
   // If we already have an instance, return it
   if (_supabaseClientInstance) {
     return _supabaseClientInstance;

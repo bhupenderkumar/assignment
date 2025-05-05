@@ -227,7 +227,7 @@ const JoinOrganizationPage: React.FC = () => {
       // Check if invitation is already accepted
       if (invitation.status === 'ACCEPTED') {
         console.log('Invitation already accepted');
-        toast.info('This invitation has already been accepted');
+        toast('This invitation has already been accepted');
         navigate('/');
         return;
       }

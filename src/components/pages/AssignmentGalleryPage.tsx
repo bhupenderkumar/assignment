@@ -36,8 +36,10 @@ const AssignmentGalleryPage = () => {
         console.log('Fetched assignments:', allAssignments);
 
         // Filter to only show published template assignments
-        const galleryAssignments = allAssignments.filter(
-          assignment => assignment.status === 'PUBLISHED' &&
+        // Make sure allAssignments is an array before filtering
+        const assignmentsArray = Array.isArray(allAssignments) ? allAssignments : [];
+        const galleryAssignments = assignmentsArray.filter(
+          (assignment: any) => assignment.status === 'PUBLISHED' &&
                         (assignment.isTemplate === true || assignment.organizationId === null)
         );
         console.log('Gallery assignments:', galleryAssignments.length);
@@ -113,8 +115,8 @@ const AssignmentGalleryPage = () => {
   };
 
   // Get unique categories, topics, and difficulties for filter options
-  const categories = [...new Set(assignments.map(a => a.category).filter(Boolean))];
-  const topics = [...new Set(assignments.map(a => a.topic).filter(Boolean))];
+  const categories = [...new Set(assignments.map(a => a.category).filter(Boolean))] as string[];
+  const topics = [...new Set(assignments.map(a => a.topic).filter(Boolean))] as string[];
   const difficulties = ['beginner', 'intermediate', 'advanced'];
 
   return (

@@ -1,7 +1,7 @@
 // src/components/gallery/GalleryFilters.tsx
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useConfiguration } from '../../context/ConfigurationContext';
+
 
 interface GalleryFiltersProps {
   categories: string[];
@@ -30,7 +30,7 @@ const GalleryFilters = ({
   onSearchChange,
   onFilterChange,
 }: GalleryFiltersProps) => {
-  const { config } = useConfiguration();
+  // Configuration not needed in this component
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   // Handle filter reset
@@ -82,7 +82,7 @@ const GalleryFilters = ({
       <motion.div
         className={`grid grid-cols-1 md:grid-cols-3 gap-4 ${isFiltersOpen ? 'block' : 'hidden md:grid'}`}
         initial={{ opacity: 0, height: 0 }}
-        animate={{ 
+        animate={{
           opacity: isFiltersOpen || window.innerWidth >= 768 ? 1 : 0,
           height: isFiltersOpen || window.innerWidth >= 768 ? 'auto' : 0
         }}
