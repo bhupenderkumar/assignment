@@ -19,7 +19,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
   const [scrolled, setScrolled] = useState(false);
   const { config, updateConfig } = useConfiguration();
   const { isAuthenticated, username, userImageUrl, signOut, isLoading, isSupabaseLoading } = useSupabaseAuth();
-  const { currentOrganization, isLoading: isOrgLoading } = useOrganization();
+  const { currentOrganization } = useOrganization();
   const location = useLocation();
 
   // Function to toggle dark mode
@@ -78,6 +78,8 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
       url = '/terms';
     } else if (view === 'gallery') {
       url = '/gallery';
+    } else if (view === 'payment') {
+      url = '/payment-demo';
     }
 
     // Use React Router navigation

@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import UserDashboardPage from './pages/UserDashboardPage';
 import AssignmentGalleryPage from './pages/AssignmentGalleryPage';
+import PaymentDemoPage from './pages/PaymentDemoPage';
 import OrganizationManagementPage from '../pages/OrganizationManagementPage';
 import OrganizationSettingsPage from '../pages/OrganizationSettingsPage';
 import JoinOrganizationPage from '../pages/JoinOrganizationPage';
@@ -186,6 +187,18 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <SettingsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Payment Demo route */}
+      <Route
+        path="/payment-demo"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <PaymentDemoPage />
             </Layout>
           </ProtectedRoute>
         }
