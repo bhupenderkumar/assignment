@@ -5,6 +5,7 @@ import { useConfiguration } from '../../context/ConfigurationContext';
 import { Organization, OrganizationType } from '../../types/organization';
 import { createOrganizationService } from '../../lib/services/organizationService';
 import { createOrganizationJoinRequestService } from '../../lib/services/organizationJoinRequestService';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
 
 interface OrganizationLookupProps {
@@ -32,6 +33,7 @@ const getFullLogoUrl = (logoUrl: string | null): string => {
 
 const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationSelect, onBack }) => {
   const { config } = useConfiguration();
+  const { isAuthenticated, user } = useSupabaseAuth();
 
   // State for organization search
   const [organizationName, setOrganizationName] = useState('');
@@ -200,13 +202,43 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
       // In a real implementation, you might want to use a default image or let users upload one
       const defaultSignatureUrl = 'https://via.placeholder.com/200x100?text=Signature';
 
-      // Use the organization service to create a new organization
-      const organizationService = createOrganizationService();
-      const newOrganization = await organizationService.createOrganization({
+      // Create organization data object
+      const organizationData = {
         name: newOrgName.trim(),
         type: orgType,
         signatureUrl: defaultSignatureUrl
-      });
+      };
+
+      // If user is not authenticated, store the organization data in localStorage
+      // and pass it to the parent component to handle after authentication
+      if (!isAuthenticated) {
+        // Store the organization data in localStorage to be used after authentication
+        localStorage.setItem('pendingOrganization', JSON.stringify(organizationData));
+
+        // Pass a temporary organization object to the parent component
+        // This will be used to display the organization name during login
+        const tempOrganization: Organization = {
+          id: 'pending',
+          ...organizationData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          createdBy: 'pending',
+          logoUrl: null,
+          headerText: null,
+          primaryColor: config.primaryColor,
+          secondaryColor: config.secondaryColor
+        };
+
+        toast.success('Please complete authentication to create your organization');
+
+        // Select the temporary organization
+        onOrganizationSelect(tempOrganization);
+        return;
+      }
+
+      // If user is authenticated, create the organization directly
+      const organizationService = createOrganizationService(user);
+      const newOrganization = await organizationService.createOrganization(organizationData);
 
       toast.success('Organization created successfully!');
 

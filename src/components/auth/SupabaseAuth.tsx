@@ -7,10 +7,13 @@ import { getGradientWithHoverStyle } from '../../utils/styleUtils';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { getSupabase } from '../../lib/supabase';
 import { createOrganizationJoinRequestService } from '../../lib/services/organizationJoinRequestService';
+import { createOrganizationService } from '../../lib/services/organizationService';
 import OrganizationOnboarding from '../organization/OrganizationOnboarding';
 import OrganizationLookup from './OrganizationLookup';
 import UserJoinRequests from '../organization/UserJoinRequests';
-import { Organization } from '../../types/organization';
+import { Organization, OrganizationInput } from '../../types/organization';
+import { useOrganization } from '../../context/OrganizationContext';
+import toast from 'react-hot-toast';
 
 interface SupabaseAuthProps {
   mode: 'signIn' | 'signUp';
@@ -36,7 +39,8 @@ const getFullLogoUrl = (logoUrl: string | null): string => {
 
 const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
   const { config } = useConfiguration();
-  const { isAuthenticated, isLoading, signIn, signUp, organizations } = useSupabaseAuth();
+  const { isAuthenticated, isLoading, signIn, signUp, organizations, user } = useSupabaseAuth();
+  const { createOrganization } = useOrganization();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -63,8 +67,44 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
       if (isAuthenticated && signInSuccess) {
         console.log('Authentication successful, checking organization status');
 
+        // Check if there's a pending organization to create
+        const pendingOrgData = localStorage.getItem('pendingOrganization');
+        if (pendingOrgData && user) {
+          try {
+            // Parse the pending organization data
+            const orgData: OrganizationInput = JSON.parse(pendingOrgData);
+
+            // Create the organization
+            console.log('Creating pending organization:', orgData.name);
+            createOrganization(orgData)
+              .then(newOrg => {
+                console.log('Organization created successfully:', newOrg);
+                toast.success(`Organization "${newOrg.name}" created successfully!`);
+
+                // Clear the pending organization data
+                localStorage.removeItem('pendingOrganization');
+
+                // Redirect to home page
+                navigate('/');
+              })
+              .catch(err => {
+                console.error('Error creating organization after authentication:', err);
+                toast.error('Failed to create organization. Please try again.');
+
+                // Show organization onboarding as fallback
+                setShowOnboarding(true);
+              });
+
+            // Return early to prevent other navigation
+            return;
+          } catch (err) {
+            console.error('Error parsing pending organization data:', err);
+            // Continue with normal flow if there's an error
+          }
+        }
+
         // For sign-in with organization selected, go to home page
-        if (mode === 'signIn' && selectedOrganization) {
+        if (mode === 'signIn' && selectedOrganization && selectedOrganization.id !== 'pending') {
           console.log('Sign-in with organization selected, redirecting to home');
           navigate('/');
         }
@@ -86,7 +126,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
         }
       }
     }
-  }, [isAuthenticated, isLoading, signInSuccess, organizations.length, mode, showOnboarding, navigate, selectedOrganization]);
+  }, [isAuthenticated, isLoading, signInSuccess, organizations.length, mode, showOnboarding, navigate, selectedOrganization, user, createOrganization]);
 
   // Show organization onboarding if authenticated but no organizations
   useEffect(() => {
@@ -166,6 +206,14 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
         if (!selectedOrganization) {
           setSignInSuccess(true);
           console.log('Sign-in successful without organization selection');
+          return;
+        }
+
+        // If this is a pending organization (from create flow), proceed normally
+        // The organization will be created after authentication in the useEffect
+        if (selectedOrganization.id === 'pending') {
+          setSignInSuccess(true);
+          console.log('Sign-in successful with pending organization creation');
           return;
         }
 
