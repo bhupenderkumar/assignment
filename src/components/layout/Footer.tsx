@@ -1,14 +1,9 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const Footer: React.FC = () => {
-  // Configuration not needed in this component
-
-  const handleNavigation = (path: string) => {
-    const event = new CustomEvent('navigationChange', {
-      detail: { path }
-    });
-    window.dispatchEvent(event);
-  };
+  // Use React Router's navigation hook
+  const navigate = useNavigate();
 
   return (
     <footer className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white w-full mt-auto relative overflow-hidden">
@@ -34,11 +29,11 @@ const Footer: React.FC = () => {
               {[
                 { text: 'Home', path: '/' },
                 { text: 'Assignments', path: '/manage-assignments' },
-                { text: 'Progress', path: '/progress' }
+                { text: 'Certificates', path: '/certificates' }
               ].map((link) => (
                 <li key={link.text}>
                   <button
-                    onClick={() => handleNavigation(link.path)}
+                    onClick={() => navigate(link.path)}
                     className="text-sm text-gray-300 hover:text-cyan-400 transition-all duration-300 flex items-center group cursor-pointer"
                   >
                     <span className="w-0 group-hover:w-2 h-[1px] bg-cyan-400 transition-all duration-300 mr-2"></span>
@@ -60,7 +55,7 @@ const Footer: React.FC = () => {
               ].map((item) => (
                 <li key={item.text}>
                   <button
-                    onClick={() => handleNavigation(item.path)}
+                    onClick={() => navigate(item.path)}
                     className="text-sm text-gray-300 hover:text-cyan-400 transition-all duration-300 flex items-center group cursor-pointer"
                   >
                     <span className="w-0 group-hover:w-2 h-[1px] bg-cyan-400 transition-all duration-300 mr-2"></span>

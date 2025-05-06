@@ -1,0 +1,249 @@
+{
+  "assignments": [
+    {
+      "id": "nursery-color-matching",
+      "title": "Color Matching Fun",
+      "description": "Match objects with their colors",
+      "type": "MATCHING",
+      "status": "PUBLISHED",
+      "ageGroup": "Nursery",
+      "difficultyLevel": "beginner",
+      "estimatedTimeMinutes": 10,
+      "hasAudioFeedback": true,
+      "hasCelebration": true,
+      "requiresHelp": false,
+      "category": "Colors",
+      "topic": "Basic Colors",
+      "questions": [
+        {
+          "id": "color-match-1",
+          "questionType": "MATCHING",
+          "questionText": "Match each object with its color",
+          "order": 1,
+          "audioInstructions": "Match the objects on the left with their colors on the right",
+          "hintText": "Think about what color each object usually is",
+          "questionData": {
+            "pairs": [
+              {
+                "id": "pair1",
+                "left": "Apple",
+                "right": "Red",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair2",
+                "left": "Banana",
+                "right": "Yellow",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair3",
+                "left": "Sky",
+                "right": "Blue",
+                "leftType": "text",
+                "rightType": "text"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "kg-number-sequence",
+      "title": "Number Sequence Adventure",
+      "description": "Complete the missing numbers in sequences",
+      "type": "ORDERING",
+      "status": "PUBLISHED",
+      "ageGroup": "KG",
+      "difficultyLevel": "beginner",
+      "estimatedTimeMinutes": 15,
+      "hasAudioFeedback": true,
+      "hasCelebration": true,
+      "requiresHelp": false,
+      "category": "Mathematics",
+      "topic": "Number Sequence",
+      "questions": [
+        {
+          "id": "sequence-1",
+          "questionType": "ORDERING",
+          "questionText": "Put the numbers in the correct order",
+          "order": 1,
+          "audioInstructions": "Arrange the numbers from smallest to biggest",
+          "questionData": {
+            "items": [
+              {
+                "id": "num1",
+                "text": "1",
+                "correctPosition": 1
+              },
+              {
+                "id": "num2",
+                "text": "2",
+                "correctPosition": 2
+              },
+              {
+                "id": "num3",
+                "text": "3",
+                "correctPosition": 3
+              },
+              {
+                "id": "num4",
+                "text": "4",
+                "correctPosition": 4
+              },
+              {
+                "id": "num5",
+                "text": "5",
+                "correctPosition": 5
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "nursery-animal-sounds",
+      "title": "Animal Sound Match",
+      "description": "Match animals with their sounds",
+      "type": "MATCHING",
+      "status": "PUBLISHED",
+      "ageGroup": "Nursery",
+      "difficultyLevel": "beginner",
+      "estimatedTimeMinutes": 10,
+      "hasAudioFeedback": true,
+      "hasCelebration": true,
+      "requiresHelp": false,
+      "category": "Animals",
+      "topic": "Animal Sounds",
+      "questions": [
+        {
+          "id": "animal-sounds-1",
+          "questionType": "MATCHING",
+          "questionText": "Match each animal with its sound",
+          "order": 1,
+          "audioInstructions": "Match the animals on the left with their sounds on the right",
+          "questionData": {
+            "pairs": [
+              {
+                "id": "pair1",
+                "left": "Dog",
+                "right": "Woof",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair2",
+                "left": "Cat",
+                "right": "Meow",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair3",
+                "left": "Cow",
+                "right": "Moo",
+                "leftType": "text",
+                "rightType": "text"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "kg-letter-recognition",
+      "title": "Letter Recognition",
+      "description": "Match uppercase letters with lowercase letters",
+      "type": "MATCHING",
+      "status": "PUBLISHED",
+      "ageGroup": "KG",
+      "difficultyLevel": "beginner",
+      "estimatedTimeMinutes": 15,
+      "hasAudioFeedback": true,
+      "hasCelebration": true,
+      "requiresHelp": false,
+      "category": "Language",
+      "topic": "Alphabet",
+      "questions": [
+        {
+          "id": "letter-match-1",
+          "questionType": "MATCHING",
+          "questionText": "Match uppercase letters with their lowercase letters",
+          "order": 1,
+          "audioInstructions": "Match the big letters with their small letters",
+          "questionData": {
+            "pairs": [
+              {
+                "id": "pair1",
+                "left": "A",
+                "right": "a",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair2",
+                "left": "B",
+                "right": "b",
+                "leftType": "text",
+                "rightType": "text"
+              },
+              {
+                "id": "pair3",
+                "left": "C",
+                "right": "c",
+                "leftType": "text",
+                "rightType": "text"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "kg-simple-addition",
+      "title": "Simple Addition",
+      "description": "Solve simple addition problems",
+      "type": "MULTIPLE_CHOICE",
+      "status": "PUBLISHED",
+      "ageGroup": "KG",
+      "difficultyLevel": "beginner",
+      "estimatedTimeMinutes": 15,
+      "hasAudioFeedback": true,
+      "hasCelebration": true,
+      "requiresHelp": false,
+      "category": "Mathematics",
+      "topic": "Addition",
+      "questions": [
+        {
+          "id": "addition-1",
+          "questionType": "MULTIPLE_CHOICE",
+          "questionText": "What is 2 + 1?",
+          "order": 1,
+          "audioInstructions": "Choose the correct answer for two plus one",
+          "questionData": {
+            "options": [
+              {
+                "id": "opt1",
+                "text": "2",
+                "isCorrect": false
+              },
+              {
+                "id": "opt2",
+                "text": "3",
+                "isCorrect": true
+              },
+              {
+                "id": "opt3",
+                "text": "4",
+                "isCorrect": false
+              }
+            ],
+            "allowMultiple": false
+          }
+        }
+      ]
+    }
+  ]
+}

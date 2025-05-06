@@ -5,7 +5,7 @@ import Footer from './Footer';
 import { Toaster } from 'react-hot-toast';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import DatabaseStatusIndicator from '../common/DatabaseStatusIndicator';
-import { hexToRgbString as hexToRgb } from '../../utils/colorUtils';
+import { hexToRgbString, hexToRgba } from '../../utils/colorUtils';
 
 interface LayoutProps {
   children?: ReactNode;
@@ -68,9 +68,9 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
   useEffect(() => {
     const root = document.documentElement;
     try {
-      root.style.setProperty('--primary-color-rgb', hexToRgb(config.primaryColor));
-      root.style.setProperty('--secondary-color-rgb', hexToRgb(config.secondaryColor));
-      root.style.setProperty('--accent-color-rgb', hexToRgb(config.accentColor));
+      root.style.setProperty('--primary-color-rgb', hexToRgbString(config.primaryColor));
+      root.style.setProperty('--secondary-color-rgb', hexToRgbString(config.secondaryColor));
+      root.style.setProperty('--accent-color-rgb', hexToRgbString(config.accentColor));
     } catch (error) {
       console.error('Error setting RGB variables:', error);
     }
@@ -86,11 +86,11 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
         <>
           <div
             className="fixed top-1/4 -left-20 w-80 h-80 rounded-full blur-3xl animate-pulse-slow z-0"
-            style={{ backgroundColor: `rgba(${hexToRgb(config.secondaryColor)}, 0.2)` }}
+            style={{ backgroundColor: `rgba(${hexToRgbString(config.secondaryColor)}, 0.2)` }}
           ></div>
           <div
             className="fixed bottom-1/4 -right-20 w-80 h-80 rounded-full blur-3xl animate-pulse-slow animation-delay-2000 z-0"
-            style={{ backgroundColor: `rgba(${hexToRgb(config.primaryColor)}, 0.2)` }}
+            style={{ backgroundColor: `rgba(${hexToRgbString(config.primaryColor)}, 0.2)` }}
           ></div>
         </>
       )}
@@ -114,13 +114,38 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
       <main
         className={`flex-grow w-full z-10 transition-all duration-500 ${
           sidebarOpen && !isMobile ? 'lg:pl-64' : ''
-        }`}
+        } relative`}
         style={{
-          marginTop: '80px', // Increased margin to prevent header overlap
-          paddingTop: '20px', // Additional padding for better spacing
+          marginTop: '85px', // Margin to prevent header overlap
+          paddingTop: '0', // Remove padding as we'll add it to the content container
         }}
       >
-        <div className={`mx-auto ${sidebarOpen && !isMobile ? 'lg:container' : 'container'}`}>
+        {/* Futuristic content container with border */}
+        <div
+          className={`mx-auto ${sidebarOpen && !isMobile ? 'lg:container' : 'container'} relative mt-6 pt-6 px-4 md:px-6`}
+          style={{
+            background: config.darkMode
+              ? 'rgba(15, 23, 42, 0.3)' // Dark mode background
+              : 'rgba(255, 255, 255, 0.2)', // Light mode background
+            borderTop: `1px solid ${hexToRgba(config.accentColor, 0.2)}`,
+            borderLeft: `1px solid ${hexToRgba(config.accentColor, 0.1)}`,
+            borderRight: `1px solid ${hexToRgba(config.accentColor, 0.1)}`,
+            borderRadius: '8px 8px 0 0',
+            backdropFilter: 'blur(8px)',
+            boxShadow: `0 -5px 20px rgba(${hexToRgbString(config.accentColor)}, 0.05)`
+          }}
+        >
+          {/* Futuristic corner accents for content area */}
+          <div className="absolute top-0 left-0 w-5 h-5">
+            <div className="absolute top-0 left-0 w-[1px] h-5" style={{ background: `linear-gradient(to bottom, ${hexToRgba(config.accentColor, 0.8)}, transparent)` }}></div>
+            <div className="absolute top-0 left-0 h-[1px] w-5" style={{ background: `linear-gradient(to right, ${hexToRgba(config.accentColor, 0.8)}, transparent)` }}></div>
+          </div>
+
+          <div className="absolute top-0 right-0 w-5 h-5">
+            <div className="absolute top-0 right-0 w-[1px] h-5" style={{ background: `linear-gradient(to bottom, ${hexToRgba(config.accentColor, 0.8)}, transparent)` }}></div>
+            <div className="absolute top-0 right-0 h-[1px] w-5" style={{ background: `linear-gradient(to left, ${hexToRgba(config.accentColor, 0.8)}, transparent)` }}></div>
+          </div>
+
           {children}
         </div>
       </main>
@@ -137,8 +162,8 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
             padding: '16px',
             borderRadius: '12px',
             fontSize: '16px',
-            boxShadow: `0 8px 30px rgba(0, 0, 0, 0.4), 0 0 10px rgba(${hexToRgb(config.accentColor)}, 0.3)`,
-            border: `1px solid rgba(${hexToRgb(config.accentColor)}, 0.15)`,
+            boxShadow: `0 8px 30px rgba(0, 0, 0, 0.4), 0 0 10px rgba(${hexToRgbString(config.accentColor)}, 0.3)`,
+            border: `1px solid rgba(${hexToRgbString(config.accentColor)}, 0.15)`,
             transform: 'translateY(-10px)',
             transition: 'all 0.3s ease-in-out',
           },

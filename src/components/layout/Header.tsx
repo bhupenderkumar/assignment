@@ -121,20 +121,52 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
   return (
     <header
       className={`w-full fixed top-0 z-50 transition-all duration-300 ${
-        scrolled || !isLandingPage ? 'backdrop-blur-md' : ''
+        scrolled || !isLandingPage ? 'backdrop-blur-lg' : ''
       }`}
       style={{
-        backgroundColor: scrolled || !isLandingPage
-          ? hexToRgba(config.darkMode ? '#0f172a' : '#ffffff', 0.85)
+        background: scrolled || !isLandingPage
+          ? config.darkMode
+            ? `linear-gradient(180deg, ${hexToRgba('#000000', 0.85)}, ${hexToRgba('#0f172a', 0.75)})` // Futuristic dark gradient
+            : `linear-gradient(180deg, ${hexToRgba('#1e293b', 0.85)}, ${hexToRgba('#334155', 0.75)})` // Futuristic light gradient
           : 'transparent',
         boxShadow: scrolled || !isLandingPage
-          ? `0 4px 20px ${hexToRgba(config.accentColor, 0.15)}`
+          ? `0 5px 25px ${hexToRgba(config.accentColor, 0.3)}`
           : 'none',
-        borderBottom: scrolled || !isLandingPage
-          ? `1px solid ${hexToRgba(config.accentColor, 0.1)}`
-          : 'none'
+        borderBottom: 'none'
       }}
     >
+      {/* Futuristic accent lines */}
+      {(scrolled || !isLandingPage) && (
+        <>
+          {/* Top accent line */}
+          <div
+            className="absolute top-0 left-0 right-0 h-[1px] z-10"
+            style={{
+              background: `linear-gradient(to right, transparent, ${hexToRgba(config.accentColor, 0.8)}, transparent)`
+            }}
+          ></div>
+
+          {/* Bottom accent line with animation */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-[1px] z-10 animate-pulse"
+            style={{
+              background: `linear-gradient(to right, transparent, ${hexToRgba(config.primaryColor, 0.8)}, ${hexToRgba(config.secondaryColor, 0.8)}, transparent)`
+            }}
+          ></div>
+
+          {/* Decorative corner accents */}
+          <div className="absolute top-0 left-0 w-4 h-4 z-10">
+            <div className="absolute top-0 left-0 w-[1px] h-4" style={{ background: hexToRgba(config.accentColor, 0.8) }}></div>
+            <div className="absolute top-0 left-0 h-[1px] w-4" style={{ background: hexToRgba(config.accentColor, 0.8) }}></div>
+          </div>
+
+          <div className="absolute top-0 right-0 w-4 h-4 z-10">
+            <div className="absolute top-0 right-0 w-[1px] h-4" style={{ background: hexToRgba(config.accentColor, 0.8) }}></div>
+            <div className="absolute top-0 right-0 h-[1px] w-4" style={{ background: hexToRgba(config.accentColor, 0.8) }}></div>
+          </div>
+        </>
+      )}
+
       <div className="container mx-auto flex justify-between items-center py-5 md:py-4 px-4">
         {/* Left section: Sidebar toggle and logo */}
         <div className="flex items-center">
