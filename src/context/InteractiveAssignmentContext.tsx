@@ -945,42 +945,22 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       };
 
       if (!supabase) {
-        // Create a fallback progress object if Supabase is not available
-        return {
-          id: 'local-' + Date.now(),
-          userId: progressWithUserId.userId || 'unknown',
-          assignmentId: progressWithUserId.assignmentId || 'unknown',
-          startedAt: progressWithUserId.startedAt || new Date(),
-          completedAt: progressWithUserId.completedAt || undefined,
-          score: progressWithUserId.score || 0,
-          timeSpent: progressWithUserId.timeSpent || 0,
-          attempts: 1,
-          status: progressWithUserId.status || 'COMPLETED',
-          feedback: 'Failed to connect to database'
-        };
+        throw new Error('Database connection is not available');
       }
 
       const userProgressService = createUserProgressService(supabase);
       const updatedProgress = await userProgressService.updateUserProgress(progressWithUserId);
+      
+      if (!updatedProgress) {
+        throw new Error('Failed to update user progress');
+      }
+      
       return updatedProgress;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(errorMessage);
       toast.error(errorMessage);
-
-      // Return a fallback progress object instead of throwing
-      return {
-        id: 'error-' + Date.now(),
-        userId: progress.userId || userId || 'unknown',
-        assignmentId: progress.assignmentId || 'unknown',
-        startedAt: progress.startedAt || new Date(),
-        completedAt: progress.completedAt || undefined,
-        score: progress.score || 0,
-        timeSpent: progress.timeSpent || 0,
-        attempts: 1,
-        status: progress.status || 'ABANDONED',
-        feedback: `Error: ${errorMessage}`
-      };
+      throw err; // Re-throw the error instead of returning a fallback
     } finally {
       setLoading(false);
     }
