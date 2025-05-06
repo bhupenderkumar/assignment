@@ -72,7 +72,7 @@ const OrganizationSettingsPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Organization Settings | {currentOrganization.name}</title>
+        <title>{`Organization Settings | ${currentOrganization.name || 'Interactive Assignments'}`}</title>
       </Helmet>
 
       <div className="max-w-6xl mx-auto px-4 py-8">

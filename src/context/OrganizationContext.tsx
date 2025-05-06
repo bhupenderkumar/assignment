@@ -96,9 +96,18 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
 
   // Fetch organizations on mount and when user changes
   useEffect(() => {
+    console.log('OrganizationContext: Auth/DB state changed:', { isAuthenticated, userId: user?.id, isDatabaseReady });
+
     if (isAuthenticated && isDatabaseReady) {
-      fetchOrganizations();
+      // Use a small delay to prevent multiple rapid calls during initialization
+      const timer = setTimeout(() => {
+        console.log('OrganizationContext: Triggering fetchOrganizations after auth/DB ready');
+        fetchOrganizations();
+      }, 100);
+
+      return () => clearTimeout(timer);
     } else {
+      console.log('OrganizationContext: Not authenticated or DB not ready, clearing state');
       setOrganizations([]);
       setCurrentOrganization(null);
       setIsLoading(false);
@@ -126,9 +135,12 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     // updateConfig is memoized in ConfigurationContext to prevent infinite loops
   }, [currentOrganization, updateConfig]);
 
-  // Fetch organizations with caching
+  // Fetch organizations with improved caching
   const fetchOrganizations = async () => {
-    if (!isAuthenticated || !isDatabaseReady) return;
+    if (!isAuthenticated || !isDatabaseReady) {
+      console.log('OrganizationContext: Not authenticated or database not ready, skipping fetch');
+      return;
+    }
 
     // Check if there's already a pending request
     if (requestCache.current.pendingRequests.fetchOrganizations) {
@@ -139,9 +151,18 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     // Check if we have cached data that's still valid
     const cache = requestCache.current.organizations;
     const now = Date.now();
+
+    // Use cached data if available and not expired
     if (cache && (now - cache.timestamp < CACHE_EXPIRATION)) {
-      console.log('OrganizationContext: Using cached organizations data');
-      setOrganizations(cache.data);
+      console.log('OrganizationContext: Using cached organizations data from', new Date(cache.timestamp).toLocaleTimeString());
+
+      // Only update state if the data has changed
+      if (JSON.stringify(organizations) !== JSON.stringify(cache.data)) {
+        console.log('OrganizationContext: Updating state with cached data');
+        setOrganizations(cache.data);
+      } else {
+        console.log('OrganizationContext: Cached data matches current state, no update needed');
+      }
 
       // Set current organization from cache if needed
       if (cache.data.length > 0 && !currentOrganization) {
@@ -149,31 +170,48 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
         if (storedOrgId) {
           const storedOrg = cache.data.find(org => org.id === storedOrgId);
           if (storedOrg) {
+            console.log('OrganizationContext: Setting current organization from cache:', storedOrg.name);
             setCurrentOrganization(storedOrg);
             return;
           }
         }
+        console.log('OrganizationContext: No stored org ID or org not found, using first organization');
         setCurrentOrganization(cache.data[0]);
       }
+
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    // Mark that we're starting a request to prevent duplicate calls
     requestCache.current.pendingRequests.fetchOrganizations = true;
+    console.log('OrganizationContext: Starting new organizations fetch');
+
+    // Only set loading state if we don't have any data yet
+    if (organizations.length === 0) {
+      setIsLoading(true);
+    }
+
+    setError(null);
 
     try {
       // Use executeWhenReady to ensure database is ready
       const data = await executeWhenReady(() => organizationService().getOrganizations());
+      console.log('OrganizationContext: Fetched', data.length, 'organizations');
 
-      // Update cache
+      // Update cache with timestamp
       requestCache.current.organizations = {
         data,
         timestamp: now
       };
 
-      setOrganizations(data);
+      // Only update state if the data has changed
+      if (JSON.stringify(organizations) !== JSON.stringify(data)) {
+        console.log('OrganizationContext: Updating state with new data');
+        setOrganizations(data);
+      } else {
+        console.log('OrganizationContext: New data matches current state, no update needed');
+      }
 
       // Set current organization if not already set
       if (data.length > 0 && !currentOrganization) {
@@ -181,11 +219,14 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
         if (storedOrgId) {
           const storedOrg = data.find(org => org.id === storedOrgId);
           if (storedOrg) {
+            console.log('OrganizationContext: Setting current organization from stored ID:', storedOrg.name);
             setCurrentOrganization(storedOrg);
           } else {
+            console.log('OrganizationContext: Stored org ID not found, using first organization');
             setCurrentOrganization(data[0]);
           }
         } else {
+          console.log('OrganizationContext: No stored org ID, using first organization');
           setCurrentOrganization(data[0]);
         }
       }
@@ -199,7 +240,9 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       }
     } finally {
       setIsLoading(false);
+      // Clear pending request flag
       requestCache.current.pendingRequests.fetchOrganizations = false;
+      console.log('OrganizationContext: Completed organizations fetch');
     }
   };
 

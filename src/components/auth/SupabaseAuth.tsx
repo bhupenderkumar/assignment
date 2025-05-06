@@ -2,12 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getGradientWithHoverStyle } from '../../utils/styleUtils';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { getSupabase } from '../../lib/supabase';
 import { createOrganizationJoinRequestService } from '../../lib/services/organizationJoinRequestService';
-import { createOrganizationService } from '../../lib/services/organizationService';
 import OrganizationOnboarding from '../organization/OrganizationOnboarding';
 import OrganizationLookup from './OrganizationLookup';
 import UserJoinRequests from '../organization/UserJoinRequests';
@@ -84,8 +83,8 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                 // Clear the pending organization data
                 localStorage.removeItem('pendingOrganization');
 
-                // Redirect to home page
-                navigate('/');
+                // Redirect to dashboard
+                navigate('/dashboard');
               })
               .catch(err => {
                 console.error('Error creating organization after authentication:', err);
@@ -103,10 +102,110 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
           }
         }
 
-        // For sign-in with organization selected, go to home page
+        // Check if there's a pending join request
+        const pendingOrgForJoin = localStorage.getItem('selectedOrganizationForJoin');
+        const pendingJoinMessage = localStorage.getItem('pendingJoinRequestMessage');
+
+        if (pendingOrgForJoin && user) {
+          try {
+            // Parse the pending organization data
+            const organization: Organization = JSON.parse(pendingOrgForJoin);
+
+            // Process the join request
+            console.log('Processing join request for organization:', organization.name);
+
+            // Use a separate function to handle the async operations
+            const processJoinRequest = async () => {
+              try {
+                // Check if the user is already a member of this organization
+                const supabase = await getSupabase();
+
+                // Check user_organization table for membership
+                const { data: membership, error: membershipError } = await supabase
+                  .from('user_organization')
+                  .select('*')
+                  .eq('user_id', user.id)
+                  .eq('organization_id', organization.id)
+                  .maybeSingle();
+
+                if (membershipError) {
+                  console.error('Error checking organization membership:', membershipError);
+                }
+
+                // If user is already a member, just redirect to home
+                if (membership) {
+                  console.log('User is already a member of this organization');
+                  localStorage.removeItem('selectedOrganizationForJoin');
+                  localStorage.removeItem('pendingJoinRequestMessage');
+
+                  // Store the selected organization in localStorage for post-login handling
+                  localStorage.setItem('selectedOrganizationId', organization.id);
+                  navigate('/dashboard');
+                  return;
+                }
+
+                // Check if there's already a pending join request
+                const { data: existingRequest, error: requestError } = await supabase
+                  .from('organization_join_request')
+                  .select('*')
+                  .eq('user_id', user.id)
+                  .eq('organization_id', organization.id)
+                  .eq('status', 'PENDING')
+                  .maybeSingle();
+
+                if (requestError) {
+                  console.error('Error checking join request:', requestError);
+                }
+
+                // If there's already a pending request, show message and redirect
+                if (existingRequest) {
+                  toast(`You already have a pending request to join ${organization.name}`);
+                  localStorage.removeItem('selectedOrganizationForJoin');
+                  localStorage.removeItem('pendingJoinRequestMessage');
+                  navigate('/dashboard');
+                  return;
+                }
+
+                // Create a join request
+                console.log('Creating join request for organization:', organization.name);
+                const joinRequestService = createOrganizationJoinRequestService();
+                await joinRequestService.createJoinRequest(
+                  organization.id,
+                  pendingJoinMessage || undefined
+                );
+
+                // Clear the pending join request data
+                localStorage.removeItem('selectedOrganizationForJoin');
+                localStorage.removeItem('pendingJoinRequestMessage');
+
+                toast.success(`Your request to join ${organization.name} has been submitted`);
+                navigate('/dashboard');
+              } catch (err) {
+                console.error('Error in processJoinRequest:', err);
+                toast.error('Failed to process join request');
+
+                // Continue with normal flow
+                if (organizations.length > 0) {
+                  navigate('/dashboard');
+                } else {
+                  setShowOnboarding(true);
+                }
+              }
+            };
+
+            // Call the async function
+            processJoinRequest();
+            return;
+          } catch (err) {
+            console.error('Error parsing organization data for join request:', err);
+            // Continue with normal flow if there's an error
+          }
+        }
+
+        // For sign-in with organization selected, go to dashboard
         if (mode === 'signIn' && selectedOrganization && selectedOrganization.id !== 'pending') {
-          console.log('Sign-in with organization selected, redirecting to home');
-          navigate('/');
+          console.log('Sign-in with organization selected, redirecting to dashboard');
+          navigate('/dashboard');
         }
         // For sign-up, show organization creation
         else if (mode === 'signUp') {
@@ -117,8 +216,8 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
         // For sign-in without organization or with existing organizations
         else if (mode === 'signIn') {
           if (organizations.length > 0) {
-            console.log('User has organizations, redirecting to home');
-            navigate('/');
+            console.log('User has organizations, redirecting to dashboard');
+            navigate('/dashboard');
           } else if (!showOnboarding) {
             console.log('No organizations found, showing onboarding');
             setShowOnboarding(true);
@@ -135,6 +234,26 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
       setShowOnboarding(true);
     }
   }, [isAuthenticated, organizations.length, showOnboarding, isLoading, signInSuccess]);
+
+  // Reset form state when mode changes (switching between sign-in and sign-up)
+  useEffect(() => {
+    console.log('Auth mode changed to:', mode);
+    // Reset form state
+    setEmail('');
+    setPassword('');
+    setName('');
+    setError(null);
+    setIsSubmitting(false);
+    setSignInSuccess(false);
+    // Reset organization selection if needed
+    if (step !== 'org-lookup') {
+      setStep(mode === 'signIn' ? 'org-lookup' : 'credentials');
+    }
+    setSelectedOrganization(null);
+    setShowCreateOrgAfterSignup(false);
+    setShowJoinRequestForm(false);
+    setJoinRequestMessage('');
+  }, [mode]);
 
   // Handle organization selection
   const handleOrganizationSelect = (organization: Organization, action?: string) => {
@@ -265,22 +384,28 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
         if (joinRequest) {
           if (joinRequest.status === 'PENDING') {
             setError(`You have a pending request to join ${selectedOrganization.name}. Please wait for an administrator to approve your request.`);
+            // Store the organization in localStorage for potential future use
+            localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(selectedOrganization));
+            setSignInSuccess(true);
+            return;
           } else if (joinRequest.status === 'REJECTED') {
             setError(`Your request to join ${selectedOrganization.name} was rejected. Please contact an administrator for assistance.`);
+            // Store the organization in localStorage for potential future use
+            localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(selectedOrganization));
+            setSignInSuccess(true);
+            return;
           }
-
-          // Sign out the user since they can't access this organization
-          await supabase.auth.signOut();
-          setIsSubmitting(false);
-          return;
         }
 
-        // If no membership and no join request, show join request form
-        setShowJoinRequestForm(true);
-        setError(`You are not a member of ${selectedOrganization.name}. Please submit a request to join.`);
+        // If no membership and no join request, store the organization and proceed
+        // This will trigger the join request flow in the useEffect
+        localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(selectedOrganization));
 
-        // Sign out the user since they can't access this organization yet
-        await supabase.auth.signOut();
+        // Show a message to the user
+        toast.success('Please provide a reason to join the organization');
+
+        // Set sign-in success to trigger the useEffect
+        setSignInSuccess(true);
       } else {
         // For sign-up, proceed normally
         await signUp(email, password, { name });
@@ -295,8 +420,8 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
   };
 
   const handleOnboardingComplete = () => {
-    // Redirect to home page after onboarding
-    navigate('/');
+    // Redirect to dashboard after onboarding
+    navigate('/dashboard');
   };
 
   // Show loading state while authentication is being checked
@@ -598,24 +723,24 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                     {mode === 'signIn' ? (
                       <>
                         Don't have an account?{' '}
-                        <button
-                          onClick={() => navigate('/sign-up')}
-                          className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer"
+                        <Link
+                          to="/sign-up"
+                          className="text-blue-600 hover:underline cursor-pointer"
                           style={{ color: config.accentColor }}
                         >
                           Sign Up
-                        </button>
+                        </Link>
                       </>
                     ) : (
                       <>
                         Already have an account?{' '}
-                        <button
-                          onClick={() => navigate('/sign-in')}
-                          className="text-blue-600 hover:underline bg-transparent border-none p-0 cursor-pointer"
+                        <Link
+                          to="/sign-in"
+                          className="text-blue-600 hover:underline cursor-pointer"
                           style={{ color: config.accentColor }}
                         >
                           Sign In
-                        </button>
+                        </Link>
                       </>
                     )}
                   </div>

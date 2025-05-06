@@ -52,10 +52,15 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
 
     // Map view to URL
     let url = '/';
-    if (view === 'home') {
-      url = '/home';
+    if (view === 'dashboard') {
+      // Direct link to dashboard
+      url = '/dashboard';
+    } else if (view === 'home') {
+      // Redirect to dashboard if authenticated, otherwise to home
+      url = isAuthenticated ? '/dashboard' : '/home';
     } else if (view === 'landing') {
-      url = '/';
+      // Redirect to dashboard if authenticated, otherwise to landing page
+      url = isAuthenticated ? '/dashboard' : '/';
     } else if (view === 'test-matching') {
       url = '/test-matching';
     } else if (view === 'test-matching-audio') {
@@ -95,6 +100,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
   // Handle sign out
   const handleSignOut = async () => {
     await signOut();
+    // Redirect to landing page after sign out
     navigate('/');
   };
 
@@ -155,7 +161,7 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="flex items-center space-x-3 cursor-pointer group"
-            onClick={() => navigateWithUrl('landing')}
+            onClick={() => isAuthenticated ? navigateWithUrl('dashboard') : navigateWithUrl('landing')}
           >
             <div className="relative">
               {currentOrganization && currentOrganization.logoUrl ? (

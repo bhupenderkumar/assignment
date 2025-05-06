@@ -9,7 +9,7 @@ import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
 
 interface OrganizationLookupProps {
-  onOrganizationSelect: (organization: Organization) => void;
+  onOrganizationSelect: (organization: Organization, action?: string) => void;
   onBack: () => void;
 }
 
@@ -140,6 +140,8 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
 
   // Handle organization selection
   const handleSelectOrganization = (organization: Organization) => {
+    // Store the selected organization in localStorage for potential join request
+    localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(organization));
     onOrganizationSelect(organization);
   };
 
@@ -148,6 +150,8 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
     // Pass the organization to the parent component to handle join request
     // Use a different approach to handle join requests
     setSelectedOrganization(organization);
+    // Store the selected organization in localStorage for potential join request
+    localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(organization));
     setMode('request');
   };
 
@@ -164,7 +168,17 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
     setError(null);
 
     try {
-      // Create a join request
+      // If user is not authenticated, store the join request message in localStorage
+      if (!isAuthenticated) {
+        // Store the join request message in localStorage
+        localStorage.setItem('pendingJoinRequestMessage', requestMessage.trim());
+
+        // Select the organization and proceed to login
+        onOrganizationSelect(selectedOrganization, 'join-request');
+        return;
+      }
+
+      // If user is authenticated, create the join request directly
       const joinRequestService = createOrganizationJoinRequestService();
       await joinRequestService.createJoinRequest(
         selectedOrganization.id,
@@ -265,7 +279,7 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-700">
       <div className="p-6 sm:p-8">
         <AnimatePresence mode="wait">
           {mode === 'search' ? (
@@ -277,6 +291,11 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
               transition={{ duration: 0.3 }}
             >
               <div className="text-center mb-8">
+                <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-blue-50 dark:bg-blue-900/30 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-500 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                   Find Your Organization
                 </h1>
@@ -286,41 +305,47 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
               </div>
 
               {error && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm">
-                  {error}
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm border-l-4 border-red-500 dark:border-red-400 flex items-start">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>{error}</span>
                 </div>
               )}
 
               <form onSubmit={handleSearch} className="mb-6">
                 <div className="mb-4">
-                  <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Organization Name
                   </label>
-                  <div className="relative">
+                  <div className="relative group">
                     <input
                       id="organizationName"
                       type="text"
                       value={organizationName}
                       onChange={handleSearchInputChange}
-                      className="w-full px-4 py-2 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      className="w-full px-4 py-3 pl-12 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white shadow-sm transition-all duration-200 group-hover:border-blue-300 dark:group-hover:border-blue-500"
                       placeholder="Search for your organization..."
                       autoFocus
                     />
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <svg className="h-6 w-6 text-gray-400 group-hover:text-blue-500 transition-colors duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                       </svg>
                     </div>
                     {isSearching && (
                       <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                        <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <svg className="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                       </div>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                     Start typing to search for your organization
                   </p>
                 </div>
@@ -408,6 +433,14 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
                           Request to Join
                         </button>
                       </div>
+
+                      {/* Add a hidden input field to store the join request message */}
+                      <input
+                        type="hidden"
+                        id={`join-request-message-${org.id}`}
+                        name={`join-request-message-${org.id}`}
+                        value=""
+                      />
                     </div>
                   ))}
                 </div>

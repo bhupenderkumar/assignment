@@ -38,60 +38,54 @@ export const DatabaseStateProvider: React.FC<{ children: ReactNode }> = ({ child
   // Track if initialization has been attempted
   const initializationAttempted = React.useRef(false);
 
+  // Track connection attempt in progress
+  const connectionInProgress = React.useRef(false);
+
   // Initialize Supabase and check database connection
   useEffect(() => {
     // Prevent multiple initialization attempts
-    if (initializationAttempted.current && retryCount === 0) {
-      console.log('DatabaseStateContext: Initialization already attempted, skipping');
+    if ((initializationAttempted.current && retryCount === 0) || connectionInProgress.current) {
       return;
     }
 
     initializationAttempted.current = true;
+    connectionInProgress.current = true;
 
     const initializeDatabase = async () => {
       try {
         setState('initializing');
-        console.log('DatabaseStateContext: Initializing database connection...');
 
-        // Get Supabase client
+        // Get Supabase client - reuse existing client if available
         const client = await getSupabaseClient(null);
         setSupabase(client);
 
         // Test database connection
         setState('connecting');
-        console.log('DatabaseStateContext: Testing database connection...');
 
-        // Try multiple tables to test connection
+        // Try multiple tables to test connection, but only try one at a time
         const tablesToTest = ['interactive_assignment', 'user_progress', 'user_profile'];
-        let connectionSuccessful = false;
+        const tableToTest = tablesToTest[Math.min(retryCount, tablesToTest.length - 1)];
 
-        for (const table of tablesToTest) {
-          try {
-            const { error } = await client
-              .from(table)
-              .select('id')
-              .limit(1);
+        try {
+          const { error } = await client
+            .from(tableToTest)
+            .select('id')
+            .limit(1);
 
-            if (!error) {
-              console.log(`DatabaseStateContext: Connection successful using table: ${table}`);
-              connectionSuccessful = true;
-              break;
-            }
-          } catch (tableError) {
-            console.warn(`DatabaseStateContext: Error testing table ${table}:`, tableError);
+          if (!error) {
+            // Connection successful
+            setState('ready');
+            setError(null);
+            window._supabaseReady = true;
+
+            // Process any queued operations
+            processQueue();
+          } else {
+            throw new Error(`Error connecting to table ${tableToTest}: ${error.message}`);
           }
-        }
-
-        if (connectionSuccessful) {
-          console.log('DatabaseStateContext: Database connection established successfully');
-          setState('ready');
-          setError(null);
-          window._supabaseReady = true;
-
-          // Process any queued operations
-          processQueue();
-        } else {
-          throw new Error('Could not connect to any database tables');
+        } catch (tableError) {
+          // If this specific table failed, try the next one on retry
+          throw new Error(`Could not connect to table ${tableToTest}`);
         }
       } catch (err) {
         console.error('DatabaseStateContext: Error initializing database:', err);
@@ -100,24 +94,28 @@ export const DatabaseStateProvider: React.FC<{ children: ReactNode }> = ({ child
         setError(errorMessage);
 
         // Retry connection after a delay if not too many attempts
-        if (retryCount < 3) { // Reduced from 5 to 3 to prevent too many retries
-          const retryDelay = Math.min(1000 * Math.pow(1.5, retryCount), 5000); // Reduced max delay
-          console.log(`DatabaseStateContext: Will retry in ${retryDelay/1000} seconds (attempt ${retryCount + 1})`);
+        if (retryCount < 2) { // Only retry twice to minimize API calls
+          const retryDelay = 2000 + (retryCount * 1000); // Simple linear backoff: 2s, 3s
 
           setTimeout(() => {
+            connectionInProgress.current = false;
             setRetryCount(prev => prev + 1);
           }, retryDelay);
         } else {
-          console.log('DatabaseStateContext: Maximum retry attempts reached, setting state to ready anyway');
           // Set state to ready anyway to prevent blocking the app
           setState('ready');
           window._supabaseReady = true;
+          connectionInProgress.current = false;
+        }
+      } finally {
+        if (state === 'ready' || retryCount >= 2) {
+          connectionInProgress.current = false;
         }
       }
     };
 
     initializeDatabase();
-  }, [retryCount]);
+  }, [retryCount, state]);
 
   // Process the operation queue when database is ready
   const processQueue = () => {
@@ -142,13 +140,38 @@ export const DatabaseStateProvider: React.FC<{ children: ReactNode }> = ({ child
 
   // Execute operation when database is ready, or queue it
   const executeWhenReady = async <T,>(operation: () => Promise<T>): Promise<T> => {
-    if (state === 'ready') {
-      return operation();
+    // If database is ready or we've exceeded retry attempts, execute immediately
+    if (state === 'ready' || (retryCount >= 2 && state === 'error')) {
+      try {
+        return await operation();
+      } catch (error) {
+        console.error('DatabaseStateContext: Error executing operation:', error);
+        throw error;
+      }
     }
 
-    console.log('DatabaseStateContext: Database not ready, queueing operation');
+    // If we're still initializing or connecting, queue the operation
     return new Promise<T>((resolve, reject) => {
-      setOperationQueue(prev => [...prev, { operation, resolve, reject }]);
+      // Add to queue with a timeout to prevent operations from being stuck forever
+      const timeoutId = setTimeout(() => {
+        // If operation times out, remove it from queue and reject
+        setOperationQueue(prev => prev.filter(op =>
+          !(op.resolve === resolve && op.reject === reject)
+        ));
+        reject(new Error('Operation timed out waiting for database'));
+      }, 10000); // 10 second timeout
+
+      setOperationQueue(prev => [
+        ...prev,
+        {
+          operation: async () => {
+            clearTimeout(timeoutId);
+            return operation();
+          },
+          resolve,
+          reject
+        }
+      ]);
     });
   };
 

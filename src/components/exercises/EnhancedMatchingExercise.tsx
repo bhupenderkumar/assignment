@@ -1,5 +1,5 @@
 // src/components/exercises/EnhancedMatchingExercise.tsx
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import {
   DndContext,
@@ -1129,4 +1129,5 @@ const EnhancedMatchingExercise = ({
   );
 };
 
-export default EnhancedMatchingExercise;
+// Wrap with React.memo to prevent unnecessary re-renders
+export default React.memo(EnhancedMatchingExercise);

@@ -179,7 +179,7 @@ const StandaloneCertificatePage: React.FC = () => {
   return (
     <div className="standalone-certificate-page">
       <Helmet>
-        <title>Certificate of Achievement | {assignment?.title || 'Interactive Assignment'}</title>
+        <title>{`Certificate of Achievement | ${assignment?.title || 'Interactive Assignment'}`}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="robots" content="noindex" />
         <style type="text/css">{`

@@ -116,7 +116,8 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
           sidebarOpen && !isMobile ? 'lg:pl-64' : ''
         }`}
         style={{
-          marginTop: '20px', // Add more margin to create space between header and content
+          marginTop: '80px', // Increased margin to prevent header overlap
+          paddingTop: '20px', // Additional padding for better spacing
         }}
       >
         <div className={`mx-auto ${sidebarOpen && !isMobile ? 'lg:container' : 'container'}`}>

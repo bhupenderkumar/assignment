@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useBeforeUnload } from 'react-router-dom';
 import PlayAssignment from '../assignments/PlayAssignment';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
@@ -18,24 +18,37 @@ const PlayAssignmentPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentAssignment, setCurrentAssignment] = useState<any | null>(null);
+  const [isAssignmentActive, setIsAssignmentActive] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const { anonymousUser } = useInteractiveAssignment();
   const { user, isSupabaseLoading } = useSupabaseAuth();
   const navigate = useNavigate();
 
-  // Log the assignment ID from URL params
-  useEffect(() => {
-    console.log('Assignment ID from URL params:', assignmentId);
-  }, [assignmentId]);
+  // Reference to track if navigation was confirmed
+  const navigationConfirmed = useRef(false);
 
-  // Create the enhanced service
+  // Add navigation warning when assignment is active
+  useBeforeUnload(
+    useCallback((event) => {
+      if (isAssignmentActive && !isSubmitted && !navigationConfirmed.current) {
+        // Standard for modern browsers
+        event.preventDefault();
+        // For older browsers
+        event.returnValue = '';
+        return '';
+      }
+    }, [isAssignmentActive, isSubmitted])
+  );
+
+  // Create the enhanced service - memoized to prevent recreation
   const assignmentService = useCallback(() => {
     return createEnhancedInteractiveAssignmentService(user);
   }, [user]);
 
   // Function to fetch assignment with retry logic and caching
   const fetchAssignment = useCallback(async () => {
-    if (isSupabaseLoading) {
-      console.log('Supabase is still initializing, waiting...');
+    // Skip if we already have the assignment or if Supabase is still initializing
+    if (currentAssignment || isSupabaseLoading) {
       return;
     }
 
@@ -44,7 +57,6 @@ const PlayAssignmentPage = () => {
     const cachedAssignment = getCachedItem(cachedAssignmentKey);
 
     if (cachedAssignment) {
-      console.log('Using cached assignment data');
       setCurrentAssignment(cachedAssignment);
       return;
     }
@@ -53,19 +65,21 @@ const PlayAssignmentPage = () => {
     setError(null);
 
     try {
-      console.log(`Attempting to fetch assignment (attempt ${retryCount + 1})`);
       const service = assignmentService();
       const assignment = await service.getPublicAssignmentById(assignmentId || '');
 
       if (assignment) {
-        console.log('Assignment fetched successfully:', assignment);
         setCurrentAssignment(assignment);
-
-        // Cache the assignment data
-        setCachedItem(cachedAssignmentKey, assignment);
-        console.log('Assignment data cached successfully');
+        // Try to cache the assignment data, but don't worry if it fails
+        try {
+          const cacheSuccess = setCachedItem(cachedAssignmentKey, assignment);
+          if (!cacheSuccess) {
+            console.log('Assignment too large to cache, proceeding without caching');
+          }
+        } catch (cacheError) {
+          console.warn('Failed to cache assignment, proceeding without caching:', cacheError);
+        }
       } else {
-        console.log('Assignment not found');
         setError('Assignment not found or not published');
       }
     } catch (err) {
@@ -75,34 +89,29 @@ const PlayAssignmentPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [assignmentId, assignmentService, retryCount, isSupabaseLoading]);
+  }, [assignmentId, assignmentService, isSupabaseLoading, currentAssignment]);
 
-  // Fetch assignment on mount or when Supabase initialization state changes
+  // Fetch assignment only once when component mounts or when dependencies change
   useEffect(() => {
-    // Use a ref to track if we've already fetched this assignment
-    const controller = new AbortController();
-
-    // Check if we already have the assignment data in state
+    // Skip if we already have the assignment
     if (currentAssignment) {
-      console.log('Assignment already loaded in state, skipping fetch');
       return;
     }
 
+    // If Supabase is ready, fetch immediately
     if (!isSupabaseLoading) {
       fetchAssignment();
-    } else if (retryCount < 3) {
-      // If Supabase is still loading, set a timeout to retry
+      return;
+    }
+
+    // If Supabase is still loading and we haven't exceeded retry limit
+    if (isSupabaseLoading && retryCount < 3) {
       const timeoutId = setTimeout(() => {
         setRetryCount(prev => prev + 1);
-      }, 1000); // Wait 1 second before retrying
+      }, 1500); // Increased delay to reduce frequency of retries
 
       return () => clearTimeout(timeoutId);
     }
-
-    // Cleanup function to abort any in-progress fetches when component unmounts
-    return () => {
-      controller.abort();
-    };
   }, [assignmentId, fetchAssignment, isSupabaseLoading, retryCount, currentAssignment]);
 
   // Check if user is registered
@@ -112,11 +121,61 @@ const PlayAssignmentPage = () => {
     }
   }, [currentAssignment, anonymousUser]);
 
-  // Handle back to home
+  // Handle back to home with confirmation if assignment is active
   const handleBackToHome = () => {
+    if (isAssignmentActive && !isSubmitted) {
+      const confirmed = window.confirm(
+        'You have an active assignment in progress. If you leave now, your progress will be lost. Are you sure you want to leave?'
+      );
+
+      if (!confirmed) {
+        return; // Stay on the page if not confirmed
+      }
+
+      // Mark navigation as confirmed to prevent the beforeunload warning
+      navigationConfirmed.current = true;
+    }
+
     // Use React Router navigation
     navigate('/');
   };
+
+  // Custom navigation handler for any navigation attempt
+  useEffect(() => {
+    // Function to handle navigation attempts
+    const handleNavigation = (event: BeforeUnloadEvent | PopStateEvent) => {
+      if (isAssignmentActive && !isSubmitted && !navigationConfirmed.current) {
+        if (event.type === 'beforeunload') {
+          // For page refresh or close
+          event.preventDefault();
+          (event as BeforeUnloadEvent).returnValue = '';
+          return '';
+        } else {
+          // For history navigation (back/forward buttons)
+          const confirmed = window.confirm(
+            'You have an active assignment in progress. If you leave now, your progress will be lost. Are you sure you want to leave?'
+          );
+
+          if (!confirmed) {
+            // Stay on the page if not confirmed
+            window.history.pushState(null, '', window.location.pathname);
+            return;
+          }
+
+          // Mark navigation as confirmed
+          navigationConfirmed.current = true;
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('popstate', handleNavigation);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('popstate', handleNavigation);
+    };
+  }, [isAssignmentActive, isSubmitted]);
 
   // Loading state
   if (loading || isSupabaseLoading) {
@@ -224,7 +283,14 @@ const PlayAssignmentPage = () => {
         </button>
       </div>
 
-      <PlayAssignment assignment={currentAssignment} />
+      <PlayAssignment
+        assignment={currentAssignment}
+        onAssignmentStart={() => setIsAssignmentActive(true)}
+        onAssignmentComplete={() => {
+          setIsAssignmentActive(false);
+          setIsSubmitted(true);
+        }}
+      />
 
       {/* Anonymous User Registration Modal */}
       <AnonymousUserRegistration

@@ -1,15 +1,24 @@
 // src/components/pages/UserDashboardPage.tsx
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import CompletedActivitiesList from '../user/CompletedActivitiesList';
+import UserJoinRequests from '../organization/UserJoinRequests';
 import { InteractiveSubmissionExtended } from '../../types/interactiveSubmissionExtended';
 import toast from 'react-hot-toast';
 
-const UserDashboardPage = () => {
+interface UserDashboardPageProps {
+  showJoinRequests?: boolean;
+  certificatesMode?: boolean;
+}
+
+const UserDashboardPage = ({
+  showJoinRequests = true,
+  certificatesMode = false
+}: UserDashboardPageProps = {}) => {
   const [completedActivities, setCompletedActivities] = useState<InteractiveSubmissionExtended[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoadAttempted, setInitialLoadAttempted] = useState(false);
@@ -185,12 +194,24 @@ const UserDashboardPage = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
+        {/* User Join Requests Section - only show if not in certificates mode */}
+        {showJoinRequests && !certificatesMode && (
+          <UserJoinRequests
+            showTitle={true}
+            showAllRequests={false}
+            className="mb-4 sm:mb-8"
+          />
+        )}
+
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: config.primaryColor }}>
-            My Learning Journey
+            {certificatesMode ? 'My Certificates' : 'My Learning Journey'}
           </h1>
           <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mb-4">
-            Welcome back, {username || 'Learner'}! Here's a summary of your completed activities.
+            {certificatesMode
+              ? `View and download certificates for your completed assignments.`
+              : `Welcome back, ${username || 'Learner'}! Here's a summary of your completed activities.`
+            }
           </p>
 
           {/* Stats Summary - Responsive grid for mobile */}

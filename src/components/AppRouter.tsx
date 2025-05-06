@@ -8,10 +8,12 @@ import AdminDashboard from './admin/AdminDashboard';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
 import UserDashboardPage from './pages/UserDashboardPage';
+import DashboardPage from './pages/DashboardPage';
 import AssignmentGalleryPage from './pages/AssignmentGalleryPage';
 import PaymentDemoPage from './pages/PaymentDemoPage';
 import OrganizationManagementPage from '../pages/OrganizationManagementPage';
 import OrganizationSettingsPage from '../pages/OrganizationSettingsPage';
+import OrganizationRequestsPage from '../pages/OrganizationRequestsPage';
 import JoinOrganizationPage from '../pages/JoinOrganizationPage';
 import SettingsPage from '../pages/settings';
 import HelpCenter from './pages/HelpCenter';
@@ -20,6 +22,7 @@ import TermsOfService from './pages/TermsOfService';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
 import StandaloneCertificatePage from '../pages/StandaloneCertificatePage';
+import CertificatesPage from '../pages/CertificatesPage';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { InteractiveAssignmentProvider } from '../context/InteractiveAssignmentContext';
 import { OrganizationProvider } from '../context/OrganizationContext';
@@ -46,16 +49,35 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Route that redirects authenticated users to dashboard and shows landing page for non-authenticated users
+const LandingRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isLoading } = useSupabaseAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  // Always redirect authenticated users to dashboard
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Only show landing page to non-authenticated users
+  return <>{children}</>;
+};
+
 const AppRouter = () => {
-
-
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/" element={<Layout><LandingPage /></Layout>} />
+      {/* Public routes - Landing page redirects to dashboard if authenticated */}
+      <Route path="/" element={<LandingRoute><Layout><LandingPage /></Layout></LandingRoute>} />
       <Route path="/home" element={<Layout><HomePage /></Layout>} />
       <Route path="/play/share/:shareableLink" element={<Layout hideNavigation><SharedAssignmentPage /></Layout>} />
-      <Route path="/play/assignment/:assignmentId" element={<Layout hideNavigation><PlayAssignmentPage /></Layout>} />
+      <Route path="/play/assignment/:assignmentId" element={<Layout><PlayAssignmentPage /></Layout>} />
       <Route path="/gallery" element={
         <Layout>
           <InteractiveAssignmentProvider>
@@ -83,7 +105,23 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <InteractiveAssignmentProvider>
-                <UserDashboardPage />
+                <OrganizationProvider>
+                  <DashboardPage />
+                </OrganizationProvider>
+              </InteractiveAssignmentProvider>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* UserDashboardPage accessible at /user-dashboard - used for certificates */}
+      <Route
+        path="/user-dashboard"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <InteractiveAssignmentProvider>
+                <UserDashboardPage certificatesMode={true} showJoinRequests={false} />
               </InteractiveAssignmentProvider>
             </Layout>
           </ProtectedRoute>
@@ -179,6 +217,20 @@ const AppRouter = () => {
         }
       />
 
+      {/* Organization requests route */}
+      <Route
+        path="/organization-requests"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <OrganizationProvider>
+                <OrganizationRequestsPage />
+              </OrganizationProvider>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
       {/* Settings route */}
       <Route
         path="/settings"
@@ -186,6 +238,20 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <SettingsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Certificates route */}
+      <Route
+        path="/certificates"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <InteractiveAssignmentProvider>
+                <CertificatesPage />
+              </InteractiveAssignmentProvider>
             </Layout>
           </ProtectedRoute>
         }

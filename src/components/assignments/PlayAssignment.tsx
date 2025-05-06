@@ -1,5 +1,5 @@
 // src/components/assignments/PlayAssignment.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useParams } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
@@ -21,9 +21,15 @@ import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from 
 
 interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
+  onAssignmentStart?: () => void;
+  onAssignmentComplete?: () => void;
 }
 
-const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
+const PlayAssignment = ({
+  assignment,
+  onAssignmentStart,
+  onAssignmentComplete
+}: PlayAssignmentProps) => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
   const { user, isSupabaseLoading } = useSupabaseAuth();
@@ -51,129 +57,89 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
   // Import the database state context
   const { isReady: isDatabaseReady, executeWhenReady, state: dbState } = useDatabaseState();
 
-  // Update currentAssignment when assignment prop changes
+  // Update currentAssignment when assignment prop changes - only once
   useEffect(() => {
-    if (assignment) {
-      console.log('Assignment prop changed, updating current assignment');
+    if (assignment && !currentAssignment) {
       setCurrentAssignment(assignment);
 
-      // If we have an assignment from props, also cache it for persistence
+      // Cache the assignment data for persistence
       if (assignment.id) {
         try {
           const cachedAssignmentKey = `cached_assignment_${assignment.id}`;
           localStorage.setItem(cachedAssignmentKey, JSON.stringify(assignment));
-          console.log('Cached assignment from props for persistence');
         } catch (cacheError) {
           console.warn('Error caching assignment from props:', cacheError);
         }
       }
     }
-  }, [assignment]);
+  }, [assignment, currentAssignment]);
 
-  // Function to fetch assignment with retry logic and caching
+  // Function to fetch assignment with retry logic and caching - optimized to reduce calls
   const fetchAssignment = useCallback(async () => {
-    // Check if Supabase is still initializing
-    if (isSupabaseLoading) {
-      console.log('Supabase is still initializing, waiting...');
-      return;
-    }
-
-    // We'll use the database state context instead of the global flag
-    if (!isDatabaseReady) {
-      console.log('Database is not ready yet, waiting...');
-
-      if (dbState === 'error') {
+    // Skip if we already have the assignment, Supabase is loading, or database isn't ready
+    if (currentAssignment || isSupabaseLoading || !isDatabaseReady) {
+      if (!isDatabaseReady && dbState === 'error') {
         setError('Database connection error. Please try refreshing the page.');
-      } else {
-        setError('Database connection is initializing, please try again in a moment.');
       }
-
       return;
     }
 
-    // If we already have an assignment from props, don't try to fetch it
+    // Skip if we're using assignment from props
     if (assignment) {
-      console.log('Using assignment from props:', assignment);
       setCurrentAssignment(assignment);
       return;
     }
 
+    // Skip if no assignment ID
     if (!assignmentId) {
-      console.error('No assignment ID provided');
       setError('No assignment ID provided');
       return;
     }
 
-    // Check if we have a cached version of this assignment
+    // Check cache first
     const cachedAssignmentKey = `cached_assignment_${assignmentId}`;
     const cachedAssignment = getCachedItem(cachedAssignmentKey);
 
     if (cachedAssignment) {
-      console.log('Using cached assignment data');
       setCurrentAssignment(cachedAssignment as InteractiveAssignment);
       return;
     }
 
+    // Only set loading if we're actually going to make a network request
     setLoading(true);
     setError(null);
 
     try {
-      console.log(`Attempting to fetch assignment (attempt ${retryCount + 1})`);
+      // Create service
+      const service = assignmentService();
 
-      // Create service with error handling
-      let service;
-      try {
-        service = assignmentService();
-      } catch (serviceError) {
-        console.error('Error creating assignment service:', serviceError);
-
-        // Check if Supabase is ready again - it might be a timing issue
-        if (!window._supabaseReady) {
-          setError('Database connection is initializing, please try again in a moment.');
-        } else {
-          setError('Error connecting to the database. Please try refreshing the page.');
-        }
-        setLoading(false);
-        return;
-      }
-
-      // Check if we're on a shared assignment page by looking at the URL
+      // Determine if we're on a shared page
       const isSharedPage = window.location.pathname.includes('/play/share/');
-      console.log('Is shared page:', isSharedPage);
 
-      let assignment;
+      let fetchedAssignment;
       if (isSharedPage) {
-        // If we're on a shared page, we need to get the assignment by the shareable link
         const shareableLink = window.location.pathname.split('/play/share/')[1];
-        console.log('Shareable link:', shareableLink);
-
         if (shareableLink) {
-          assignment = await service.getAssignmentByShareableLink(shareableLink);
+          fetchedAssignment = await service.getAssignmentByShareableLink(shareableLink);
         } else {
           throw new Error('Invalid shareable link');
         }
       } else {
-        // Normal assignment page - get by ID
-        assignment = await service.getPublicAssignmentById(assignmentId);
+        fetchedAssignment = await service.getPublicAssignmentById(assignmentId);
       }
 
-      if (assignment) {
-        console.log('Assignment fetched successfully:', assignment);
-        console.log('Questions:', assignment.questions);
-
-        if (assignment.questions && assignment.questions.length > 0) {
-          console.log('First question:', assignment.questions[0]);
-        } else {
-          console.log('No questions found for this assignment');
+      if (fetchedAssignment) {
+        setCurrentAssignment(fetchedAssignment);
+        // Try to cache the assignment data, but don't worry if it fails
+        try {
+          const cacheSuccess = setCachedItem(cachedAssignmentKey, fetchedAssignment);
+          if (!cacheSuccess) {
+            console.log('Assignment too large to cache, proceeding without caching');
+          }
+        } catch (cacheError) {
+          console.warn('Failed to cache assignment, proceeding without caching:', cacheError);
         }
-
-        setCurrentAssignment(assignment);
-
-        // Cache the assignment data
-        setCachedItem(cachedAssignmentKey, assignment);
-        console.log('Assignment data cached successfully');
       } else {
-        console.log('Assignment not found');
         setError('Assignment not found or not published');
       }
     } catch (err) {
@@ -183,69 +149,36 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
     } finally {
       setLoading(false);
     }
-  }, [assignment, assignmentId, assignmentService, retryCount, isSupabaseLoading, isDatabaseReady, dbState]);
+  }, [assignment, assignmentId, assignmentService, isSupabaseLoading, isDatabaseReady, dbState, currentAssignment]);
 
-  // Fetch assignment on mount or when database state changes
+  // Fetch assignment only once when component mounts or when dependencies change
   useEffect(() => {
-    // Only fetch if assignment is not provided as a prop
-    if (assignment) {
+    // Skip if we already have the assignment or if it's provided as a prop
+    if (currentAssignment || assignment) {
       return;
     }
 
-    const controller = new AbortController();
-
-    // Log the current URL and assignment ID
-    console.log('Current URL:', window.location.pathname);
-    console.log('Assignment ID from URL params:', assignmentId);
-
-    // Use the database state context to determine readiness
+    // If both database and auth are ready, fetch immediately
     if (isDatabaseReady && !isSupabaseLoading) {
-      console.log('Database and authentication are ready, fetching assignment...');
-
-      // Use executeWhenReady to ensure the database is ready
-      executeWhenReady(() => {
-        return fetchAssignment();
-      }).catch(err => {
-        console.error('Error executing database operation:', err);
-      });
-    } else if (dbState === 'error') {
-      // If there's a database error, show it
-      console.log('Database has an error, showing error state');
-      setError('Database connection error. Please try refreshing the page.');
-    } else if (!isSupabaseLoading && dbState !== 'ready') {
-      // If auth is ready but database is still initializing
-      console.log('Authentication ready but database still initializing...');
-
-      // Set a timeout to check again
-      const timeoutId = setTimeout(() => {
-        if (isDatabaseReady) {
-          console.log('Database is now ready, fetching assignment...');
-          fetchAssignment();
-        } else {
-          console.log('Database still not ready, will retry...');
-          setRetryCount(prev => prev + 1);
-        }
-      }, 1000);
-
-      return () => clearTimeout(timeoutId);
-    } else {
-      // Both auth and database are still initializing
-      const retryDelay = Math.min(1000 * Math.pow(1.5, retryCount), 5000); // Max 5 seconds
-
-      console.log(`Still initializing, will retry in ${retryDelay/1000} seconds (attempt ${retryCount + 1})`);
-
-      const timeoutId = setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-      }, retryDelay);
-
-      return () => clearTimeout(timeoutId);
+      executeWhenReady(() => fetchAssignment())
+        .catch(err => console.error('Error executing database operation:', err));
+      return;
     }
 
-    // Cleanup function to abort any in-progress fetches when component unmounts
-    return () => {
-      controller.abort();
-    };
-  }, [assignment, assignmentId, fetchAssignment, isSupabaseLoading, retryCount, isDatabaseReady, dbState, executeWhenReady]);
+    // If we've reached the retry limit, show an error
+    if (retryCount >= 3) {
+      setError('Could not connect to the database after multiple attempts. Please refresh the page.');
+      return;
+    }
+
+    // Set a timeout with exponential backoff for retries
+    const retryDelay = Math.min(1500 * Math.pow(1.5, retryCount), 5000); // Max 5 seconds
+    const timeoutId = setTimeout(() => {
+      setRetryCount(prev => prev + 1);
+    }, retryDelay);
+
+    return () => clearTimeout(timeoutId);
+  }, [assignment, assignmentId, fetchAssignment, isSupabaseLoading, retryCount, isDatabaseReady, dbState, executeWhenReady, currentAssignment]);
 
   // Check if user is registered
   useEffect(() => {
@@ -254,18 +187,111 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
     }
   }, [currentAssignment, anonymousUser]);
 
-  // Start timer when assignment is loaded
+  // Effect to handle submission when isSubmitted changes
   useEffect(() => {
-    // Only start timer and create submission when assignment is first loaded
-    if (currentAssignment && !timerInterval) {
-      const interval = window.setInterval(() => {
-        setTimeSpent(prev => prev + 1);
-      }, 1000);
+    // We need to define a local function here to avoid the circular dependency
+    const submitAssignment = () => {
+      if (!currentAssignment || !submissionId) return;
 
-      setTimerInterval(interval);
+      // Make sure we have the current question's response before calculating score
+      const ensureCurrentQuestionResponse = () => {
+        if (currentAssignment.questions && currentQuestionIndex < currentAssignment.questions.length) {
+          const currentQuestion = currentAssignment.questions[currentQuestionIndex];
 
-      // Create submission only if we have a user and no submission ID yet
-      if (anonymousUser && !submissionId) {
+          // If we don't have a response for the current question yet, create a default one
+          if (currentQuestion && !responses[currentQuestion.id]) {
+            return {
+              ...responses,
+              [currentQuestion.id]: {
+                id: '',
+                submissionId: submissionId || '',
+                questionId: currentQuestion.id,
+                responseData: {},
+                isCorrect: false // Default to incorrect if no explicit response
+              }
+            };
+          }
+        }
+        return responses;
+      };
+
+      // Get final responses including current question if needed
+      const finalResponses = ensureCurrentQuestionResponse();
+
+      // Calculate overall score
+      const totalQuestions = currentAssignment.questions?.length || 0;
+      const correctResponses = Object.values(finalResponses).filter(r => r.isCorrect);
+      const calculatedScore = totalQuestions > 0
+        ? Math.round((correctResponses.length / totalQuestions) * 100)
+        : 0;
+
+      setScore(calculatedScore);
+
+      // Show a loading toast while submitting
+      const loadingToast = toast.loading('Saving your results...');
+
+      // Submit responses to server
+      const responseArray = Object.values(finalResponses);
+
+      // Pass the calculated score to the submitResponses function
+      submitResponses(submissionId, responseArray, calculatedScore)
+        .then(() => {
+          // Dismiss loading toast
+          toast.dismiss(loadingToast);
+          toast.success('Assignment completed!');
+
+          // Show celebration overlay with a slight delay to ensure UI updates
+          setTimeout(() => {
+            setShowCelebration(true);
+
+            // Notify parent that assignment is complete
+            if (onAssignmentComplete) {
+              onAssignmentComplete();
+            }
+          }, 300);
+        })
+        .catch(error => {
+          // Dismiss loading toast
+          toast.dismiss(loadingToast);
+          console.error('Error submitting responses:', error);
+          toast.error('Failed to submit responses. Please try again.');
+          // Allow retry if submission fails
+          setIsSubmitted(false);
+        });
+    };
+
+    if (isSubmitted && currentAssignment && submissionId) {
+      submitAssignment();
+    }
+  }, [isSubmitted, currentAssignment, submissionId, currentQuestionIndex, responses, submitResponses, onAssignmentComplete]);
+
+  // Start timer when assignment is loaded and create submission only once
+  useEffect(() => {
+    // Only proceed if we have an assignment and no timer yet
+    if (!currentAssignment || timerInterval) {
+      return;
+    }
+
+    // Start the timer
+    const interval = window.setInterval(() => {
+      setTimeSpent(prev => prev + 1);
+    }, 1000);
+
+    setTimerInterval(interval);
+
+    // Notify parent that assignment has started
+    if (onAssignmentStart) {
+      onAssignmentStart();
+    }
+
+    // Create submission only if we have a user, an assignment, and no submission ID yet
+    if (anonymousUser && !submissionId && currentAssignment.id) {
+      // Use a flag to prevent duplicate API calls
+      let isCreatingSubmission = false;
+
+      if (!isCreatingSubmission) {
+        isCreatingSubmission = true;
+
         createSubmission({
           assignmentId: currentAssignment.id,
           userId: anonymousUser.id,
@@ -276,6 +302,9 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
           })
           .catch(error => {
             console.error('Error creating submission:', error);
+          })
+          .finally(() => {
+            isCreatingSubmission = false;
           });
       }
     }
@@ -286,10 +315,10 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         clearInterval(timerInterval);
       }
     };
-  }, [currentAssignment?.id, anonymousUser?.id, submissionId, timerInterval]); // Include submissionId to prevent duplicate submissions
+  }, [currentAssignment, anonymousUser, submissionId, timerInterval, createSubmission, onAssignmentStart]);
 
-  // Handle response update
-  const handleResponseUpdate = (questionId: string, responseData: any, isCorrect: boolean) => {
+  // Handle response update - memoized to prevent unnecessary re-renders
+  const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
     setResponses(prev => ({
       ...prev,
       [questionId]: {
@@ -300,18 +329,16 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         isCorrect
       }
     }));
-  };
+  }, [submissionId]);
 
-  // Handle question completion
-  const handleQuestionComplete = (isCorrect: boolean, questionScore: number) => {
+  // Handle question completion - memoized to prevent unnecessary re-renders
+  const handleQuestionComplete = useCallback((isCorrect: boolean, questionScore: number) => {
     if (!currentAssignment || !currentAssignment.questions) return;
 
     const currentQuestion = currentAssignment.questions[currentQuestionIndex];
 
     // Update response
     handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
-
-    console.log(`Question ${currentQuestionIndex + 1}/${currentAssignment.questions.length} completed. Correct: ${isCorrect}, Score: ${questionScore}`);
 
     // Auto-advance to next question after a delay
     setTimeout(() => {
@@ -320,110 +347,62 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         playSound('click');
       } else {
         // This is the last question, submit the assignment
-        console.log('Last question completed, submitting assignment');
-        handleSubmit();
-      }
-    }, 2000);
-  };
-
-  // Handle submit
-  const handleSubmit = () => {
-    if (!currentAssignment || !submissionId) return;
-
-    // Set submitted state immediately to disable buttons
-    setIsSubmitted(true);
-
-    // Make sure we have the current question's response before calculating score
-    const ensureCurrentQuestionResponse = () => {
-      // If we're on the last question and the user clicks Finish directly
-      // without the auto-advance from handleQuestionComplete, we need to
-      // make sure the current question's response is included
-      if (currentAssignment.questions && currentQuestionIndex < currentAssignment.questions.length) {
-        const currentQuestion = currentAssignment.questions[currentQuestionIndex];
-
-        // If we don't have a response for the current question yet, create a default one
-        if (currentQuestion && !responses[currentQuestion.id]) {
-          console.log('Adding default response for current question:', currentQuestion.id);
-          return {
-            ...responses,
-            [currentQuestion.id]: {
-              id: '',
-              submissionId: submissionId || '',
-              questionId: currentQuestion.id,
-              responseData: {},
-              isCorrect: false // Default to incorrect if no explicit response
-            }
-          };
+        if (currentAssignment && submissionId) {
+          setIsSubmitted(true);
         }
       }
-      return responses;
-    };
+    }, 2000);
+  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses, submissionId]);
 
-    // Get final responses including current question if needed
-    const finalResponses = ensureCurrentQuestionResponse();
-
-    // Calculate overall score
-    const totalQuestions = currentAssignment.questions?.length || 0;
-    const correctResponses = Object.values(finalResponses).filter(r => r.isCorrect);
-    const calculatedScore = totalQuestions > 0
-      ? Math.round((correctResponses.length / totalQuestions) * 100)
-      : 0;
-
-    console.log('Final score calculation:', {
-      totalQuestions,
-      correctResponses: correctResponses.length,
-      calculatedScore
-    });
-
-    setScore(calculatedScore);
-
-    // Show a loading toast while submitting
-    const loadingToast = toast.loading('Saving your results...');
-
-    // Submit responses to server
-    const responseArray = Object.values(finalResponses);
-
-    // Pass the calculated score to the submitResponses function
-    submitResponses(submissionId, responseArray, calculatedScore)
-      .then(() => {
-        // Dismiss loading toast
-        toast.dismiss(loadingToast);
-        toast.success('Assignment completed!');
-
-        // Show celebration overlay with a slight delay to ensure UI updates
-        setTimeout(() => {
-          setShowCelebration(true);
-        }, 300);
-      })
-      .catch(error => {
-        // Dismiss loading toast
-        toast.dismiss(loadingToast);
-        console.error('Error submitting responses:', error);
-        toast.error('Failed to submit responses. Please try again.');
-        // Allow retry if submission fails
-        setIsSubmitted(false);
-      });
+  // Manual submit handler for the "Finish" button
+  const handleManualSubmit = () => {
+    // Just set isSubmitted to true, and the effect will handle the actual submission
+    setIsSubmitted(true);
   };
 
-  // Render current question
-  const renderQuestion = (question: InteractiveQuestion) => {
-    console.log('Rendering question:', question);
-    console.log('Question type:', question.questionType);
-    console.log('Question data:', question.questionData);
+  // Render current question - memoized to prevent unnecessary re-renders
+  const renderQuestion = useCallback((question: InteractiveQuestion) => {
+    // No debug logs to reduce noise and prevent unnecessary renders
+
+    // Check if questionData exists
+    if (!question.questionData) {
+      return (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+          <h3 className="text-xl font-bold mb-4">Invalid Question Data</h3>
+          <p>This question appears to be missing its data. Please contact support if this issue persists.</p>
+          <div className="mt-4 p-4 bg-white bg-opacity-50 rounded-lg">
+            <h4 className="font-semibold mb-2">Question Details:</h4>
+            <pre className="text-xs overflow-auto max-h-40">
+              {JSON.stringify(question, null, 2)}
+            </pre>
+          </div>
+        </div>
+      );
+    }
 
     switch (question.questionType) {
       case 'MATCHING':
+        // Check if pairs exists and is an array
+        if (!question.questionData.pairs || !Array.isArray(question.questionData.pairs) || question.questionData.pairs.length === 0) {
+          return (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+              <h3 className="text-xl font-bold mb-4">Invalid Matching Question</h3>
+              <p>This matching question is missing its pairs data. Please contact support if this issue persists.</p>
+            </div>
+          );
+        }
+
         return (
           <EnhancedMatchingExercise
             data={{
               sourceItems: question.questionData.pairs.map((pair: any) => ({
                 id: pair.id + '-left',
-                content: pair.left,
+                content: pair.left || 'Missing content',
                 imageUrl: pair.leftType === 'image' ? pair.left : undefined
               })),
               targetItems: question.questionData.pairs.map((pair: any) => ({
                 id: pair.id + '-right',
-                content: pair.right,
+                content: pair.right || 'Missing content',
                 imageUrl: pair.rightType === 'image' ? pair.right : undefined
               })),
               correctPairs: question.questionData.pairs.map((pair: any) => ({
@@ -439,12 +418,22 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         );
 
       case 'MULTIPLE_CHOICE':
+        // Check if options exists and is an array
+        if (!question.questionData.options || !Array.isArray(question.questionData.options) || question.questionData.options.length === 0) {
+          return (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+              <h3 className="text-xl font-bold mb-4">Invalid Multiple Choice Question</h3>
+              <p>This multiple choice question is missing its options data. Please contact support if this issue persists.</p>
+            </div>
+          );
+        }
+
         return (
           <MultipleChoiceExercise
             data={{
               question: question.questionText,
               options: question.questionData.options,
-              allowMultiple: question.questionData.allowMultiple
+              allowMultiple: question.questionData.allowMultiple || false
             }}
             onComplete={(isCorrect, score) => {
               handleQuestionComplete(isCorrect, score);
@@ -453,6 +442,16 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         );
 
       case 'COMPLETION':
+        // Check if text and blanks exist
+        if (!question.questionData.text || !question.questionData.blanks || !Array.isArray(question.questionData.blanks)) {
+          return (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+              <h3 className="text-xl font-bold mb-4">Invalid Completion Question</h3>
+              <p>This completion question is missing its text or blanks data. Please contact support if this issue persists.</p>
+            </div>
+          );
+        }
+
         return (
           <CompletionExercise
             data={{
@@ -466,6 +465,16 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         );
 
       case 'ORDERING':
+        // Check if items exists and is an array
+        if (!question.questionData.items || !Array.isArray(question.questionData.items) || question.questionData.items.length === 0) {
+          return (
+            <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+              <h3 className="text-xl font-bold mb-4">Invalid Ordering Question</h3>
+              <p>This ordering question is missing its items data. Please contact support if this issue persists.</p>
+            </div>
+          );
+        }
+
         return (
           <OrderingExercise
             data={{
@@ -492,7 +501,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
           </div>
         );
     }
-  };
+  }, [handleQuestionComplete]); // Add handleQuestionComplete as a dependency
 
   // Loading state
   if (loading || isSupabaseLoading) {
@@ -614,14 +623,10 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
     );
   }
 
-  // Get current question
-  const currentQuestion = currentAssignment.questions?.[currentQuestionIndex];
-
-  // Debug information
-  console.log('Current assignment:', currentAssignment);
-  console.log('Current question index:', currentQuestionIndex);
-  console.log('Current question:', currentQuestion);
-  console.log('Questions array:', currentAssignment.questions);
+  // Get current question - memoized to prevent unnecessary re-renders
+  const currentQuestion = useMemo(() => {
+    return currentAssignment.questions?.[currentQuestionIndex];
+  }, [currentAssignment, currentQuestionIndex]);
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -703,9 +708,9 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
       )}
 
       {/* Current Question */}
-      {currentQuestion && (
+      {currentQuestion ? (
         <motion.div
-          key={currentQuestion.id}
+          key={currentQuestion.id || 'unknown-question'}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
@@ -713,6 +718,17 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
         >
           {renderQuestion(currentQuestion)}
         </motion.div>
+      ) : (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
+          <h3 className="text-xl font-bold mb-4">No Question Available</h3>
+          <p>There are no questions available for this assignment or the current question could not be loaded.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300"
+          >
+            Refresh Page
+          </button>
+        </div>
       )}
 
       {/* Navigation Buttons */}
@@ -740,7 +756,7 @@ const PlayAssignment = ({ assignment }: PlayAssignmentProps) => {
               setCurrentQuestionIndex(prev => prev + 1);
               playSound('click');
             } else {
-              handleSubmit();
+              handleManualSubmit();
             }
           }}
           disabled={isSubmitted}

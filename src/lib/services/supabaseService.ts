@@ -215,6 +215,8 @@ let _supabaseClientInstance: SupabaseClient | null = null;
 let _initializationInProgress = false;
 // Promise for initialization
 let _initializationPromise: Promise<SupabaseClient> | null = null;
+// Flag to track if connection test has been performed
+let _connectionTested = false;
 
 /**
  * Creates and returns a Supabase client (singleton pattern)
@@ -223,14 +225,18 @@ let _initializationPromise: Promise<SupabaseClient> | null = null;
  * @returns A Supabase client
  */
 export const getSupabaseClient = async (_user: User | null): Promise<SupabaseClient> => {
-  // If we already have an instance, return it
+  // If we already have an instance and connection has been tested, return it immediately
+  if (_supabaseClientInstance && _connectionTested) {
+    return _supabaseClientInstance;
+  }
+
+  // If we have an instance but haven't tested connection, just return it without logging
   if (_supabaseClientInstance) {
     return _supabaseClientInstance;
   }
 
-  // If initialization is already in progress, return the promise
+  // If initialization is already in progress, return the promise without logging
   if (_initializationInProgress && _initializationPromise) {
-    console.log('Supabase client initialization already in progress, waiting for it to complete');
     return _initializationPromise;
   }
 
@@ -250,17 +256,17 @@ export const getSupabaseClient = async (_user: User | null): Promise<SupabaseCli
       _supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey);
 
       // We'll test the connection with a more reliable method
-      try {
-        console.log('Testing Supabase connection...');
-        // Use a more reliable method to test connection - auth.getSession() always exists
-        await _supabaseClientInstance.auth.getSession();
-        console.log('Supabase connection test completed');
-
-        // Don't set the ready flag here - let SupabaseAuthContext handle it
-        // This prevents race conditions where the flag is set before full initialization
-      } catch (e) {
-        console.error('Supabase connection test failed:', e);
-        // Even if this fails, we'll continue and let the app handle reconnection
+      if (!_connectionTested) {
+        try {
+          console.log('Testing Supabase connection...');
+          // Use a more reliable method to test connection - auth.getSession() always exists
+          await _supabaseClientInstance.auth.getSession();
+          console.log('Supabase connection test completed');
+          _connectionTested = true;
+        } catch (e) {
+          console.error('Supabase connection test failed:', e);
+          // Even if this fails, we'll continue and let the app handle reconnection
+        }
       }
 
       return _supabaseClientInstance;

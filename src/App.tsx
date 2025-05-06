@@ -5,6 +5,7 @@ import { ConfigurationProvider } from './context/ConfigurationContext';
 import { SupabaseAuthProvider } from './context/SupabaseAuthContext';
 import { DatabaseStateProvider } from './context/DatabaseStateContext';
 import { OrganizationProvider } from './context/OrganizationContext';
+import { OrganizationJoinRequestProvider } from './context/OrganizationJoinRequestContext';
 import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './components/AppRouter';
 
@@ -15,11 +16,12 @@ function App() {
         <DatabaseStateProvider>
           <SupabaseAuthProvider>
             <OrganizationProvider>
-              <InteractiveAssignmentProvider>
-                <AppRouter />
-                <Toaster 
-                  position="bottom-right"
-                  toastOptions={{
+              <OrganizationJoinRequestProvider>
+                <InteractiveAssignmentProvider>
+                  <AppRouter />
+                  <Toaster
+                    position="bottom-right"
+                    toastOptions={{
                     success: {
                       style: {
                         background: '#10B981',
@@ -49,8 +51,9 @@ function App() {
                     },
                     duration: 4000,
                   }}
-                />
-              </InteractiveAssignmentProvider>
+                  />
+                </InteractiveAssignmentProvider>
+              </OrganizationJoinRequestProvider>
             </OrganizationProvider>
           </SupabaseAuthProvider>
         </DatabaseStateProvider>

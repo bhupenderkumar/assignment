@@ -1,7 +1,7 @@
 // src/components/pages/HomePage.tsx
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import AssignmentList from '../assignments/AssignmentList';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
@@ -46,6 +46,15 @@ const HomePage = () => {
   const handleSignIn = () => {
     navigate('/sign-in');
   };
+
+  // Redirect to dashboard if authenticated, or to sign-in if not authenticated
+  if (!isAuthLoading) {
+    if (isAuthenticated) {
+      return <Navigate to="/dashboard" replace />;
+    } else {
+      return <Navigate to="/sign-in" replace />;
+    }
+  }
 
   return (
     <div className="container mx-auto">
@@ -96,36 +105,6 @@ const HomePage = () => {
           <p className="text-gray-600 text-center">
             Checking authentication status...
           </p>
-        </motion.div>
-      )}
-
-      {/* Login Prompt - show when not authenticated and not loading */}
-      {!isAuthenticated && !isAuthLoading && isDatabaseReady && (
-        <motion.div
-          key="login-prompt"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="bg-white rounded-xl shadow-lg p-8 my-8 text-center"
-        >
-          <h2 className="text-2xl font-bold mb-4">Welcome to Interactive Assignments</h2>
-          <p className="text-gray-600 mb-6">
-            Please sign in to view and access your assignments.
-          </p>
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={handleSignIn}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300"
-            >
-              Sign In
-            </button>
-            <button
-              onClick={() => navigate('/sign-up')}
-              className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg transition-colors duration-300"
-            >
-              Sign Up
-            </button>
-          </div>
         </motion.div>
       )}
 

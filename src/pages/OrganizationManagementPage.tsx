@@ -1,5 +1,5 @@
 // src/pages/OrganizationManagementPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useOrganization } from '../context/OrganizationContext';
@@ -18,6 +18,8 @@ const OrganizationManagementPage: React.FC = () => {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([]);
   const [isLoadingUserOrgs, setIsLoadingUserOrgs] = useState<boolean>(true);
+  const [hasProcessedOrganization, setHasProcessedOrganization] = useState<boolean>(false);
+  const userOrgsRequestInProgress = useRef<boolean>(false);
   const navigate = useNavigate();
 
   // Set the organization based on the URL parameter or current organization
@@ -27,12 +29,19 @@ const OrganizationManagementPage: React.FC = () => {
       organizationsCount: organizations.length,
       currentOrganization: currentOrganization?.name,
       isLoading: isLoadingUserOrgs,
-      userOrganizationsCount: userOrganizations.length
+      userOrganizationsCount: userOrganizations.length,
+      hasProcessedOrganization
     });
 
     // Don't do anything if we're still loading
     if (isLoadingUserOrgs) {
       console.log('OrganizationManagementPage: Still loading user organizations, skipping navigation');
+      return;
+    }
+
+    // Prevent duplicate processing
+    if (hasProcessedOrganization && organization) {
+      console.log('OrganizationManagementPage: Already processed organization, skipping');
       return;
     }
 
@@ -44,6 +53,7 @@ const OrganizationManagementPage: React.FC = () => {
       setTimeout(() => {
         navigate('/', { replace: true });
       }, 2000);
+      setHasProcessedOrganization(true);
       return;
     }
 
@@ -69,6 +79,7 @@ const OrganizationManagementPage: React.FC = () => {
           // This shouldn't happen due to the check above, but just in case
           navigate('/', { replace: true });
         }
+        setHasProcessedOrganization(true);
         return;
       }
 
@@ -83,29 +94,35 @@ const OrganizationManagementPage: React.FC = () => {
           console.log('OrganizationManagementPage: Updating current organization to:', org.name);
           setCurrentOrganization(org);
         }
+        setHasProcessedOrganization(true);
       } else if (userOrgIds.length > 0) {
         // Organization not found but user has other organizations
         console.log('OrganizationManagementPage: Organization ID not found, redirecting to first available');
         navigate(`/organizations/${userOrgIds[0]}`, { replace: true });
+        setHasProcessedOrganization(true);
       } else {
         // No organizations available
         console.log('OrganizationManagementPage: No organizations available, redirecting to home');
         navigate('/', { replace: true });
+        setHasProcessedOrganization(true);
       }
     } else if (currentOrganization && userOrgIds.includes(currentOrganization.id)) {
       // No organization ID in URL, use current organization if user is a member
       console.log('OrganizationManagementPage: No organization ID in URL, using current:', currentOrganization.name);
       navigate(`/organizations/${currentOrganization.id}`, { replace: true });
+      setHasProcessedOrganization(true);
     } else if (userOrgIds.length > 0) {
       // No current organization or user is not a member, use first available
       console.log('OrganizationManagementPage: No current organization, using first available');
       navigate(`/organizations/${userOrgIds[0]}`, { replace: true });
+      setHasProcessedOrganization(true);
     } else {
       // No organizations available, redirect to home
       console.log('OrganizationManagementPage: No organizations available, redirecting to home');
       navigate('/', { replace: true });
+      setHasProcessedOrganization(true);
     }
-  }, [organizationId, organizations, currentOrganization, navigate, isLoadingUserOrgs, setCurrentOrganization, userOrganizations]);
+  }, [organizationId, organizations, currentOrganization, navigate, isLoadingUserOrgs, setCurrentOrganization, userOrganizations, hasProcessedOrganization, organization]);
 
   // Fetch user organization roles
   useEffect(() => {
@@ -114,6 +131,15 @@ const OrganizationManagementPage: React.FC = () => {
         setIsLoadingUserOrgs(false);
         return;
       }
+
+      // Prevent duplicate API calls
+      if (userOrgsRequestInProgress.current) {
+        console.log('OrganizationManagementPage: User organizations fetch already in progress, skipping');
+        return;
+      }
+
+      userOrgsRequestInProgress.current = true;
+      console.log('OrganizationManagementPage: Fetching user organizations');
 
       try {
         const { data, error } = await supabase
@@ -136,17 +162,22 @@ const OrganizationManagementPage: React.FC = () => {
             updatedAt: new Date(item.updated_at)
           }));
           setUserOrganizations(userOrgs);
+          console.log('OrganizationManagementPage: User organizations fetched successfully:', userOrgs.length);
         }
       } catch (err) {
         console.error('Error in fetchUserOrganizations:', err);
         setUserOrganizations([]);
       } finally {
         setIsLoadingUserOrgs(false);
+        userOrgsRequestInProgress.current = false;
       }
     };
 
-    fetchUserOrganizations();
-  }, [supabase, user]);
+    // Only fetch if we haven't already or if the user changes
+    if (!userOrganizations.length || userOrgsRequestInProgress.current === false) {
+      fetchUserOrganizations();
+    }
+  }, [supabase, user, userOrganizations.length]);
 
   // Check if user has permission to access this page
   const userRole = userOrganizations.find(
