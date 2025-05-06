@@ -14,14 +14,14 @@ const CertificatesPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCertificate, setSelectedCertificate] = useState<InteractiveSubmissionExtended | null>(null);
   const [showCertificate, setShowCertificate] = useState(false);
-  const { isAuthenticated, userId, username } = useSupabaseAuth();
+  const { isAuthenticated, userId } = useSupabaseAuth();
   const { fetchUserSubmissions } = useInteractiveAssignment();
   const { config } = useConfiguration();
   const navigate = useNavigate();
-  
+
   // For debugging and state recovery
   const submissionsRef = useRef<any[]>([]);
-  
+
   // Track if component is mounted to prevent state updates after unmount
   const isMounted = useRef(true);
 
@@ -94,7 +94,7 @@ const CertificatesPage = () => {
 
         // Fetch submissions
         const submissions = await fetchUserSubmissions();
-        
+
         // Store submissions in ref for backup/recovery
         submissionsRef.current = submissions;
 
@@ -151,10 +151,10 @@ const CertificatesPage = () => {
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return 'N/A';
     const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -193,7 +193,7 @@ const CertificatesPage = () => {
               </svg>
               <h3 className="text-xl font-semibold mb-2">No Certificates Yet</h3>
               <p className="text-gray-500 dark:text-gray-400 mb-4">Complete assignments to earn certificates.</p>
-              <button 
+              <button
                 onClick={() => navigate('/dashboard')}
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >

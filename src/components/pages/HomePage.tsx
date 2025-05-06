@@ -43,9 +43,7 @@ const HomePage = () => {
     }
   };
 
-  const handleSignIn = () => {
-    navigate('/sign-in');
-  };
+
 
   // Redirect to dashboard if authenticated, or to sign-in if not authenticated
   if (!isAuthLoading) {

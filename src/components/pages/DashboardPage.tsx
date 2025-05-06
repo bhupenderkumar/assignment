@@ -4,14 +4,12 @@ import { motion } from 'framer-motion';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import AssignmentList from '../assignments/AssignmentList';
-import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
 
 const DashboardPage = () => {
   const [databaseError, setDatabaseError] = useState<string | null>(null);
-  const { anonymousUser } = useInteractiveAssignment();
   const { isReady: isDatabaseReady, state: dbState, error: dbError } = useDatabaseState();
   const { isAuthenticated, isLoading: isAuthLoading, username } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();

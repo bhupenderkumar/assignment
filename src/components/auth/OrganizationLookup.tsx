@@ -234,11 +234,11 @@ const OrganizationLookup: React.FC<OrganizationLookupProps> = ({ onOrganizationS
         const tempOrganization: Organization = {
           id: 'pending',
           ...organizationData,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
           createdBy: 'pending',
-          logoUrl: null,
-          headerText: null,
+          logoUrl: '',
+          headerText: '',
           primaryColor: config.primaryColor,
           secondaryColor: config.secondaryColor
         };

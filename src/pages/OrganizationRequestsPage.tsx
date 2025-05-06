@@ -9,12 +9,12 @@ import { Link } from 'react-router-dom';
 
 const OrganizationRequestsPage: React.FC = () => {
   const { config } = useConfiguration();
-  const { isAuthenticated, username } = useSupabaseAuth();
+  const { isAuthenticated } = useSupabaseAuth();
 
   return (
     <>
       <Helmet>
-        <title>{`Organization Requests | ${config?.appName || 'Interactive Assignments'}`}</title>
+        <title>{`Organization Requests | ${config?.companyName || 'Interactive Assignments'}`}</title>
       </Helmet>
 
       <div className="container mx-auto px-4 py-8">

@@ -1,7 +1,7 @@
 // src/components/pages/UserDashboardPage.tsx
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useConfiguration } from '../../context/ConfigurationContext';

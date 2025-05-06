@@ -332,7 +332,7 @@ const PlayAssignment = ({
   }, [submissionId]);
 
   // Handle question completion - memoized to prevent unnecessary re-renders
-  const handleQuestionComplete = useCallback((isCorrect: boolean, questionScore: number) => {
+  const handleQuestionComplete = useCallback((isCorrect: boolean) => {
     if (!currentAssignment || !currentAssignment.questions) return;
 
     const currentQuestion = currentAssignment.questions[currentQuestionIndex];
@@ -410,8 +410,8 @@ const PlayAssignment = ({
                 targetId: pair.id + '-right'
               }))
             }}
-            onComplete={(isCorrect, score) => {
-              handleQuestionComplete(isCorrect, score);
+            onComplete={(isCorrect) => {
+              handleQuestionComplete(isCorrect);
             }}
             audioInstructions={question.audioInstructions}
           />
@@ -435,8 +435,8 @@ const PlayAssignment = ({
               options: question.questionData.options,
               allowMultiple: question.questionData.allowMultiple || false
             }}
-            onComplete={(isCorrect, score) => {
-              handleQuestionComplete(isCorrect, score);
+            onComplete={(isCorrect) => {
+              handleQuestionComplete(isCorrect);
             }}
           />
         );
@@ -458,8 +458,8 @@ const PlayAssignment = ({
               text: question.questionData.text,
               blanks: question.questionData.blanks
             }}
-            onComplete={(isCorrect, score) => {
-              handleQuestionComplete(isCorrect, score);
+            onComplete={(isCorrect) => {
+              handleQuestionComplete(isCorrect);
             }}
           />
         );
@@ -481,8 +481,8 @@ const PlayAssignment = ({
               instructions: question.questionText,
               items: question.questionData.items
             }}
-            onComplete={(isCorrect, score) => {
-              handleQuestionComplete(isCorrect, score);
+            onComplete={(isCorrect) => {
+              handleQuestionComplete(isCorrect);
             }}
           />
         );
