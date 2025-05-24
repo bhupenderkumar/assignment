@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG to PNG Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .preview {
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .instructions {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 SVG to PNG Converter</h1>
+        <p>Convert the Open Graph SVG image to PNG format for better social media compatibility.</p>
+        
+        <div class="instructions">
+            <h3>📋 Instructions:</h3>
+            <ol>
+                <li>Click "Load SVG" to load the og-default.svg file</li>
+                <li>Preview the image below</li>
+                <li>Click "Download PNG" to save as og-default.png</li>
+                <li>Replace the og-default.png file in your public folder</li>
+            </ol>
+        </div>
+
+        <button onclick="loadSVG()">📁 Load SVG</button>
+        <button onclick="downloadPNG()" id="downloadBtn" disabled>💾 Download PNG</button>
+        
+        <div class="preview" id="preview">
+            <p style="text-align: center; color: #666; padding: 40px;">
+                Click "Load SVG" to preview the image
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let svgElement = null;
+
+        async function loadSVG() {
+            try {
+                const response = await fetch('/og-default.svg');
+                const svgText = await response.text();
+                
+                const preview = document.getElementById('preview');
+                preview.innerHTML = svgText;
+                
+                svgElement = preview.querySelector('svg');
+                if (svgElement) {
+                    svgElement.style.width = '100%';
+                    svgElement.style.height = 'auto';
+                    svgElement.style.maxWidth = '600px';
+                    
+                    document.getElementById('downloadBtn').disabled = false;
+                    console.log('SVG loaded successfully');
+                } else {
+                    throw new Error('No SVG element found');
+                }
+            } catch (error) {
+                console.error('Error loading SVG:', error);
+                document.getElementById('preview').innerHTML = 
+                    '<p style="color: red; text-align: center; padding: 40px;">Error loading SVG. Make sure og-default.svg exists in the public folder.</p>';
+            }
+        }
+
+        function downloadPNG() {
+            if (!svgElement) {
+                alert('Please load the SVG first');
+                return;
+            }
+
+            try {
+                // Create a canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Set canvas size to match OG image requirements
+                canvas.width = 1200;
+                canvas.height = 630;
+                
+                // Create an image from the SVG
+                const svgData = new XMLSerializer().serializeToString(svgElement);
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+                
+                const img = new Image();
+                img.onload = function() {
+                    // Draw the image on canvas
+                    ctx.drawImage(img, 0, 0, 1200, 630);
+                    
+                    // Convert canvas to PNG and download
+                    canvas.toBlob(function(blob) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'og-default.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        
+                        console.log('PNG downloaded successfully');
+                    }, 'image/png');
+                    
+                    URL.revokeObjectURL(svgUrl);
+                };
+                
+                img.onerror = function() {
+                    alert('Error converting SVG to PNG. Please try again.');
+                };
+                
+                img.src = svgUrl;
+                
+            } catch (error) {
+                console.error('Error converting to PNG:', error);
+                alert('Error converting to PNG. Please try again.');
+            }
+        }
+
+        // Auto-load SVG on page load
+        window.addEventListener('load', loadSVG);
+    </script>
+</body>
+</html>

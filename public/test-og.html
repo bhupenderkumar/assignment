@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Open Graph Testing Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .url-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        button {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .result {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #ef4444;
+            color: #dc2626;
+        }
+        .success {
+            background: #f0fdf4;
+            border: 1px solid #22c55e;
+            color: #16a34a;
+        }
+        .preview-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 15px 0;
+            max-width: 500px;
+        }
+        .preview-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #f5f5f5;
+        }
+        .preview-content {
+            padding: 15px;
+        }
+        .preview-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #1a1a1a;
+        }
+        .preview-description {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .preview-url {
+            color: #888;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Open Graph Testing Tool</h1>
+        <p>Test your Open Graph meta tags for social media sharing.</p>
+
+        <div class="test-section">
+            <h3>📋 Quick Tests</h3>
+            <p>Click these buttons to test common scenarios:</p>
+            
+            <button onclick="testAssignment()">Test Assignment OG</button>
+            <button onclick="testShare()">Test Shareable Link OG</button>
+            <button onclick="testDefault()">Test Default Page</button>
+        </div>
+
+        <div class="test-section">
+            <h3>🔗 Custom URL Test</h3>
+            <p>Enter any URL to test its Open Graph tags:</p>
+            
+            <input 
+                type="text" 
+                id="customUrl" 
+                class="url-input" 
+                placeholder="https://interactive-assignment-one.vercel.app/og/assignment/your-id"
+            >
+            <br>
+            <button onclick="testCustomUrl()">Test Custom URL</button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const baseUrl = window.location.origin;
+
+        async function testUrl(url, label) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="result">Testing ${label}...\nURL: ${url}</div>`;
+
+            try {
+                const response = await fetch(url);
+                const html = await response.text();
+                
+                // Parse meta tags
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                const metaTags = {};
+                const metaElements = doc.querySelectorAll('meta');
+                metaElements.forEach(meta => {
+                    const property = meta.getAttribute('property') || meta.getAttribute('name');
+                    const content = meta.getAttribute('content');
+                    if (property && content) {
+                        metaTags[property] = content;
+                    }
+                });
+
+                const title = doc.querySelector('title')?.textContent || 'No title found';
+                
+                // Display results
+                displayResults(label, url, title, metaTags, html);
+                
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="result error">Error testing ${label}:\n${error.message}</div>`;
+            }
+        }
+
+        function displayResults(label, url, title, metaTags, html) {
+            const resultsDiv = document.getElementById('results');
+            
+            // Create preview card
+            const ogTitle = metaTags['og:title'] || title;
+            const ogDescription = metaTags['og:description'] || 'No description';
+            const ogImage = metaTags['og:image'] || '';
+            const ogUrl = metaTags['og:url'] || url;
+
+            const previewCard = `
+                <div class="preview-card">
+                    ${ogImage ? `<img src="${ogImage}" alt="Preview" class="preview-image" onerror="this.style.display='none'">` : ''}
+                    <div class="preview-content">
+                        <div class="preview-title">${ogTitle}</div>
+                        <div class="preview-description">${ogDescription}</div>
+                        <div class="preview-url">${ogUrl}</div>
+                    </div>
+                </div>
+            `;
+
+            // Create meta tags summary
+            const metaTagsText = Object.entries(metaTags)
+                .filter(([key]) => key.startsWith('og:') || key.startsWith('twitter:'))
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('\n');
+
+            resultsDiv.innerHTML = `
+                <div class="result success">
+                    ✅ Successfully tested ${label}
+                    
+                    <h4>📱 Preview (How it looks on social media):</h4>
+                    ${previewCard}
+                    
+                    <h4>🏷️ Meta Tags Found:</h4>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px;">
+                        Title: ${title}
+                        ${metaTagsText}
+                    </div>
+                </div>
+            `;
+        }
+
+        function testAssignment() {
+            // Use a sample assignment ID - replace with a real one
+            const url = `${baseUrl}/og/assignment/sample-assignment-id`;
+            testUrl(url, 'Assignment Open Graph');
+        }
+
+        function testShare() {
+            // Use a sample shareable link - replace with a real one
+            const url = `${baseUrl}/og/share/sample-shareable-link`;
+            testUrl(url, 'Shareable Link Open Graph');
+        }
+
+        function testDefault() {
+            const url = baseUrl;
+            testUrl(url, 'Default Page Open Graph');
+        }
+
+        function testCustomUrl() {
+            const url = document.getElementById('customUrl').value.trim();
+            if (!url) {
+                alert('Please enter a URL to test');
+                return;
+            }
+            testUrl(url, 'Custom URL');
+        }
+
+        // Auto-populate with current domain
+        window.addEventListener('load', () => {
+            document.getElementById('customUrl').value = `${baseUrl}/og/assignment/your-assignment-id`;
+        });
+    </script>
+</body>
+</html>
