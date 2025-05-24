@@ -1,9 +1,9 @@
 // src/components/auth/AnonymousUserRegistration.tsx
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import MobileModal from '../ui/MobileModal';
 import toast from 'react-hot-toast';
 
 interface AnonymousUserRegistrationProps {
@@ -154,103 +154,91 @@ const AnonymousUserRegistration = ({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 20 }}
-            className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md"
-          >
-            <h2 className="text-2xl font-bold mb-4 text-center">Welcome!</h2>
-            <p className="text-gray-600 mb-6 text-center">
-              Please enter your name to continue with the interactive assignment.
+    <MobileModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Welcome!"
+      maxWidth="max-w-md"
+    >
+      <p className="text-gray-600 dark:text-gray-300 mb-6 text-center">
+        Please enter your name to continue with the interactive assignment.
+      </p>
+
+      <form onSubmit={handleSubmit}>
+        <div className="mb-4">
+          <label htmlFor="name" className="block text-gray-700 dark:text-gray-200 font-medium mb-2">
+            Your Name <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            id="name"
+            value={name}
+            onChange={(e) => handleNameChange(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-colors"
+            placeholder="Enter your name"
+            required
+          />
+          {isCheckingDuplicate && (
+            <p className="text-xs text-blue-500 mt-1">
+              Checking for existing user...
             </p>
+          )}
+          {existingUser && (
+            <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                ⚠️ This name is already registered (last active: {new Date(existingUser.created_at).toLocaleDateString()})
+              </p>
+              <p className="text-xs text-yellow-600 dark:text-yellow-300 mt-1">
+                Please provide your contact information to continue with your existing profile.
+              </p>
+            </div>
+          )}
+        </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label htmlFor="name" className="block text-gray-700 font-medium mb-2">
-                  Your Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-colors"
-                  placeholder="Enter your name"
-                  required
-                />
-                {isCheckingDuplicate && (
-                  <p className="text-xs text-blue-500 mt-1">
-                    Checking for existing user...
-                  </p>
-                )}
-                {existingUser && (
-                  <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      ⚠️ This name is already registered (last active: {new Date(existingUser.created_at).toLocaleDateString()})
-                    </p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      Please provide your contact information to continue with your existing profile.
-                    </p>
-                  </div>
-                )}
-              </div>
+        <div className="mb-6">
+          <label htmlFor="contactInfo" className="block text-gray-700 dark:text-gray-200 font-medium mb-2">
+            Contact Information {existingUser ? <span className="text-red-500">*</span> : '(Optional)'}
+          </label>
+          <input
+            type="text"
+            id="contactInfo"
+            value={contactInfo}
+            onChange={(e) => setContactInfo(e.target.value)}
+            className={`w-full px-4 py-3 rounded-xl border focus:ring focus:ring-opacity-50 transition-colors dark:bg-gray-700 dark:text-white ${
+              existingUser
+                ? 'border-yellow-300 dark:border-yellow-600 focus:border-yellow-500 focus:ring-yellow-200'
+                : 'border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-200'
+            }`}
+            placeholder="Email or phone number"
+            required={existingUser !== null}
+          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {existingUser
+              ? 'Required to verify your identity and continue with existing profile.'
+              : 'This helps us keep track of your progress across sessions.'
+            }
+          </p>
+        </div>
 
-              <div className="mb-6">
-                <label htmlFor="contactInfo" className="block text-gray-700 font-medium mb-2">
-                  Contact Information {existingUser ? <span className="text-red-500">*</span> : '(Optional)'}
-                </label>
-                <input
-                  type="text"
-                  id="contactInfo"
-                  value={contactInfo}
-                  onChange={(e) => setContactInfo(e.target.value)}
-                  className={`w-full px-4 py-3 rounded-xl border focus:ring focus:ring-opacity-50 transition-colors ${
-                    existingUser
-                      ? 'border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200'
-                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
-                  }`}
-                  placeholder="Email or phone number"
-                  required={existingUser !== null}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {existingUser
-                    ? 'Required to verify your identity and continue with existing profile.'
-                    : 'This helps us keep track of your progress across sessions.'
-                  }
-                </p>
-              </div>
-
-              <div className="flex justify-between space-x-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 px-6 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 px-6 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Registering...' : 'Continue'}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        <div className="flex justify-between space-x-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-3 px-6 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            disabled={isSubmitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="flex-1 py-3 px-6 rounded-xl bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors disabled:opacity-50"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Registering...' : 'Continue'}
+          </button>
+        </div>
+      </form>
+    </MobileModal>
   );
 };
 

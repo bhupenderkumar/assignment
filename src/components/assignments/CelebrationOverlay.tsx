@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { playSound } from '../../lib/utils/soundUtils';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import CertificateViewer from '../certificates/CertificateViewer';
+import { playSound } from '../../utils/soundUtils';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
