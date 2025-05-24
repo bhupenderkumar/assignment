@@ -11,6 +11,7 @@ interface CertificateTemplateProps {
   submission: InteractiveSubmission;
   assignmentTitle?: string;
   assignmentOrganizationId?: string;
+  username?: string;
   width?: number;
   height?: number;
   onExport?: (dataUrl: string) => void;
@@ -20,6 +21,7 @@ const CertificateTemplate = ({
   submission,
   assignmentTitle,
   assignmentOrganizationId,
+  username: propUsername,
   width = 800,
   height = 600,
   onExport
@@ -36,15 +38,23 @@ const CertificateTemplate = ({
   const [studentName, setStudentName] = useState<string>('');
   const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
 
-  // Get student name from anonymous user or authenticated user
+  // Get student name from props, anonymous user, or authenticated user
   useEffect(() => {
     const getStudentName = async () => {
-      if (anonymousUser) {
+      // Priority 1: Use the username passed as prop (for admin viewing anonymous user certificates)
+      if (propUsername) {
+        setStudentName(propUsername);
+      }
+      // Priority 2: Use the current anonymous user context
+      else if (anonymousUser) {
         setStudentName(anonymousUser.name);
-      } else if (username) {
+      }
+      // Priority 3: Use the authenticated user's username
+      else if (username) {
         setStudentName(username);
-      } else {
-        // Try to fetch anonymous user data from submission
+      }
+      // Priority 4: Try to fetch anonymous user data from submission
+      else {
         if (supabase) {
           try {
             const { data, error } = await supabase
@@ -69,7 +79,7 @@ const CertificateTemplate = ({
     };
 
     getStudentName();
-  }, [anonymousUser, username, submission.userId]);
+  }, [propUsername, anonymousUser, username, submission.userId, supabase]);
 
   // Get assignment organization data
   useEffect(() => {

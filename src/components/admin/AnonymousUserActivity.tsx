@@ -120,7 +120,8 @@ const AnonymousUserActivity = () => {
       setSelectedCertificateData({
         submission: submissionForCertificate,
         assignmentTitle: activity.assignmentName,
-        assignmentOrganizationId: assignmentData?.organization_id
+        assignmentOrganizationId: assignmentData?.organization_id,
+        username: activity.userName  // Pass the username directly
       });
       setShowCertificate(true);
     } catch (error) {
@@ -542,6 +543,7 @@ const AnonymousUserActivity = () => {
           }}
           assignmentTitle={selectedCertificateData.assignmentTitle}
           assignmentOrganizationId={selectedCertificateData.assignmentOrganizationId}
+          username={selectedCertificateData.username}
         />
       )}
     </div>
