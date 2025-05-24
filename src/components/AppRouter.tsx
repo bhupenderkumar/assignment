@@ -13,6 +13,7 @@ import AssignmentGalleryPage from './pages/AssignmentGalleryPage';
 import PaymentDemoPage from './pages/PaymentDemoPage';
 import OrganizationManagementPage from '../pages/OrganizationManagementPage';
 import OrganizationSettingsPage from '../pages/OrganizationSettingsPage';
+import AnonymousUserActivity from './admin/AnonymousUserActivity';
 import OrganizationRequestsPage from '../pages/OrganizationRequestsPage';
 import JoinOrganizationPage from '../pages/JoinOrganizationPage';
 import SettingsPage from '../pages/settings';
@@ -281,8 +282,9 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              {/* TODO: Import and implement AnonymousUserActivity component */}
-              <div>Anonymous User Activity Page</div>
+              <OrganizationProvider>
+                <AnonymousUserActivity />
+              </OrganizationProvider>
             </Layout>
           </ProtectedRoute>
         }

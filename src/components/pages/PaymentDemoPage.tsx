@@ -8,7 +8,6 @@ import { hexToRgba } from '../../utils/colorUtils';
 import { paymentService, PaymentSettings, PaymentTransaction } from '../../lib/services/paymentService';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
 
 // Define types for Solana transaction
 interface SolanaTransaction {
@@ -30,13 +29,13 @@ interface SolanaTransaction {
 
 const PaymentDemoPage: React.FC = () => {
   const { config } = useConfiguration();
-  const { user } = useSupabaseAuth();
+  const { user, supabase } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
 
   // Get URL parameters for assignment ID and amount
   const [searchParams] = useState(new URLSearchParams(window.location.search));
-  
+
   // Payment history state
   const [paymentHistory, setPaymentHistory] = useState<SolanaTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,9 +90,9 @@ const PaymentDemoPage: React.FC = () => {
           // Use default wallet if no organization
           setWalletAddress(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
         }
-        
+
         // Load assignment details if we have an assignment ID
-        if (assignmentId) {
+        if (assignmentId && supabase) {
           try {
             // Get assignment information to show the user what they're paying for
             const { data: assignmentData, error: assignmentError } = await supabase
@@ -101,7 +100,7 @@ const PaymentDemoPage: React.FC = () => {
               .select('title')
               .eq('id', assignmentId)
               .single();
-              
+
             if (!assignmentError && assignmentData) {
               setAssignmentTitle(assignmentData.title);
             }
@@ -109,13 +108,13 @@ const PaymentDemoPage: React.FC = () => {
             console.error('Error loading assignment details:', err);
           }
         }
-        
+
         // Load transaction history if we have a wallet address
         if (walletAddress) {
           const connection = getConnection();
           const pubKey = new PublicKey(walletAddress);
           const signatures = await connection.getSignaturesForAddress(pubKey, { limit: 10 });
-          
+
           const transactions = await Promise.all(
             signatures.map(async (sig: ConfirmedSignatureInfo) => {
               const tx = await connection.getTransaction(sig.signature, {
@@ -123,8 +122,8 @@ const PaymentDemoPage: React.FC = () => {
               });
               if (!tx) return null;
 
-              const amount = tx.meta?.postBalances[0] 
-                ? (tx.meta.preBalances[0] - tx.meta.postBalances[0]) / LAMPORTS_PER_SOL 
+              const amount = tx.meta?.postBalances[0]
+                ? (tx.meta.preBalances[0] - tx.meta.postBalances[0]) / LAMPORTS_PER_SOL
                 : 0;
 
               return {
@@ -166,7 +165,7 @@ const PaymentDemoPage: React.FC = () => {
       toast.error('Please enter both transaction hash and sender wallet address');
       return;
     }
-    
+
     if (!walletAddress) {
       toast.error('Recipient wallet address not available');
       return;
@@ -178,7 +177,7 @@ const PaymentDemoPage: React.FC = () => {
       // Use payment service to verify the transaction
       const minimumConfirmations = paymentSettings?.minimumConfirmations || 1;
       const expectedAmount = parseFloat(amount);
-      
+
       const { verified, details } = await paymentService.verifyTransaction(
         network,
         transactionHash,
@@ -198,7 +197,7 @@ const PaymentDemoPage: React.FC = () => {
           toWallet: details.toWallet || walletAddress,
           status: details.status
         };
-        
+
         setTransactionDetails(txDetails);
       }
 
@@ -210,7 +209,7 @@ const PaymentDemoPage: React.FC = () => {
 
       // Transaction verified successfully
       toast.success('Transaction verified successfully!');
-      
+
       // Record the payment transaction in our database if user is logged in
       if (user && details.fromWallet && details.amount) {
         try {
@@ -227,7 +226,7 @@ const PaymentDemoPage: React.FC = () => {
             blockTime: details.blockTime,
             confirmations: details.confirmations
           });
-          
+
           // Grant access to the assignment if this is for a specific assignment
           if (assignmentId) {
             setAccessGranted(true);
@@ -282,7 +281,7 @@ const PaymentDemoPage: React.FC = () => {
       >
         <h1
         className="text-3xl font-bold mb-2"
-        style={{ 
+        style={{
           background: `linear-gradient(90deg, #00F5FF, #7B68EE)`,
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
@@ -433,7 +432,7 @@ const PaymentDemoPage: React.FC = () => {
         </div>
 
         {/* Transaction History */}
-        <div className="rounded-xl shadow-lg p-6 backdrop-blur-lg relative overflow-hidden" 
+        <div className="rounded-xl shadow-lg p-6 backdrop-blur-lg relative overflow-hidden"
           style={{
             backgroundColor: 'rgba(13, 17, 23, 0.7)',
             boxShadow: `0 10px 25px rgba(0, 245, 255, 0.15), 0 5px 10px rgba(123, 104, 238, 0.1)`,

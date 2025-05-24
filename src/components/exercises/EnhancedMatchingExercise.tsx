@@ -498,26 +498,14 @@ const EnhancedMatchingExercise = ({
       // Play appropriate sound
       if (isCorrect) {
         playSound('correct');
-        toast.success('Correct match!', {
-          icon: '✓',
-          style: {
-            borderRadius: '10px',
-            background: '#ecfdf5',
-            color: '#065f46',
-            border: '1px solid #10b981'
-          }
-        });
+        // Reduce toast frequency - only show for every few correct matches
+        if (matches.length % 2 === 0) {
+          toast.success('Great!', { duration: 1500, icon: '✓' });
+        }
       } else {
         playSound('incorrect');
-        toast.error('Try again!', {
-          icon: '✗',
-          style: {
-            borderRadius: '10px',
-            background: '#fef2f2',
-            color: '#991b1b',
-            border: '1px solid #ef4444'
-          }
-        });
+        // Brief feedback without excessive styling
+        toast('Try again', { duration: 1500, icon: '🔄' });
       }
 
       // Check if all items are matched
@@ -638,26 +626,14 @@ const EnhancedMatchingExercise = ({
     // Play appropriate sound
     if (isCorrect) {
       playSound('correct');
-      toast.success('Correct match!', {
-        icon: '✓',
-        style: {
-          borderRadius: '10px',
-          background: '#ecfdf5',
-          color: '#065f46',
-          border: '1px solid #10b981'
-        }
-      });
+      // Reduce toast frequency - only show for every few correct matches
+      if (matches.length % 2 === 0) {
+        toast.success('Great!', { duration: 1500, icon: '✓' });
+      }
     } else {
       playSound('incorrect');
-      toast.error('Try again!', {
-        icon: '✗',
-        style: {
-          borderRadius: '10px',
-          background: '#fef2f2',
-          color: '#991b1b',
-          border: '1px solid #ef4444'
-        }
-      });
+      // Brief feedback without excessive styling
+      toast('Try again', { duration: 1500, icon: '🔄' });
     }
 
     // Reset selection
@@ -726,15 +702,7 @@ const EnhancedMatchingExercise = ({
     setMatches([]);
     setShowResetConfirmation(false);
     playSound('click');
-    toast.success('All matches have been reset', {
-      icon: '🔄',
-      style: {
-        borderRadius: '10px',
-        background: '#eff6ff',
-        color: '#1e40af',
-        border: '1px solid #3b82f6'
-      }
-    });
+    // No toast needed for reset - visual feedback is sufficient
   };
 
   // Cancel reset

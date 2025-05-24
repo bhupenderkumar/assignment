@@ -154,10 +154,18 @@ const CompletionExercise = ({
     // Play appropriate sound
     if (isAllCorrect) {
       playSound('correct');
-      toast.success('All answers are correct!');
     } else {
       playSound('incorrect');
-      toast.error(`${correctAnswers.length} out of ${data.blanks.length} answers are correct.`);
+    }
+
+    // Show brief feedback without excessive notifications
+    if (isAllCorrect) {
+      toast.success('Perfect!', { duration: 2000 });
+    } else {
+      toast(`${correctAnswers.length}/${data.blanks.length} correct`, {
+        duration: 2000,
+        icon: '📝'
+      });
     }
 
     onComplete(isAllCorrect, score);

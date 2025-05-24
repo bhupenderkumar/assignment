@@ -1,5 +1,5 @@
 // src/components/assignments/PlayAssignment.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
@@ -19,6 +19,7 @@ import AudioPlayer from '../common/AudioPlayer';
 import { playSound } from '../../lib/utils/soundUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
+import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
 
 interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
@@ -33,7 +34,7 @@ const PlayAssignment = ({
 }: PlayAssignmentProps) => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
-  const { user, isSupabaseLoading } = useSupabaseAuth();
+  const { user, isSupabaseLoading, supabase } = useSupabaseAuth();
   const navigate = useNavigate();
 
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
@@ -54,6 +55,10 @@ const PlayAssignment = ({
   const [hasPaid, setHasPaid] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
   const [checkingPayment, setCheckingPayment] = useState(false);
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
+
+  // Ref to prevent duplicate submissions
+  const isSubmittingRef = useRef(false);
 
   // Create the enhanced service
   const assignmentService = useCallback(() => {
@@ -79,6 +84,29 @@ const PlayAssignment = ({
       }
     }
   }, [assignment, currentAssignment]);
+
+  // Fetch assignment organization data
+  useEffect(() => {
+    const fetchAssignmentOrganization = async () => {
+      if (currentAssignment?.organizationId && supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('organization')
+            .select('id, name, logo_url, primary_color, secondary_color')
+            .eq('id', currentAssignment.organizationId)
+            .single();
+
+          if (data && !error) {
+            setAssignmentOrganization(data);
+          }
+        } catch (error) {
+          console.error('Error fetching assignment organization:', error);
+        }
+      }
+    };
+
+    fetchAssignmentOrganization();
+  }, [currentAssignment?.organizationId, supabase]);
 
   // Function to fetch assignment with retry logic and caching - optimized to reduce calls
   const fetchAssignment = useCallback(async () => {
@@ -236,7 +264,9 @@ const PlayAssignment = ({
   useEffect(() => {
     // We need to define a local function here to avoid the circular dependency
     const submitAssignment = () => {
-      if (!currentAssignment || !submissionId) return;
+      if (!currentAssignment || !submissionId || isSubmittingRef.current) return;
+
+      isSubmittingRef.current = true;
 
       // Make sure we have the current question's response before calculating score
       const ensureCurrentQuestionResponse = () => {
@@ -272,18 +302,17 @@ const PlayAssignment = ({
 
       setScore(calculatedScore);
 
-      // Show a loading toast while submitting
-      const loadingToast = toast.loading('Saving your results...');
-
       // Submit responses to server
       const responseArray = Object.values(finalResponses);
 
       // Pass the calculated score to the submitResponses function
       submitResponses(submissionId, responseArray, calculatedScore)
         .then(() => {
-          // Dismiss loading toast
-          toast.dismiss(loadingToast);
-          toast.success('Assignment completed!');
+          // Show single success notification
+          toast.success('Assignment completed successfully!', {
+            duration: 3000,
+            icon: '🎉'
+          });
 
           // Show celebration overlay with a slight delay to ensure UI updates
           setTimeout(() => {
@@ -296,12 +325,13 @@ const PlayAssignment = ({
           }, 300);
         })
         .catch(error => {
-          // Dismiss loading toast
-          toast.dismiss(loadingToast);
           console.error('Error submitting responses:', error);
-          toast.error('Failed to submit responses. Please try again.');
+          toast.error('Failed to submit assignment. Please try again.', {
+            duration: 4000
+          });
           // Allow retry if submission fails
           setIsSubmitted(false);
+          isSubmittingRef.current = false;
         });
     };
 
@@ -385,19 +415,9 @@ const PlayAssignment = ({
     // Update response
     handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
 
-    // Auto-advance to next question after a delay
-    setTimeout(() => {
-      if (currentQuestionIndex < currentAssignment.questions!.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        playSound('click');
-      } else {
-        // This is the last question, submit the assignment
-        if (currentAssignment && submissionId) {
-          setIsSubmitted(true);
-        }
-      }
-    }, 2000);
-  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses, submissionId]);
+    // No auto-advance - users must manually click Next button
+    // This gives users time to review their answer and feedback
+  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses]);
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
@@ -752,7 +772,17 @@ const PlayAssignment = ({
           </div>
         )}
 
-        <h1 className="text-3xl font-bold mb-2">{currentAssignment?.title}</h1>
+        <h1 className="text-3xl font-bold mb-2">
+          {assignmentOrganization?.name ? (
+            <>
+              <span className="text-blue-600">{assignmentOrganization.name}</span>
+              <span className="text-gray-400 mx-2">|</span>
+              <span>{currentAssignment?.title}</span>
+            </>
+          ) : (
+            currentAssignment?.title
+          )}
+        </h1>
         <p className="text-gray-600 mb-4">{currentAssignment?.description}</p>
 
         {/* Quiz Information */}
@@ -939,6 +969,7 @@ const PlayAssignment = ({
         assignmentTitle={currentAssignment?.title}
         totalQuestions={currentAssignment?.questions?.length}
         correctAnswers={Object.values(responses).filter(r => r.isCorrect).length}
+        assignmentOrganizationId={currentAssignment?.organizationId}
       />
 
       {/* Floating Audio Button (only show if there are audio instructions) */}
@@ -983,6 +1014,9 @@ const PlayAssignment = ({
           )}
         </>
       )}
+
+      {/* Certificate Floating Button for Anonymous Users */}
+      <CertificateFloatingButton />
     </div>
   );
 };

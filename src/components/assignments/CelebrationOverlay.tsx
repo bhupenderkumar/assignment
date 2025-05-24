@@ -16,6 +16,7 @@ interface CelebrationOverlayProps {
   assignmentTitle?: string;
   totalQuestions?: number;
   correctAnswers?: number;
+  assignmentOrganizationId?: string;
 }
 
 const CelebrationOverlay = ({
@@ -25,7 +26,8 @@ const CelebrationOverlay = ({
   onClose,
   assignmentTitle,
   totalQuestions,
-  correctAnswers
+  correctAnswers,
+  assignmentOrganizationId
 }: CelebrationOverlayProps) => {
   const navigate = useNavigate();
   const { config } = useConfiguration();
@@ -320,8 +322,12 @@ const CelebrationOverlay = ({
               <CertificateViewer
                 submission={submissionForCertificate}
                 onClose={() => setShowCertificate(false)}
+                assignmentTitle={assignmentTitle}
+                assignmentOrganizationId={assignmentOrganizationId}
               />
             )}
+
+
           </motion.div>
         </motion.div>
       )}

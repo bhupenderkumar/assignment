@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
-import { supabase } from '../../lib/supabase';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
 
 interface AnonymousUserRegistrationProps {
@@ -25,11 +25,12 @@ const AnonymousUserRegistration = ({
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   const { registerAnonymousUser } = useInteractiveAssignment();
+  const { supabase } = useSupabaseAuth();
   const navigate = useNavigate();
 
   // Check for existing user by name
   const checkForExistingUser = async (userName: string) => {
-    if (!userName.trim()) return null;
+    if (!userName.trim() || !supabase) return null;
 
     setIsCheckingDuplicate(true);
     try {
@@ -97,7 +98,7 @@ const AnonymousUserRegistration = ({
         if (existingUser.contact_info === contactInfo.trim()) {
           userToUse = existingUser;
           toast.success('Welcome back! Using your existing profile.');
-        } else {
+        } else if (supabase) {
           // Update existing user's contact info
           const { data, error } = await supabase
             .from('anonymous_user')

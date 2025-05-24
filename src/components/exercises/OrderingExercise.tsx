@@ -166,10 +166,10 @@ const OrderingExercise = ({
     // Play appropriate sound
     if (isAllCorrect) {
       playSound('correct');
-      toast.success('Perfect order!');
+      toast.success('Perfect!', { duration: 2000 });
     } else {
       playSound('incorrect');
-      toast.error('Not quite right. Check the correct order.');
+      toast('Check the order', { duration: 2000, icon: '🔄' });
     }
 
     onComplete(isAllCorrect, score);

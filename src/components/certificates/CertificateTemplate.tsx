@@ -6,11 +6,11 @@ import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { InteractiveSubmission } from '../../types/interactiveAssignment';
-import { supabase } from '../../lib/supabase';
 
 interface CertificateTemplateProps {
   submission: InteractiveSubmission;
   assignmentTitle?: string;
+  assignmentOrganizationId?: string;
   width?: number;
   height?: number;
   onExport?: (dataUrl: string) => void;
@@ -19,13 +19,14 @@ interface CertificateTemplateProps {
 const CertificateTemplate = ({
   submission,
   assignmentTitle,
+  assignmentOrganizationId,
   width = 800,
   height = 600,
   onExport
 }: CertificateTemplateProps) => {
   const stageRef = useRef<any>(null);
   const { config } = useConfiguration();
-  const { username } = useSupabaseAuth();
+  const { username, supabase } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();
   const { anonymousUser } = useInteractiveAssignment();
   const [sealImage, setSealImage] = useState<HTMLImageElement | null>(null);
@@ -33,6 +34,7 @@ const CertificateTemplate = ({
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
   const [stageSize, setStageSize] = useState({ width, height });
   const [studentName, setStudentName] = useState<string>('');
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
 
   // Get student name from anonymous user or authenticated user
   useEffect(() => {
@@ -43,20 +45,24 @@ const CertificateTemplate = ({
         setStudentName(username);
       } else {
         // Try to fetch anonymous user data from submission
-        try {
-          const { data, error } = await supabase
-            .from('anonymous_user')
-            .select('name')
-            .eq('id', submission.userId)
-            .single();
+        if (supabase) {
+          try {
+            const { data, error } = await supabase
+              .from('anonymous_user')
+              .select('name')
+              .eq('id', submission.userId)
+              .single();
 
-          if (data && !error) {
-            setStudentName(data.name);
-          } else {
+            if (data && !error) {
+              setStudentName(data.name);
+            } else {
+              setStudentName('Dedicated Learner');
+            }
+          } catch (error) {
+            console.error('Error fetching anonymous user:', error);
             setStudentName('Dedicated Learner');
           }
-        } catch (error) {
-          console.error('Error fetching anonymous user:', error);
+        } else {
           setStudentName('Dedicated Learner');
         }
       }
@@ -64,6 +70,29 @@ const CertificateTemplate = ({
 
     getStudentName();
   }, [anonymousUser, username, submission.userId]);
+
+  // Get assignment organization data
+  useEffect(() => {
+    const getAssignmentOrganization = async () => {
+      if (assignmentOrganizationId && supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('organization')
+            .select('id, name, logo_url, primary_color, secondary_color')
+            .eq('id', assignmentOrganizationId)
+            .single();
+
+          if (data && !error) {
+            setAssignmentOrganization(data);
+          }
+        } catch (error) {
+          console.error('Error fetching assignment organization:', error);
+        }
+      }
+    };
+
+    getAssignmentOrganization();
+  }, [assignmentOrganizationId, supabase]);
 
   // Make certificate responsive
   useEffect(() => {
@@ -149,11 +178,12 @@ const CertificateTemplate = ({
     }
   }, [currentOrganization]);
 
-  // Load organization logo if available
+  // Load organization logo if available (prioritize assignment organization)
   useEffect(() => {
-    if (currentOrganization?.logoUrl) {
+    const logoUrl = assignmentOrganization?.logo_url || currentOrganization?.logoUrl;
+    if (logoUrl) {
       const image = new window.Image();
-      image.src = currentOrganization.logoUrl;
+      image.src = logoUrl;
       image.onload = () => {
         setLogoImage(image);
       };
@@ -161,7 +191,7 @@ const CertificateTemplate = ({
         console.log('Error loading organization logo');
       };
     }
-  }, [currentOrganization]);
+  }, [assignmentOrganization, currentOrganization]);
 
   // Export certificate as image
   useEffect(() => {
@@ -280,7 +310,7 @@ const CertificateTemplate = ({
           <Text
             x={width / 2}
             y={logoImage ? 110 : 70}
-            text={currentOrganization?.name || "Interactive Learning"}
+            text={assignmentOrganization?.name || currentOrganization?.name || "Interactive Learning"}
             fontSize={24}
             fontStyle="bold"
             fill={config.secondaryColor}
