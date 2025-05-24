@@ -38,8 +38,10 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   const [error, setError] = useState<string | null>(null);
   const [autoPlayBlocked, setAutoPlayBlocked] = useState(false);
   const [hasShownNotification, setHasShownNotification] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const instanceId = useRef<string>(audioId || `audio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const autoPlayAttempted = useRef<boolean>(false);
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -118,13 +120,16 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     const setAudioData = () => {
       setDuration(audio.duration);
+      setIsLoaded(true);
       console.log('AudioPlayer: Audio loaded successfully, duration:', audio.duration);
       console.log('AudioPlayer: Audio readyState:', audio.readyState);
       console.log('AudioPlayer: Audio networkState:', audio.networkState);
 
-      // Try autoplay after audio is loaded
-      if (autoPlay && !error) {
+      // Try autoplay after audio is loaded (only once)
+      if (autoPlay && !error && !autoPlayAttempted.current) {
+        autoPlayAttempted.current = true;
         console.log('AudioPlayer: Attempting autoplay...');
+
         // Add a small delay to ensure audio is fully loaded
         setTimeout(async () => {
           const success = await audioManager.play(instanceId.current);
@@ -163,7 +168,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
               setHasShownNotification(true);
             }
           }
-        }, 100);
+        }, 200);
       }
     };
 
@@ -196,12 +201,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     const handleCanPlay = () => {
       console.log('AudioPlayer: Audio can play');
-      // Try autoplay when audio can play
-      if (autoPlay && !error && !isPlaying) {
-        audioManager.play(instanceId.current).catch(error => {
-          console.error('Auto play failed on canplay:', error);
-        });
-      }
+      // Don't attempt autoplay here to avoid conflicts with loadeddata handler
     };
 
     const handlePlay = () => {
@@ -272,6 +272,23 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       audio.load();
     }
   };
+
+  // Show loading state
+  if (!isLoaded && !error) {
+    return (
+      <div className={`flex flex-col ${className}`}>
+        {showLabel && (
+          <div className="flex items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">{label}</span>
+          </div>
+        )}
+        <div className="bg-gray-100 rounded-lg p-3 flex items-center space-x-2">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+          <span className="text-sm text-gray-600">Loading audio...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col ${className}`}>

@@ -29,7 +29,7 @@ const CertificateFloatingButton: React.FC = () => {
     <>
       {/* Floating Action Button */}
       <motion.div
-        className="fixed bottom-6 left-6 z-40"
+        className="fixed bottom-20 left-6 z-30"
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ delay: 1, duration: 0.3 }}
