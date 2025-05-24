@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { playSound } from '../../lib/utils/soundUtils';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import CertificateViewer from '../certificates/CertificateViewer';
+import { playSound } from '../../utils/soundUtils';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
@@ -39,11 +39,11 @@ const CelebrationOverlay = ({
   // Create submission object for certificate
   const submissionForCertificate = submissionId ? {
     id: submissionId,
-    assignmentId: '', // Will be filled by the certificate component
+    assignmentId: '', // This will be filled by the certificate viewer if needed
     userId: anonymousUser?.id || user?.id || '',
     score: score,
-    submittedAt: new Date(),
     startedAt: new Date(), // Approximate start time
+    submittedAt: new Date(),
     status: 'SUBMITTED' as const
   } : null;
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useParams, useBeforeUnload } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import PlayAssignment from '../assignments/PlayAssignment';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
@@ -20,6 +21,7 @@ const PlayAssignmentPage = () => {
   const [currentAssignment, setCurrentAssignment] = useState<any | null>(null);
   const [isAssignmentActive, setIsAssignmentActive] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any | null>(null);
   const { anonymousUser } = useInteractiveAssignment();
   const { user, isSupabaseLoading } = useSupabaseAuth();
   const navigate = useNavigate();
@@ -256,11 +258,27 @@ const PlayAssignmentPage = () => {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
+    <>
+      {/* Dynamic page title based on organization */}
+      <Helmet>
+        <title>
+          {assignmentOrganization?.name
+            ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
+            : currentAssignment?.title
+            ? `${currentAssignment.title} | Interactive Assignment`
+            : 'Interactive Assignment'
+          }
+        </title>
+        {assignmentOrganization?.logo_url && (
+          <link rel="icon" type="image/png" href={assignmentOrganization.logo_url} />
+        )}
+      </Helmet>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={handleBackToHome}
@@ -288,27 +306,29 @@ const PlayAssignmentPage = () => {
         </button>
       </div>
 
-      <PlayAssignment
-        assignment={currentAssignment}
-        onAssignmentStart={() => setIsAssignmentActive(true)}
-        onAssignmentComplete={() => {
-          setIsAssignmentActive(false);
-          setIsSubmitted(true);
-        }}
-      />
+        <PlayAssignment
+          assignment={currentAssignment}
+          onAssignmentStart={() => setIsAssignmentActive(true)}
+          onAssignmentComplete={() => {
+            setIsAssignmentActive(false);
+            setIsSubmitted(true);
+          }}
+          onOrganizationLoad={setAssignmentOrganization}
+        />
 
-      {/* Anonymous User Registration Modal */}
-      <AnonymousUserRegistration
-        isOpen={showRegistration}
-        onClose={() => setShowRegistration(false)}
-        onSuccess={() => {
-          console.log('User registered successfully');
-          setShowRegistration(false);
-          // After successful registration, reload the page to ensure we get fresh data
-          window.location.reload();
-        }}
-      />
-    </motion.div>
+        {/* Anonymous User Registration Modal */}
+        <AnonymousUserRegistration
+          isOpen={showRegistration}
+          onClose={() => setShowRegistration(false)}
+          onSuccess={() => {
+            console.log('User registered successfully');
+            setShowRegistration(false);
+            // After successful registration, reload the page to ensure we get fresh data
+            window.location.reload();
+          }}
+        />
+      </motion.div>
+    </>
   );
 };
 

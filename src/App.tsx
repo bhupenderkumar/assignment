@@ -10,15 +10,29 @@ import { OrganizationJoinRequestProvider } from './context/OrganizationJoinReque
 import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './components/AppRouter';
 import { performanceMonitor } from './lib/services/performanceMonitoringService';
+import { initializeSecurity, performSecurityChecks } from './lib/config/securityConfig';
 
 function App() {
-  // Initialize performance monitoring
+  // Initialize performance monitoring and security
   useEffect(() => {
     const endTracking = performanceMonitor.trackComponentRender('App');
 
+    // SECURITY: Initialize security configuration on app start
+    try {
+      initializeSecurity();
+
+      // Perform runtime security checks
+      const securityCheck = performSecurityChecks();
+      if (!securityCheck.passed) {
+        console.warn('⚠️ Security issues detected:', securityCheck.issues);
+      }
+    } catch (error) {
+      console.error('❌ Failed to initialize security:', error);
+    }
+
     // Log app initialization in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('🚀 Interactive Assignments App initialized with performance monitoring');
+      console.log('🚀 Interactive Assignments App initialized with performance monitoring and security');
     }
 
     return endTracking;

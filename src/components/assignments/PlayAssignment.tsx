@@ -9,6 +9,7 @@ import { createEnhancedInteractiveAssignmentService } from '../../lib/services/e
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
 import { checkAssignmentPaymentAccess } from '../pages/PaymentDemoPage';
 import ProgressDisplay from './ProgressDisplay';
+import { playSound, speakText, stopSpeaking, cleanTextForTTS, isTTSAvailable } from '../../utils/soundUtils';
 import CelebrationOverlay from './CelebrationOverlay';
 // Anonymous user registration moved to parent component
 import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
@@ -16,22 +17,31 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import AudioPlayer from '../common/AudioPlayer';
-import { playSound, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
+import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
 
+// Extend window interface for payment tracking
+declare global {
+  interface Window {
+    _checkedPayments?: Record<string, boolean>;
+  }
+}
+
 interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
   onAssignmentStart?: () => void;
   onAssignmentComplete?: () => void;
+  onOrganizationLoad?: (organization: any) => void;
 }
 
 const PlayAssignment = ({
   assignment,
   onAssignmentStart,
-  onAssignmentComplete
+  onAssignmentComplete,
+  onOrganizationLoad
 }: PlayAssignmentProps) => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
@@ -100,6 +110,10 @@ const PlayAssignment = ({
 
           if (data && !error) {
             setAssignmentOrganization(data);
+            // Call the parent callback to pass organization data up
+            if (onOrganizationLoad) {
+              onOrganizationLoad(data);
+            }
           }
         } catch (error) {
           console.error('Error fetching assignment organization:', error);
@@ -108,7 +122,7 @@ const PlayAssignment = ({
     };
 
     fetchAssignmentOrganization();
-  }, [currentAssignment?.organizationId, supabase]);
+  }, [currentAssignment?.organizationId, supabase, onOrganizationLoad]);
 
   // Function to fetch assignment with retry logic and caching - optimized to reduce calls
   const fetchAssignment = useCallback(async () => {
@@ -243,10 +257,9 @@ const PlayAssignment = ({
         setPaymentAmount(paymentStatus.paymentAmount);
 
         // Mark this combination as checked
-        if (!window._checkedPayments) {
-          window._checkedPayments = {};
+        if (window._checkedPayments) {
+          window._checkedPayments[paymentCheckKey] = true;
         }
-        window._checkedPayments[paymentCheckKey] = true;
 
         // If payment is required but not paid, redirect to payment page
         if (paymentStatus.requiresPayment && !paymentStatus.hasPaid) {
@@ -382,8 +395,9 @@ const PlayAssignment = ({
       onAssignmentStart();
     }
 
-    // Create submission only if we have a user, an assignment, and no submission ID yet
-    if (anonymousUser && !submissionId && currentAssignment.id) {
+    // Create submission for any user (anonymous or authenticated) if we have an assignment and no submission ID yet
+    const currentUser = anonymousUser || user;
+    if (currentUser && !submissionId && currentAssignment.id) {
       // Use a flag to prevent duplicate API calls
       let isCreatingSubmission = false;
 
@@ -392,7 +406,7 @@ const PlayAssignment = ({
 
         createSubmission({
           assignmentId: currentAssignment.id,
-          userId: anonymousUser.id,
+          userId: currentUser.id,
           status: 'PENDING'
         })
           .then(id => {
@@ -415,7 +429,7 @@ const PlayAssignment = ({
       // Stop all sounds when component unmounts or user navigates away
       stopAllSounds();
     };
-  }, [currentAssignment, anonymousUser, submissionId, timerInterval, createSubmission, onAssignmentStart]);
+  }, [currentAssignment, anonymousUser, user, submissionId, timerInterval, createSubmission, onAssignmentStart]);
 
   // Global cleanup effect to stop sounds when navigating away
   useEffect(() => {
@@ -471,9 +485,57 @@ const PlayAssignment = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 100);
 
+    playSound('completion');
     // Just set isSubmitted to true, and the effect will handle the actual submission
     setIsSubmitted(true);
   };
+
+  // Text-to-speech for questions
+  const speakQuestion = useCallback((question: InteractiveQuestion) => {
+    if (!question) return;
+
+    let textToSpeak = '';
+
+    // Add question text if available
+    if (question.questionText) {
+      textToSpeak += cleanTextForTTS(question.questionText) + '. ';
+    }
+
+    // Add instructions based on question type
+    switch (question.questionType) {
+      case 'MULTIPLE_CHOICE':
+        textToSpeak += 'Please select the correct answer from the options provided.';
+        break;
+      case 'MATCHING':
+        textToSpeak += 'Please match the items by connecting the related pairs.';
+        break;
+      case 'COMPLETION':
+        textToSpeak += 'Please fill in the blanks with the correct answers.';
+        break;
+      default:
+        textToSpeak += 'Please answer the question.';
+    }
+
+    if (textToSpeak.trim()) {
+      speakText(textToSpeak, { rate: 0.9, volume: 0.8 });
+    }
+  }, []);
+
+  // Effect to speak question when it changes (only if no audio instructions)
+  useEffect(() => {
+    const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
+    if (currentQuestion && !currentQuestion.audioInstructions && isTTSAvailable()) {
+      // Delay TTS to allow page to settle
+      const timer = setTimeout(() => {
+        speakQuestion(currentQuestion);
+      }, 1000);
+
+      return () => {
+        clearTimeout(timer);
+        stopSpeaking();
+      };
+    }
+  }, [currentQuestionIndex, currentAssignment?.questions, speakQuestion]);
 
   // Render current question - memoized to prevent unnecessary re-renders
   const renderQuestion = useCallback((question: InteractiveQuestion) => {
@@ -1066,7 +1128,24 @@ const PlayAssignment = ({
         assignmentOrganizationId={currentAssignment?.organizationId}
       />
 
-      {/* Floating Audio Button (only show sound controls) */}
+      {/* Text-to-Speech Button (only show if TTS is available and no audio instructions) */}
+      {!currentAssignment?.audioInstructions && isTTSAvailable() && currentQuestion && (
+        <button
+          onClick={() => {
+            playSound('click');
+            speakQuestion(currentQuestion);
+          }}
+          className="fixed bottom-6 left-6 bg-green-500 hover:bg-green-600 text-white rounded-full p-3 shadow-lg z-50"
+          aria-label="Read Question Aloud"
+          title="Read Question Aloud"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </button>
+      )}
+
+      {/* Floating Audio Button (only show if there are audio instructions) */}
       {currentAssignment?.audioInstructions && (
         <>
           <button
@@ -1097,7 +1176,7 @@ const PlayAssignment = ({
                 </div>
                 {/* Only show the audio player controls */}
                 <AudioPlayer
-                  audioUrl={currentAssignment?.audioInstructions}
+                  audioUrl={currentAssignment?.audioInstructions || ''}
                   autoPlay={true}
                   showLabel={false}
                 />

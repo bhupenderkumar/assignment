@@ -5,7 +5,7 @@ import { DndContext, DragEndEvent, closestCenter, KeyboardSensor, PointerSensor,
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound } from '../../utils/soundUtils';
 import toast from 'react-hot-toast';
 
 // Define types for the ordering exercise

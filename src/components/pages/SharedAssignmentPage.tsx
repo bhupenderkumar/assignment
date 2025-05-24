@@ -1,6 +1,7 @@
 // src/components/pages/SharedAssignmentPage.tsx
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import PlaySharedAssignment from '../assignments/PlaySharedAssignment';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
@@ -10,6 +11,8 @@ const SharedAssignmentPage = () => {
   const [shareableLink, setShareableLink] = useState<string | undefined>(urlShareableLink);
   const { isSupabaseLoading } = useSupabaseAuth();
   const [isLoading, setIsLoading] = useState(true);
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any | null>(null);
+  const [currentAssignment, setCurrentAssignment] = useState<any | null>(null);
   const navigate = useNavigate();
 
   // Try to recover the shareable link from sessionStorage if it's not in the URL
@@ -26,11 +29,6 @@ const SharedAssignmentPage = () => {
       setShareableLink(urlShareableLink);
     }
   }, [urlShareableLink]);
-
-  // Set document title
-  useEffect(() => {
-    document.title = 'Interactive Assignment';
-  }, []);
 
   // Handle loading state
   useEffect(() => {
@@ -62,9 +60,32 @@ const SharedAssignmentPage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      {shareableLink && <PlaySharedAssignment shareableLink={shareableLink} />}
-    </div>
+    <>
+      {/* Dynamic page title based on organization */}
+      <Helmet>
+        <title>
+          {assignmentOrganization?.name
+            ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
+            : currentAssignment?.title
+            ? `${currentAssignment.title} | Interactive Assignment`
+            : 'Interactive Assignment'
+          }
+        </title>
+        {assignmentOrganization?.logo_url && (
+          <link rel="icon" type="image/png" href={assignmentOrganization.logo_url} />
+        )}
+      </Helmet>
+
+      <div className="container mx-auto px-4 py-6">
+        {shareableLink && (
+          <PlaySharedAssignment
+            shareableLink={shareableLink}
+            onOrganizationLoad={setAssignmentOrganization}
+            onAssignmentLoad={setCurrentAssignment}
+          />
+        )}
+      </div>
+    </>
   );
 };
 
