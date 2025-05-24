@@ -439,26 +439,27 @@ const PlayAssignment = ({
     }));
   }, [submissionId]);
 
+
+
   // Handle question completion - memoized to prevent unnecessary re-renders
-  const handleQuestionComplete = useCallback((isCorrect: boolean) => {
+  const handleQuestionComplete = useCallback((isCorrect: boolean, score?: number) => {
     if (!currentAssignment || !currentAssignment.questions) return;
 
     const currentQuestion = currentAssignment.questions[currentQuestionIndex];
 
+    // Create response data with the actual user interaction
+    const responseData = {
+      answered: true,
+      timestamp: new Date().toISOString(),
+      score: score || (isCorrect ? 100 : 0)
+    };
+
     // Update response
-    handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
+    handleResponseUpdate(currentQuestion.id, responseData, isCorrect);
 
     // No auto-advance - users must manually click Next button
     // This gives users time to review their answer and feedback
-  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses]);
-
-  // Check if current question is completed
-  const isCurrentQuestionCompleted = useCallback(() => {
-    if (!currentQuestion) return false;
-
-    const response = responses[currentQuestion.id];
-    return response && response.responseData && Object.keys(response.responseData).length > 0;
-  }, [currentQuestion, responses]);
+  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate]);
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
@@ -524,8 +525,8 @@ const PlayAssignment = ({
                 targetId: pair.id + '-right'
               }))
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
             audioInstructions={question.audioInstructions}
           />
@@ -549,8 +550,8 @@ const PlayAssignment = ({
               options: question.questionData.options,
               allowMultiple: question.questionData.allowMultiple || false
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -572,8 +573,8 @@ const PlayAssignment = ({
               text: question.questionData.text,
               blanks: question.questionData.blanks
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -595,8 +596,8 @@ const PlayAssignment = ({
               instructions: question.questionText,
               items: question.questionData.items
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -786,6 +787,15 @@ const PlayAssignment = ({
 
   // Get current question - memoized to prevent unnecessary re-renders
   const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
+
+  // Check if current question is completed (submitted)
+  const isCurrentQuestionCompleted = () => {
+    if (!currentQuestion) return false;
+
+    const response = responses[currentQuestion.id];
+    // Check if response exists and has been answered/submitted
+    return response && response.responseData && response.responseData.answered === true;
+  };
 
   // Check for error, payment requirement, or missing assignment first
   const errorContent = renderError();
@@ -999,6 +1009,15 @@ const PlayAssignment = ({
 
         <button
           onClick={() => {
+            // Check if current question is completed before allowing navigation
+            if (!isCurrentQuestionCompleted()) {
+              toast.error('Please submit your answer before proceeding.', {
+                duration: 3000,
+                icon: '⚠️'
+              });
+              return;
+            }
+
             if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
               setCurrentQuestionIndex(prev => prev + 1);
               playSound('click');
@@ -1013,6 +1032,8 @@ const PlayAssignment = ({
           className={`py-3 px-6 rounded-xl font-medium transition-colors flex items-center space-x-2 ${
             isSubmitted || isSubmitting
               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : !isCurrentQuestionCompleted()
+              ? 'bg-gray-300 text-gray-600 hover:bg-gray-400'
               : 'bg-blue-500 text-white hover:bg-blue-600'
           }`}
         >
@@ -1045,7 +1066,7 @@ const PlayAssignment = ({
         assignmentOrganizationId={currentAssignment?.organizationId}
       />
 
-      {/* Floating Audio Button (only show if there are audio instructions) */}
+      {/* Floating Audio Button (only show sound controls) */}
       {currentAssignment?.audioInstructions && (
         <>
           <button
@@ -1059,29 +1080,27 @@ const PlayAssignment = ({
             </svg>
           </button>
 
-          {/* Audio Instructions Modal */}
+          {/* Audio Instructions Modal - Only show sound controls */}
           {showAudioPlayer && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-bold">Audio Instructions</h3>
+              <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Audio</h3>
                   <button
                     onClick={() => setShowAudioPlayer(false)}
                     className="text-gray-500 hover:text-gray-700"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
+                {/* Only show the audio player controls */}
                 <AudioPlayer
                   audioUrl={currentAssignment?.audioInstructions}
                   autoPlay={true}
                   showLabel={false}
                 />
-                <p className="mt-4 text-sm text-gray-600">
-                  Listen to the audio instructions for this assignment. You can replay this anytime by clicking the audio button.
-                </p>
               </div>
             </div>
           )}
