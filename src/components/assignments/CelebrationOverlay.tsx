@@ -345,6 +345,7 @@ const CelebrationOverlay = ({
                 onClose={() => setShowCertificate(false)}
                 assignmentTitle={assignmentTitle}
                 assignmentOrganizationId={assignmentOrganizationId}
+                username={anonymousUser?.name}
               />
             )}
               </>
