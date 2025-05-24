@@ -32,12 +32,14 @@ interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
   onAssignmentStart?: () => void;
   onAssignmentComplete?: () => void;
+  onOrganizationLoad?: (organization: any) => void;
 }
 
 const PlayAssignment = ({
   assignment,
   onAssignmentStart,
-  onAssignmentComplete
+  onAssignmentComplete,
+  onOrganizationLoad
 }: PlayAssignmentProps) => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
@@ -105,6 +107,10 @@ const PlayAssignment = ({
 
           if (data && !error) {
             setAssignmentOrganization(data);
+            // Call the parent callback to pass organization data up
+            if (onOrganizationLoad) {
+              onOrganizationLoad(data);
+            }
           }
         } catch (error) {
           console.error('Error fetching assignment organization:', error);
@@ -113,7 +119,7 @@ const PlayAssignment = ({
     };
 
     fetchAssignmentOrganization();
-  }, [currentAssignment?.organizationId, supabase]);
+  }, [currentAssignment?.organizationId, supabase, onOrganizationLoad]);
 
   // Function to fetch assignment with retry logic and caching - optimized to reduce calls
   const fetchAssignment = useCallback(async () => {
@@ -368,8 +374,9 @@ const PlayAssignment = ({
       onAssignmentStart();
     }
 
-    // Create submission only if we have a user, an assignment, and no submission ID yet
-    if (anonymousUser && !submissionId && currentAssignment.id) {
+    // Create submission for any user (anonymous or authenticated) if we have an assignment and no submission ID yet
+    const currentUser = anonymousUser || user;
+    if (currentUser && !submissionId && currentAssignment.id) {
       // Use a flag to prevent duplicate API calls
       let isCreatingSubmission = false;
 
@@ -378,7 +385,7 @@ const PlayAssignment = ({
 
         createSubmission({
           assignmentId: currentAssignment.id,
-          userId: anonymousUser.id,
+          userId: currentUser.id,
           status: 'PENDING'
         })
           .then(id => {
@@ -399,7 +406,7 @@ const PlayAssignment = ({
         clearInterval(timerInterval);
       }
     };
-  }, [currentAssignment, anonymousUser, submissionId, timerInterval, createSubmission, onAssignmentStart]);
+  }, [currentAssignment, anonymousUser, user, submissionId, timerInterval, createSubmission, onAssignmentStart]);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
