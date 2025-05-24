@@ -4,6 +4,7 @@ import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import AssignmentQuestions from './AssignmentQuestions';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import AudioRecorder from '../common/AudioRecorder';
+import { sanitizeInput, validateAssignmentContent } from '../../lib/utils/securityUtils';
 
 interface AssignmentFormProps {
   initialData?: InteractiveAssignment;
@@ -143,12 +144,18 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // SECURITY: Validate and sanitize title
     if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
+    } else if (formData.title.length > 200) {
+      newErrors.title = 'Title must be less than 200 characters';
     }
 
+    // SECURITY: Validate and sanitize description
     if (!formData.description?.trim()) {
       newErrors.description = 'Description is required';
+    } else if (formData.description.length > 2000) {
+      newErrors.description = 'Description must be less than 2000 characters';
     }
 
     if (!formData.type) {
@@ -159,6 +166,14 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
       newErrors.status = 'Status is required';
     }
 
+    // SECURITY: Validate assignment content if it exists
+    if (formData.exercises && formData.exercises.length > 0) {
+      const contentValidation = validateAssignmentContent(formData.exercises);
+      if (!contentValidation.isValid) {
+        newErrors.content = contentValidation.errors.join(', ');
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -167,7 +182,16 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
     e.preventDefault();
 
     if (validateForm()) {
-      onSubmit(formData);
+      // SECURITY: Sanitize form data before submission
+      const sanitizedData = {
+        ...formData,
+        title: sanitizeInput(formData.title || ''),
+        description: sanitizeInput(formData.description || ''),
+        ageGroup: sanitizeInput(formData.ageGroup || ''),
+        audioInstructions: sanitizeInput(formData.audioInstructions || '')
+      };
+
+      onSubmit(sanitizedData);
     }
   };
 

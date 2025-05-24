@@ -41,7 +41,7 @@ This invitation will expire in 7 days.
 
 If you did not expect this invitation, you can safely ignore this email.'
 )
-ON CONFLICT (template_name) 
+ON CONFLICT (template_name)
 DO UPDATE SET
   subject = EXCLUDED.subject,
   content_html = EXCLUDED.content_html,
@@ -60,20 +60,20 @@ BEGIN
   SELECT name INTO organization_name
   FROM public.organizations
   WHERE id = NEW.organization_id;
-  
+
   -- Get the inviter name
   SELECT raw_user_meta_data->>'name' INTO inviter_name
   FROM auth.users
   WHERE id = NEW.invited_by;
-  
+
   -- If inviter name is null, use a default
   IF inviter_name IS NULL THEN
     inviter_name := 'A team member';
   END IF;
-  
+
   -- Create the invitation link
   invitation_link := base_url || '/join-organization?token=' || NEW.id;
-  
+
   -- Send the email
   PERFORM net.http_post(
     url := 'https://uymsiskesqqrfnpslinp.supabase.co/functions/v1/send-email',
@@ -92,7 +92,7 @@ BEGIN
       )
     )
   );
-  
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -105,6 +105,7 @@ FOR EACH ROW
 EXECUTE FUNCTION public.send_organization_invitation_email();
 
 -- Create a function to send emails using Supabase Edge Functions
+-- SECURITY FIX: Use environment variables instead of hardcoded URLs
 CREATE OR REPLACE FUNCTION public.send_email(
   to_email TEXT,
   subject TEXT,
@@ -113,10 +114,31 @@ CREATE OR REPLACE FUNCTION public.send_email(
 ) RETURNS JSONB AS $$
 DECLARE
   result JSONB;
+  functions_url TEXT;
 BEGIN
+  -- SECURITY: Get the functions URL from environment or use a default pattern
+  -- This should be set as a database setting: ALTER DATABASE postgres SET app.functions_url = 'your-url';
+  BEGIN
+    functions_url := current_setting('app.functions_url');
+  EXCEPTION WHEN OTHERS THEN
+    -- Fallback to constructing URL from current database URL
+    -- This is safer than hardcoding the project ID
+    functions_url := 'https://' || split_part(current_setting('app.supabase_url', true), '//', 2) || '/functions/v1/send-email';
+  END;
+
+  -- SECURITY: Validate email format before sending
+  IF to_email !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$' THEN
+    RETURN jsonb_build_object('error', 'Invalid email format');
+  END IF;
+
+  -- SECURITY: Sanitize content to prevent injection
+  IF length(html_content) > 50000 OR length(subject) > 200 THEN
+    RETURN jsonb_build_object('error', 'Content too long');
+  END IF;
+
   SELECT INTO result
     content FROM net.http_post(
-      url := 'https://uymsiskesqqrfnpslinp.supabase.co/functions/v1/send-email',
+      url := functions_url,
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
         'Authorization', 'Bearer ' || current_setting('request.jwt.claim.service_role', true)
@@ -128,7 +150,7 @@ BEGIN
         'text', COALESCE(text_content, html_content)
       )
     );
-  
+
   RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

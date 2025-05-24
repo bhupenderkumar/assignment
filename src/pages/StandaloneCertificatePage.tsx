@@ -6,6 +6,7 @@ import CertificateTemplate from '../components/certificates/CertificateTemplate'
 import { InteractiveAssignment } from '../types/interactiveAssignment';
 import { InteractiveSubmissionExtended } from '../types/interactiveSubmissionExtended';
 import { motion } from 'framer-motion';
+import { escapeHTML, validateURL } from '../lib/utils/securityUtils';
 import '../styles/certificate-print.css';
 
 const StandaloneCertificatePage: React.FC = () => {
@@ -107,12 +108,21 @@ const StandaloneCertificatePage: React.FC = () => {
       return;
     }
 
+    // SECURITY: Validate and escape data before creating HTML
+    const safeTitle = escapeHTML(assignment?.title || 'Interactive Assignment');
+    const safeCertificateUrl = validateURL(certificateDataUrl) ? certificateDataUrl : '';
+
+    if (!safeCertificateUrl) {
+      alert('Invalid certificate data. Cannot print.');
+      return;
+    }
+
     // Create HTML content for the print window
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Certificate of Achievement | ${assignment?.title || 'Interactive Assignment'}</title>
+          <title>Certificate of Achievement | ${safeTitle}</title>
           <style>
             body {
               margin: 0;
@@ -139,7 +149,7 @@ const StandaloneCertificatePage: React.FC = () => {
           </style>
         </head>
         <body>
-          <img src="${certificateDataUrl}" alt="Certificate" />
+          <img src="${escapeHTML(safeCertificateUrl)}" alt="Certificate" />
           <script>
             window.onload = function() {
               setTimeout(function() {

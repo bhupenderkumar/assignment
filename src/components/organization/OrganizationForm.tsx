@@ -4,6 +4,7 @@ import { Organization, OrganizationInput, OrganizationType } from '../../types/o
 import { useOrganization } from '../../context/OrganizationContext';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { validateOrganizationName, sanitizeInput, validateFile } from '../../lib/utils/securityUtils';
 
 interface OrganizationFormProps {
   initialData?: Organization;
@@ -23,20 +24,20 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
   const [primaryColor, setPrimaryColor] = useState(initialData?.primaryColor || '#0891b2');
   const [secondaryColor, setSecondaryColor] = useState(initialData?.secondaryColor || '#7e22ce');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // File upload refs
   const logoInputRef = useRef<HTMLInputElement>(null);
   const signatureInputRef = useRef<HTMLInputElement>(null);
-  
+
   // File upload state
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initialData?.logoUrl || null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(initialData?.signatureUrl || null);
-  
+
   // Organization context
   const { uploadLogo, uploadSignature } = useOrganization();
-  
+
   // Handle logo file change
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,7 +50,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
       reader.readAsDataURL(file);
     }
   };
-  
+
   // Handle signature file change
   const handleSignatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -62,35 +63,37 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
       reader.readAsDataURL(file);
     }
   };
-  
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!name) {
-      toast.error('Organization name is required');
+
+    // SECURITY: Validate organization name
+    const nameValidation = validateOrganizationName(name);
+    if (!nameValidation.isValid) {
+      nameValidation.errors.forEach(error => toast.error(error));
       return;
     }
-    
+
     if (!signaturePreview && !signatureFile) {
       toast.error('Signature is required');
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
-      // Prepare organization data
+      // SECURITY: Sanitize all input data
       const organizationData: OrganizationInput = {
-        name,
+        name: sanitizeInput(name),
         type,
-        headerText,
-        primaryColor,
-        secondaryColor,
+        headerText: sanitizeInput(headerText),
+        primaryColor: sanitizeInput(primaryColor),
+        secondaryColor: sanitizeInput(secondaryColor),
         logoUrl: logoPreview || undefined,
         signatureUrl: signaturePreview || '' // Will be updated after upload
       };
-      
+
       // If we're editing an existing organization and have new files to upload
       if (initialData?.id) {
         // Upload logo if changed
@@ -98,14 +101,14 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
           const logoUrl = await uploadLogo(logoFile, initialData.id);
           organizationData.logoUrl = logoUrl;
         }
-        
+
         // Upload signature if changed
         if (signatureFile) {
           const signatureUrl = await uploadSignature(signatureFile, initialData.id);
           organizationData.signatureUrl = signatureUrl;
         }
       }
-      
+
       // Submit the form
       await onSubmit(organizationData);
     } catch (error) {
@@ -115,7 +118,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
       setIsSubmitting(false);
     }
   };
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -126,7 +129,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
       <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-white">
         {initialData ? 'Edit Organization' : 'Create New Organization'}
       </h2>
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Organization Name */}
         <div>
@@ -143,7 +146,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             required
           />
         </div>
-        
+
         {/* Organization Type */}
         <div>
           <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -161,7 +164,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             <option value="other">Other</option>
           </select>
         </div>
-        
+
         {/* Header Text */}
         <div>
           <label htmlFor="headerText" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -176,7 +179,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             placeholder="Enter header text or tagline"
           />
         </div>
-        
+
         {/* Brand Colors */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -200,7 +203,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
               />
             </div>
           </div>
-          
+
           <div>
             <label htmlFor="secondaryColor" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Secondary Color
@@ -223,7 +226,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             </div>
           </div>
         </div>
-        
+
         {/* Logo Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -274,7 +277,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             </div>
           </div>
         </div>
-        
+
         {/* Signature Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -325,7 +328,7 @@ const OrganizationForm: React.FC<OrganizationFormProps> = ({
             </div>
           </div>
         </div>
-        
+
         {/* Form Actions */}
         <div className="flex justify-end space-x-3 pt-4">
           <button
