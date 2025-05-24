@@ -16,8 +16,8 @@ import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
 import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
-import AudioPlayer from '../common/AudioPlayer';
-import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
+import SimpleAudioPlayer, { SimpleAudioPlayerRef } from '../common/SimpleAudioPlayer';
+import { initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
@@ -49,6 +49,58 @@ const PlayAssignment = ({
   const navigate = useNavigate();
 
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
+  const [audioInstructions, setAudioInstructions] = useState<string | null>(null);
+  const [audioInstructionsLoaded, setAudioInstructionsLoaded] = useState(false);
+
+  // Debug effect to track currentAssignment changes
+  useEffect(() => {
+    console.log('🎯 currentAssignment changed:', {
+      hasAssignment: !!currentAssignment,
+      id: currentAssignment?.id,
+      title: currentAssignment?.title,
+      audioInstructions: currentAssignment?.audioInstructions,
+      audioInstructionsType: typeof currentAssignment?.audioInstructions,
+      audioInstructionsLength: currentAssignment?.audioInstructions?.length || 0,
+      allKeys: currentAssignment ? Object.keys(currentAssignment) : 'none',
+      timestamp: new Date().toISOString()
+    });
+  }, [currentAssignment]);
+
+  // Direct fetch for audio instructions - bypassing service layer issues
+  useEffect(() => {
+    const fetchAudioInstructions = async () => {
+      if (!currentAssignment?.id || !supabase || audioInstructionsLoaded) return;
+
+      try {
+        console.log('🎵 Fetching audio instructions directly from database...');
+        const { data, error } = await supabase
+          .from('interactive_assignment')
+          .select('audio_instructions')
+          .eq('id', currentAssignment.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Error fetching audio instructions:', error);
+          setAudioInstructionsLoaded(true);
+          return;
+        }
+
+        console.log('✅ Audio instructions fetched:', {
+          audioInstructions: data?.audio_instructions,
+          type: typeof data?.audio_instructions,
+          length: data?.audio_instructions?.length || 0
+        });
+
+        setAudioInstructions(data?.audio_instructions || null);
+        setAudioInstructionsLoaded(true);
+      } catch (err) {
+        console.error('❌ Exception fetching audio instructions:', err);
+        setAudioInstructionsLoaded(true);
+      }
+    };
+
+    fetchAudioInstructions();
+  }, [currentAssignment?.id, supabase, audioInstructionsLoaded]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -68,6 +120,8 @@ const PlayAssignment = ({
   const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const audioPlayerRef = useRef<SimpleAudioPlayerRef>(null);
 
   // Ref to prevent duplicate submissions
   const isSubmittingRef = useRef(false);
@@ -82,7 +136,22 @@ const PlayAssignment = ({
 
   // Update currentAssignment when assignment prop changes - only once
   useEffect(() => {
+    console.log('🔄 Assignment prop effect triggered:', {
+      hasAssignmentProp: !!assignment,
+      hasCurrentAssignment: !!currentAssignment,
+      assignmentPropKeys: assignment ? Object.keys(assignment) : 'none',
+      assignmentPropAudio: assignment?.audioInstructions,
+      currentAssignmentKeys: currentAssignment ? Object.keys(currentAssignment) : 'none',
+      currentAssignmentAudio: currentAssignment?.audioInstructions
+    });
+
     if (assignment && !currentAssignment) {
+      console.log('📥 Setting assignment from props:', {
+        id: assignment.id,
+        title: assignment.title,
+        audioInstructions: assignment.audioInstructions,
+        allKeys: Object.keys(assignment)
+      });
       setCurrentAssignment(assignment);
 
       // Cache the assignment data for persistence
@@ -148,10 +217,23 @@ const PlayAssignment = ({
 
     // Check cache first
     const cachedAssignmentKey = `cached_assignment_${assignmentId}`;
-    const cachedAssignment = getCachedItem(cachedAssignmentKey);
+    const cachedAssignment = getCachedItem<InteractiveAssignment>(cachedAssignmentKey);
+
+    console.log('💾 Cache check result:', {
+      assignmentId,
+      hasCachedAssignment: !!cachedAssignment,
+      cachedKeys: cachedAssignment ? Object.keys(cachedAssignment) : 'none',
+      cachedAudioInstructions: cachedAssignment?.audioInstructions
+    });
 
     if (cachedAssignment) {
-      setCurrentAssignment(cachedAssignment as InteractiveAssignment);
+      console.log('📦 Using cached assignment:', {
+        id: cachedAssignment.id,
+        title: cachedAssignment.title,
+        audioInstructions: cachedAssignment.audioInstructions,
+        allKeys: Object.keys(cachedAssignment)
+      });
+      setCurrentAssignment(cachedAssignment);
       return;
     }
 
@@ -179,6 +261,14 @@ const PlayAssignment = ({
       }
 
       if (fetchedAssignment) {
+        console.log('🎯 Assignment fetched successfully:', {
+          id: fetchedAssignment.id,
+          title: fetchedAssignment.title,
+          audioInstructions: fetchedAssignment.audioInstructions,
+          audioInstructionsType: typeof fetchedAssignment.audioInstructions,
+          audioInstructionsLength: fetchedAssignment.audioInstructions?.length || 0,
+          allKeys: Object.keys(fetchedAssignment)
+        });
         setCurrentAssignment(fetchedAssignment);
         // Try to cache the assignment data, but don't worry if it fails
         try {
@@ -190,6 +280,7 @@ const PlayAssignment = ({
           console.warn('Failed to cache assignment, proceeding without caching:', cacheError);
         }
       } else {
+        console.error('🚨 No assignment data returned from service');
         setError('Assignment not found or not published');
       }
     } catch (err) {
@@ -383,6 +474,8 @@ const PlayAssignment = ({
       startBackgroundMusic(0.1); // Very gentle volume
     }, 1000);
 
+    // Audio instructions notification will be handled by the AudioPlayer component
+
     // Start the timer
     const interval = window.setInterval(() => {
       setTimeSpent(prev => prev + 1);
@@ -438,6 +531,30 @@ const PlayAssignment = ({
       stopAllSounds();
     };
   }, []);
+
+  // Add user interaction handler to enable audio playback
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      if (!hasUserInteracted) {
+        setHasUserInteracted(true);
+        // Try to play audio instructions if available and autoplay was blocked
+        if (currentAssignment?.audioInstructions && audioPlayerRef.current) {
+          // This will be handled by the AudioPlayer component
+        }
+      }
+    };
+
+    // Add event listeners for user interaction
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, [hasUserInteracted, currentAssignment?.audioInstructions]);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
@@ -859,7 +976,22 @@ const PlayAssignment = ({
     return response && response.responseData && response.responseData.answered === true;
   };
 
-  // Check for error, payment requirement, or missing assignment first
+  // Check for loading state first
+  if (loading || !audioInstructionsLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">
+            {!currentAssignment ? 'Loading assignment...' : 'Loading audio instructions...'}
+          </p>
+
+        </div>
+      </div>
+    );
+  }
+
+  // Check for error, payment requirement, or missing assignment
   const errorContent = renderError();
   const paymentRequiredContent = renderPaymentRequired();
   const noAssignmentContent = renderNoAssignment();
@@ -947,16 +1079,22 @@ const PlayAssignment = ({
           </div>
         </div>
 
-        {currentAssignment?.audioInstructions && (
-          <div className="mb-4">
-            <AudioPlayer
-              audioUrl={currentAssignment?.audioInstructions}
-              autoPlay={true}
-              label="Audio Instructions"
-              className="w-full"
-            />
-          </div>
-        )}
+        {/* Always render audio player, let it handle empty/loading states */}
+        <div className="mb-4">
+
+
+          <SimpleAudioPlayer
+            ref={audioPlayerRef}
+            audioUrl={audioInstructions || ''}
+            autoPlay={true}
+            label="Audio Instructions"
+            className="w-full"
+            onAutoPlayBlocked={() => {
+              // Callback handled by SimpleAudioPlayer component internally
+            }}
+          />
+        </div>
+
 
         <div className="flex flex-wrap gap-4 text-sm">
           {currentAssignment?.difficultyLevel && (
@@ -1129,7 +1267,7 @@ const PlayAssignment = ({
       />
 
       {/* Text-to-Speech Button (only show if TTS is available and no audio instructions) */}
-      {!currentAssignment?.audioInstructions && isTTSAvailable() && currentQuestion && (
+      {!audioInstructions && isTTSAvailable() && currentQuestion && (
         <button
           onClick={() => {
             playSound('click');
@@ -1146,7 +1284,7 @@ const PlayAssignment = ({
       )}
 
       {/* Floating Audio Button (only show if there are audio instructions) */}
-      {currentAssignment?.audioInstructions && (
+      {audioInstructions && (
         <>
           <button
             onClick={() => setShowAudioPlayer(true)}
@@ -1175,10 +1313,13 @@ const PlayAssignment = ({
                   </button>
                 </div>
                 {/* Only show the audio player controls */}
-                <AudioPlayer
+                <SimpleAudioPlayer
                   audioUrl={currentAssignment?.audioInstructions || ''}
                   autoPlay={true}
                   showLabel={false}
+                  onAutoPlayBlocked={() => {
+                    // Callback handled by SimpleAudioPlayer component internally
+                  }}
                 />
               </div>
             </div>

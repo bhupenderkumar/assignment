@@ -34,6 +34,7 @@ const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage')
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const StandaloneCertificatePage = React.lazy(() => import('../pages/StandaloneCertificatePage'));
 const CertificatesPage = React.lazy(() => import('../pages/CertificatesPage'));
+const AudioDebugPage = React.lazy(() => import('./debug/AudioDebugPage'));
 
 // Loading component for lazy-loaded routes
 const RouteLoadingSpinner = ({ message = 'Loading...' }: { message?: string }) => (
@@ -329,6 +330,20 @@ const AppRouter = () => {
           </ProtectedRoute>
         }
       />
+
+      {/* Debug routes - only in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <Route
+          path="/debug/audio"
+          element={
+            <Layout>
+              <Suspense fallback={<RouteLoadingSpinner message="Loading debug page..." />}>
+                <AudioDebugPage />
+              </Suspense>
+            </Layout>
+          }
+        />
+      )}
 
       {/* Fallback route */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,4 +1,5 @@
 // src/lib/utils/soundUtils.ts
+import { audioManager, AUDIO_PRIORITIES } from './audioManager';
 
 // Sound types
 type SoundType = 'correct' | 'incorrect' | 'click' | 'celebration' | 'complete' | 'clapping' | 'very-good' | 'better-luck' | 'background';
@@ -10,7 +11,7 @@ const soundMap: Record<SoundType, string> = {
   click: 'https://assets.mixkit.co/active_storage/sfx/2997/2997-preview.mp3', // Gentle click
   celebration: 'https://assets.mixkit.co/active_storage/sfx/1993/1993-preview.mp3', // Happy celebration
   complete: 'https://assets.mixkit.co/active_storage/sfx/1995/1995-preview.mp3', // Completion fanfare
-  clapping: 'https://assets.mixkit.co/active_storage/sfx/1997/1997-preview.mp3', // Applause
+  clapping: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Applause
   'very-good': 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Placeholder - will use TTS
   'better-luck': 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3', // Placeholder - will use TTS
   background: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', // Gentle background music
@@ -141,6 +142,11 @@ export const playSound = (type: SoundType, volume = 0.5) => {
   if (!audioCache[type]) {
     audioCache[type] = new Audio(soundUrl);
     audioCache[type].preload = 'auto';
+
+    // Register with audio manager
+    const priority = type === 'background' ? AUDIO_PRIORITIES.BACKGROUND : AUDIO_PRIORITIES.EFFECT;
+    const audioType = type === 'background' ? 'background' : 'effect';
+    audioManager.register(`sound-${type}`, audioCache[type], audioType, priority);
   }
 
   const audio = audioCache[type];
@@ -149,16 +155,20 @@ export const playSound = (type: SoundType, volume = 0.5) => {
   // Reset audio to beginning if it's already playing
   audio.currentTime = 0;
 
-  // Play the sound
-  audio.play().catch(error => {
+  // Use audio manager to play the sound
+  audioManager.play(`sound-${type}`).catch(error => {
     console.error(`Error playing sound '${type}':`, error);
 
     // Try to create a new audio element if the cached one failed
     if (audioCache[type]) {
+      audioManager.unregister(`sound-${type}`);
       delete audioCache[type];
       const newAudio = new Audio(soundUrl);
       newAudio.volume = volume;
-      newAudio.play().catch(retryError => {
+      const priority = type === 'background' ? AUDIO_PRIORITIES.BACKGROUND : AUDIO_PRIORITIES.EFFECT;
+      const audioType = type === 'background' ? 'background' : 'effect';
+      audioManager.register(`sound-${type}`, newAudio, audioType, priority);
+      audioManager.play(`sound-${type}`).catch(retryError => {
         console.error(`Retry failed for sound '${type}':`, retryError);
       });
       audioCache[type] = newAudio;
@@ -199,13 +209,18 @@ export const startBackgroundMusic = (volume = 0.2) => {
       backgroundMusic = new Audio(soundMap.background);
       backgroundMusic.loop = true;
       backgroundMusic.preload = 'auto';
+
+      // Register with audio manager
+      audioManager.register('background-music', backgroundMusic, 'background', AUDIO_PRIORITIES.BACKGROUND);
     }
 
     backgroundMusic.volume = Math.min(1, Math.max(0, volume));
     backgroundMusic.currentTime = 0;
 
-    backgroundMusic.play().then(() => {
-      isBackgroundMusicPlaying = true;
+    audioManager.play('background-music').then((success) => {
+      if (success) {
+        isBackgroundMusicPlaying = true;
+      }
     }).catch(error => {
       console.error('Error starting background music:', error);
     });
@@ -219,8 +234,7 @@ export const startBackgroundMusic = (volume = 0.2) => {
  */
 export const stopBackgroundMusic = () => {
   if (backgroundMusic && isBackgroundMusicPlaying) {
-    backgroundMusic.pause();
-    backgroundMusic.currentTime = 0;
+    audioManager.pause('background-music');
     isBackgroundMusicPlaying = false;
   }
 };
@@ -246,16 +260,11 @@ export const setBackgroundMusicVolume = (volume: number) => {
  * Stop all sounds and clean up audio resources
  */
 export const stopAllSounds = () => {
-  // Stop background music
-  stopBackgroundMusic();
+  // Use audio manager to pause all audio
+  audioManager.pauseAll();
 
-  // Stop any playing sound effects
-  Object.values(audioCache).forEach(audio => {
-    if (audio && !audio.paused) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-  });
+  // Reset background music state
+  isBackgroundMusicPlaying = false;
 
   // Stop TTS
   if ('speechSynthesis' in window) {

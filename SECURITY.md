@@ -64,7 +64,7 @@ style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
 img-src 'self' data: https: blob:;
 font-src 'self' https://fonts.gstatic.com;
 connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co wss://*.supabase.in;
-media-src 'self' blob: data:;
+media-src 'self' blob: data: https://*.supabase.co https://assets.mixkit.co;
 object-src 'none';
 base-uri 'self';
 form-action 'self';
@@ -158,20 +158,20 @@ The application performs runtime security checks on startup:
 ### Audit Log Queries
 ```sql
 -- View recent security events
-SELECT * FROM security_audit_log 
-ORDER BY created_at DESC 
+SELECT * FROM security_audit_log
+ORDER BY created_at DESC
 LIMIT 100;
 
 -- Check for failed login attempts
 SELECT user_id, COUNT(*) as failed_attempts
-FROM security_audit_log 
-WHERE action = 'LOGIN_FAILURE' 
+FROM security_audit_log
+WHERE action = 'LOGIN_FAILURE'
 AND created_at > NOW() - INTERVAL '1 hour'
 GROUP BY user_id;
 
 -- Monitor file uploads
-SELECT * FROM security_audit_log 
-WHERE action = 'FILE_UPLOAD' 
+SELECT * FROM security_audit_log
+WHERE action = 'FILE_UPLOAD'
 AND created_at > NOW() - INTERVAL '24 hours';
 ```
 
@@ -179,7 +179,7 @@ AND created_at > NOW() - INTERVAL '24 hours';
 ```sql
 -- Check rate limiting activity
 SELECT identifier, action, attempts, window_start
-FROM rate_limit_log 
+FROM rate_limit_log
 WHERE window_start > NOW() - INTERVAL '1 hour'
 ORDER BY attempts DESC;
 ```
