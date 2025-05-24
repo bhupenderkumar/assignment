@@ -56,14 +56,21 @@ const CelebrationOverlay = ({
       stopSpeaking();
 
       // Then play celebration sound after a brief delay
-      setTimeout(() => {
+      const soundTimer = setTimeout(() => {
         playSound('celebration', 0.7);
       }, 100);
 
-      return () => clearTimeout(loadingTimer);
+      // Set loading timer to show loading state briefly
+      const loadingTimer = setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+
+      return () => {
+        clearTimeout(soundTimer);
+        clearTimeout(loadingTimer);
+      };
     } else {
       setIsLoading(true);
-
     }
   }, [isVisible]);
 
