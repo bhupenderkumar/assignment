@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
+import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface AnonymousUserRegistrationProps {
@@ -19,9 +20,58 @@ const AnonymousUserRegistration = ({
   const [name, setName] = useState('');
   const [contactInfo, setContactInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingUser, setExistingUser] = useState<any>(null);
+  const [showDuplicateForm, setShowDuplicateForm] = useState(false);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   const { registerAnonymousUser } = useInteractiveAssignment();
   const navigate = useNavigate();
+
+  // Check for existing user by name
+  const checkForExistingUser = async (userName: string) => {
+    if (!userName.trim()) return null;
+
+    setIsCheckingDuplicate(true);
+    try {
+      const { data, error } = await supabase
+        .from('anonymous_user')
+        .select('*')
+        .ilike('name', userName.trim())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Error checking for existing user:', error);
+        return null;
+      }
+
+      return data && data.length > 0 ? data[0] : null;
+    } catch (error) {
+      console.error('Error checking for existing user:', error);
+      return null;
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
+
+  // Handle name input change with duplicate checking
+  const handleNameChange = async (newName: string) => {
+    setName(newName);
+    setExistingUser(null);
+    setShowDuplicateForm(false);
+
+    if (newName.trim().length >= 2) {
+      const existing = await checkForExistingUser(newName);
+      if (existing) {
+        setExistingUser(existing);
+        setShowDuplicateForm(true);
+        // If existing user has contact info, pre-fill it
+        if (existing.contact_info) {
+          setContactInfo(existing.contact_info);
+        }
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,11 +81,54 @@ const AnonymousUserRegistration = ({
       return;
     }
 
+    // If duplicate user exists and no contact info provided, require it
+    if (existingUser && !contactInfo.trim()) {
+      toast.error('This name is already registered. Please provide your contact information to continue.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      await registerAnonymousUser(name, contactInfo);
-      toast.success('Registration successful!');
+      let userToUse = null;
+
+      if (existingUser && contactInfo.trim()) {
+        // Use existing user if contact info matches or update contact info
+        if (existingUser.contact_info === contactInfo.trim()) {
+          userToUse = existingUser;
+          toast.success('Welcome back! Using your existing profile.');
+        } else {
+          // Update existing user's contact info
+          const { data, error } = await supabase
+            .from('anonymous_user')
+            .update({
+              contact_info: contactInfo.trim(),
+              last_active_at: new Date().toISOString()
+            })
+            .eq('id', existingUser.id)
+            .select()
+            .single();
+
+          if (error) throw error;
+          userToUse = {
+            id: data.id,
+            name: data.name,
+            contactInfo: data.contact_info,
+            createdAt: new Date(data.created_at),
+            lastActiveAt: new Date(data.last_active_at),
+          };
+          toast.success('Profile updated successfully!');
+        }
+      } else {
+        // Create new user
+        userToUse = await registerAnonymousUser(name, contactInfo);
+        toast.success('Registration successful!');
+      }
+
+      // Store user in localStorage
+      if (userToUse) {
+        localStorage.setItem('anonymousUser', JSON.stringify(userToUse));
+      }
 
       // Check if there's a pending assignment to navigate to
       const pendingAssignmentId = localStorage.getItem('pendingAssignmentId');
@@ -88,27 +181,50 @@ const AnonymousUserRegistration = ({
                   type="text"
                   id="name"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-colors"
                   placeholder="Enter your name"
                   required
                 />
+                {isCheckingDuplicate && (
+                  <p className="text-xs text-blue-500 mt-1">
+                    Checking for existing user...
+                  </p>
+                )}
+                {existingUser && (
+                  <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ This name is already registered (last active: {new Date(existingUser.created_at).toLocaleDateString()})
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      Please provide your contact information to continue with your existing profile.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="mb-6">
                 <label htmlFor="contactInfo" className="block text-gray-700 font-medium mb-2">
-                  Contact Information (Optional)
+                  Contact Information {existingUser ? <span className="text-red-500">*</span> : '(Optional)'}
                 </label>
                 <input
                   type="text"
                   id="contactInfo"
                   value={contactInfo}
                   onChange={(e) => setContactInfo(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-colors"
+                  className={`w-full px-4 py-3 rounded-xl border focus:ring focus:ring-opacity-50 transition-colors ${
+                    existingUser
+                      ? 'border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200'
+                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                  }`}
                   placeholder="Email or phone number"
+                  required={existingUser !== null}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  This helps us keep track of your progress across sessions.
+                  {existingUser
+                    ? 'Required to verify your identity and continue with existing profile.'
+                    : 'This helps us keep track of your progress across sessions.'
+                  }
                 </p>
               </div>
 

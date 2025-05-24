@@ -7,6 +7,7 @@ import { InteractiveAssignment } from '../../types/interactiveAssignment';
 import AssignmentForm from './AssignmentForm';
 import AssignmentManagementList from './AssignmentManagementList';
 import ShareAssignmentModal from './ShareAssignmentModal';
+import AnonymousUserActivity from './AnonymousUserActivity';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
@@ -168,6 +169,9 @@ const AdminDashboard = () => {
           </button>
         )}
       </div>
+      
+      {/* Anonymous User Activity Section */}
+      <AnonymousUserActivity />
 
       <AnimatePresence mode="wait">
         {isCreating ? (
@@ -177,6 +181,7 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            className="mt-8"
           >
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -200,6 +205,7 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            className="mt-8"
           >
             <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -227,6 +233,7 @@ const AdminDashboard = () => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            className="mt-8"
           >
             <AssignmentManagementList
               onEdit={handleEditAssignment}

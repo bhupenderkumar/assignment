@@ -4,7 +4,9 @@ import { Stage, Layer, Rect, Text, Circle, Line, Group, Image } from 'react-konv
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
+import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { InteractiveSubmission } from '../../types/interactiveAssignment';
+import { supabase } from '../../lib/supabase';
 
 interface CertificateTemplateProps {
   submission: InteractiveSubmission;
@@ -25,10 +27,43 @@ const CertificateTemplate = ({
   const { config } = useConfiguration();
   const { username } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();
+  const { anonymousUser } = useInteractiveAssignment();
   const [sealImage, setSealImage] = useState<HTMLImageElement | null>(null);
   const [signatureImage, setSignatureImage] = useState<HTMLImageElement | null>(null);
   const [logoImage, setLogoImage] = useState<HTMLImageElement | null>(null);
   const [stageSize, setStageSize] = useState({ width, height });
+  const [studentName, setStudentName] = useState<string>('');
+
+  // Get student name from anonymous user or authenticated user
+  useEffect(() => {
+    const getStudentName = async () => {
+      if (anonymousUser) {
+        setStudentName(anonymousUser.name);
+      } else if (username) {
+        setStudentName(username);
+      } else {
+        // Try to fetch anonymous user data from submission
+        try {
+          const { data, error } = await supabase
+            .from('anonymous_user')
+            .select('name')
+            .eq('id', submission.userId)
+            .single();
+
+          if (data && !error) {
+            setStudentName(data.name);
+          } else {
+            setStudentName('Dedicated Learner');
+          }
+        } catch (error) {
+          console.error('Error fetching anonymous user:', error);
+          setStudentName('Dedicated Learner');
+        }
+      }
+    };
+
+    getStudentName();
+  }, [anonymousUser, username, submission.userId]);
 
   // Make certificate responsive
   useEffect(() => {
@@ -331,7 +366,7 @@ const CertificateTemplate = ({
           <Text
             x={width / 2}
             y={currentOrganization?.logoUrl ? 295 : 265}
-            text={username || 'Dedicated Learner'}
+            text={studentName || 'Dedicated Learner'}
             fontSize={30}
             fontStyle="bold"
             fill={config.secondaryColor}

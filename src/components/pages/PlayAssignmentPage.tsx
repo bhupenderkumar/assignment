@@ -116,10 +116,15 @@ const PlayAssignmentPage = () => {
 
   // Check if user is registered
   useEffect(() => {
-    if (currentAssignment && !anonymousUser) {
+    if (currentAssignment && !anonymousUser && !user) {
+      // Only show registration if we have an assignment but no user (anonymous or authenticated)
+      console.log('No user found, showing registration modal');
       setShowRegistration(true);
+    } else {
+      // Make sure registration modal is closed if we have a user
+      setShowRegistration(false);
     }
-  }, [currentAssignment, anonymousUser]);
+  }, [currentAssignment, anonymousUser, user]);
 
   // Handle back to home with confirmation if assignment is active
   const handleBackToHome = () => {
@@ -296,6 +301,12 @@ const PlayAssignmentPage = () => {
       <AnonymousUserRegistration
         isOpen={showRegistration}
         onClose={() => setShowRegistration(false)}
+        onSuccess={() => {
+          console.log('User registered successfully');
+          setShowRegistration(false);
+          // After successful registration, reload the page to ensure we get fresh data
+          window.location.reload();
+        }}
       />
     </motion.div>
   );

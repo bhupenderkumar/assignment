@@ -21,6 +21,8 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import SignInPage from './pages/SignInPage';
 import SignUpPage from './pages/SignUpPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import StandaloneCertificatePage from '../pages/StandaloneCertificatePage';
 import CertificatesPage from '../pages/CertificatesPage';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
@@ -94,6 +96,8 @@ const AppRouter = () => {
       {/* Auth routes */}
       <Route path="/sign-in/*" element={<SignInPage />} />
       <Route path="/sign-up/*" element={<SignUpPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* Standalone certificate page - no layout */}
       <Route path="/certificate" element={<StandaloneCertificatePage />} />
@@ -271,6 +275,18 @@ const AppRouter = () => {
 
       {/* Fallback route */}
       <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Anonymous User Activity route */}
+      <Route
+        path="/anonymous-users"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              {/* TODO: Import and implement AnonymousUserActivity component */}
+              <div>Anonymous User Activity Page</div>
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 };
