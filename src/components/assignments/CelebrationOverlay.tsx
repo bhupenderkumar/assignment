@@ -6,7 +6,7 @@ import { useConfiguration } from '../../context/ConfigurationContext';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import CertificateViewer from '../certificates/CertificateViewer';
-import { playSound } from '../../utils/soundUtils';
+import { playSound, stopAllSounds, stopSpeaking } from '../../utils/soundUtils';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
@@ -45,10 +45,17 @@ const CelebrationOverlay = ({
     submittedAt: new Date(),
     status: 'SUBMITTED' as const
   } : null;
-  // Play celebration sound when visible
+  // Stop all sounds and play celebration sound when visible
   useEffect(() => {
     if (isVisible) {
-      playSound('celebration', 0.7);
+      // Stop all existing sounds first
+      stopAllSounds();
+      stopSpeaking();
+
+      // Then play celebration sound after a brief delay
+      setTimeout(() => {
+        playSound('celebration', 0.7);
+      }, 100);
     }
   }, [isVisible]);
 

@@ -6,8 +6,8 @@
 
 // Check if we're in production (not localhost)
 const isProduction = () => {
-  return !window.location.hostname.includes('localhost') && 
-         !window.location.hostname.includes('127.0.0.1') && 
+  return !window.location.hostname.includes('localhost') &&
+         !window.location.hostname.includes('127.0.0.1') &&
          !window.location.hostname.includes('192.168.');
 };
 
@@ -176,7 +176,7 @@ class TextToSpeechManager {
     this.synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    
+
     // Set options
     utterance.rate = options.rate || 0.9;
     utterance.pitch = options.pitch || 1;
@@ -184,7 +184,7 @@ class TextToSpeechManager {
     utterance.lang = options.lang || 'en-US';
 
     // Try to find a suitable voice
-    const preferredVoice = this.voices.find(voice => 
+    const preferredVoice = this.voices.find(voice =>
       voice.lang.startsWith(utterance.lang.split('-')[0])
     );
     if (preferredVoice) {
@@ -285,4 +285,24 @@ export const cleanTextForTTS = (text: string): string => {
     .replace(/[^\w\s.,!?-]/g, ' ') // Remove special characters except basic punctuation
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
+};
+
+/**
+ * Stop all sounds and clean up audio resources
+ */
+export const stopAllSounds = () => {
+  // Stop TTS
+  ttsManager.stop();
+
+  // Stop all HTML audio elements that might not be managed by soundManager
+  // This catches AudioPlayer and any other unmanaged audio elements
+  const allAudioElements = document.querySelectorAll('audio');
+  allAudioElements.forEach(audio => {
+    if (!audio.paused) {
+      audio.pause();
+    }
+  });
+
+  // Note: Web Audio API sources (from SoundManager) can't be stopped once started,
+  // but they're usually very short sound effects
 };
