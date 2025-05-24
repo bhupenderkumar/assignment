@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import toast from 'react-hot-toast';
+import { validateFile, sanitizeInput } from '../../lib/utils/securityUtils';
 
 interface AudioRecorderProps {
   initialAudioUrl?: string;
@@ -175,15 +176,17 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file type
-    if (!file.type.startsWith('audio/')) {
-      toast.error('Please upload an audio file');
+    // SECURITY: Comprehensive file validation
+    const validation = await validateFile(file, 'audio');
+    if (!validation.isValid) {
+      validation.errors.forEach(error => toast.error(error));
       return;
     }
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('Audio file size should be less than 10MB');
+    // SECURITY: Sanitize filename
+    const sanitizedName = sanitizeInput(file.name);
+    if (!sanitizedName) {
+      toast.error('Invalid filename');
       return;
     }
 
@@ -192,7 +195,8 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
     try {
       // Define bucket name
       const bucketName = 'audio-instructions';
-      const fileName = `audio_${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      // SECURITY: Use sanitized filename with timestamp
+      const fileName = `audio_${Date.now()}_${sanitizedName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
       // Check if bucket exists - reuse the same code as in handleUploadRecording
       try {

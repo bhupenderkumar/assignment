@@ -125,7 +125,7 @@ export const paymentService = {
   ): Promise<PaymentSettings> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       // Check if settings already exist
       const { data: existingData } = await supabase
         .schema('public')
@@ -196,7 +196,7 @@ export const paymentService = {
   ): Promise<PaymentTransaction> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       const payload = {
         user_id: transaction.userId,
         assignment_id: transaction.assignmentId,
@@ -366,7 +366,7 @@ export const paymentService = {
   }> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       const { data, error } = await supabase
         .schema('public')
         .from('payment_transaction')
@@ -392,7 +392,7 @@ export const paymentService = {
   async getUserPaymentHistory(userId: string): Promise<PaymentTransaction[]> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       const { data, error } = await supabase
         .schema('public')
         .from('payment_transaction')
@@ -411,7 +411,7 @@ export const paymentService = {
   async getOrganizationPaymentHistory(organizationId: string): Promise<PaymentTransaction[]> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       const { data, error } = await supabase
         .schema('public')
         .from('payment_transaction')
@@ -487,7 +487,7 @@ export const paymentService = {
   }> {
     try {
       const supabase = await getSupabaseClient(null);
-      
+
       // First check if the assignment requires payment
       const { data: assignmentData, error: assignmentError } = await supabase
         .schema('public')
@@ -507,7 +507,7 @@ export const paymentService = {
       }
 
       // Check if the user has already paid
-      const { hasPaid, transaction } = await this.checkUserPaymentForAssignment(userId, assignmentId);
+      const { hasPaid } = await this.checkUserPaymentForAssignment(userId, assignmentId);
 
       // Get the organization's payment settings
       const paymentSettings = await this.getOrganizationPaymentSettings(assignmentData.organization_id);

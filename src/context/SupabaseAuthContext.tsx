@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { getDatabaseSetupService } from '../lib/db/databaseSetupService';
 import { getSupabaseClient } from '../lib/services/supabaseService';
 import { useDatabaseState } from './DatabaseStateContext';
-import { getUserActivityLogger, ActivityType } from '../lib/services/userActivityLogger';
+import { getUserActivityLogger } from '../lib/services/userActivityLogger';
 
 // Declare global window property for TypeScript
 declare global {

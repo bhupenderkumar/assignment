@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { Connection, PublicKey, LAMPORTS_PER_SOL, ConfirmedSignatureInfo } from '@solana/web3.js';
-import { hexToRgba } from '../../utils/colorUtils';
-import { paymentService, PaymentSettings, PaymentTransaction } from '../../lib/services/paymentService';
+import { paymentService, PaymentSettings } from '../../lib/services/paymentService';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -213,7 +212,7 @@ const PaymentDemoPage: React.FC = () => {
       // Record the payment transaction in our database if user is logged in
       if (user && details.fromWallet && details.amount) {
         try {
-          const paymentTransaction = await paymentService.recordPaymentTransaction({
+          await paymentService.recordPaymentTransaction({
             userId: user.id,
             assignmentId: assignmentId || undefined,
             organizationId: currentOrganization?.id,

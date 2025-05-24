@@ -172,6 +172,10 @@ const AnonymousUserActivity = () => {
       ];
 
       for (const userData of sampleUsers) {
+        if (!supabase) {
+          throw new Error('Supabase client not available');
+        }
+
         const { data, error } = await supabase
           .from('anonymous_user')
           .insert({
