@@ -10,9 +10,15 @@ import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
 
 interface PlaySharedAssignmentProps {
   shareableLink: string;
+  onOrganizationLoad?: (organization: any) => void;
+  onAssignmentLoad?: (assignment: any) => void;
 }
 
-const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
+const PlaySharedAssignment = ({
+  shareableLink,
+  onOrganizationLoad,
+  onAssignmentLoad
+}: PlaySharedAssignmentProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentAssignment, setCurrentAssignment] = useState<any | null>(null);
@@ -166,6 +172,13 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
     }
   }, [currentAssignment, anonymousUser]);
 
+  // Call onAssignmentLoad callback when assignment is loaded
+  useEffect(() => {
+    if (currentAssignment && onAssignmentLoad) {
+      onAssignmentLoad(currentAssignment);
+    }
+  }, [currentAssignment, onAssignmentLoad]);
+
   // Loading state
   if (loading || isSupabaseLoading) {
     return (
@@ -266,7 +279,10 @@ const PlaySharedAssignment = ({ shareableLink }: PlaySharedAssignmentProps) => {
         </div>
 
         {/* Pass the assignment to the PlayAssignment component */}
-        <PlayAssignment assignment={currentAssignment} />
+        <PlayAssignment
+          assignment={currentAssignment}
+          onOrganizationLoad={onOrganizationLoad}
+        />
       </motion.div>
 
       {/* Anonymous User Registration Modal */}
