@@ -12,7 +12,8 @@ import {
   useDraggable,
   useDroppable
 } from '@dnd-kit/core';
-import { playSound } from '../../utils/soundUtils';
+import { playSound, playEnhancedFeedback } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import AudioPlayer from '../common/AudioPlayer';
 
@@ -497,13 +498,13 @@ const EnhancedMatchingExercise = ({
 
       // Play appropriate sound
       if (isCorrect) {
-        playSound('success');
+        playSound('correct');
         // Reduce toast frequency - only show for every few correct matches
         if (matches.length % 2 === 0) {
           toast.success('Great!', { duration: 1500, icon: '✓' });
         }
       } else {
-        playSound('error');
+        playSound('incorrect');
         // Brief feedback without excessive styling
         toast('Try again', { duration: 1500, icon: '🔄' });
       }
@@ -534,11 +535,11 @@ const EnhancedMatchingExercise = ({
           }
         }, 800);
 
-        // Play celebration sound if all correct
+        // Play enhanced audio feedback
         if (allCorrect) {
-          playSound('completion');
+          playEnhancedFeedback('correct');
         } else {
-          playSound('completion');
+          playEnhancedFeedback('incorrect');
         }
 
         onComplete(allCorrect, score);
@@ -625,13 +626,13 @@ const EnhancedMatchingExercise = ({
 
     // Play appropriate sound
     if (isCorrect) {
-      playSound('success');
+      playSound('correct');
       // Reduce toast frequency - only show for every few correct matches
       if (matches.length % 2 === 0) {
         toast.success('Great!', { duration: 1500, icon: '✓' });
       }
     } else {
-      playSound('error');
+      playSound('incorrect');
       // Brief feedback without excessive styling
       toast('Try again', { duration: 1500, icon: '🔄' });
     }
@@ -665,11 +666,11 @@ const EnhancedMatchingExercise = ({
         }
       }, 800);
 
-      // Play celebration sound if all correct
+      // Play enhanced audio feedback
       if (allCorrect) {
-        playSound('completion');
+        playEnhancedFeedback('correct');
       } else {
-        playSound('completion');
+        playEnhancedFeedback('incorrect');
       }
 
       onComplete(allCorrect, score);
@@ -972,6 +973,9 @@ const EnhancedMatchingExercise = ({
               onClick={() => {
                 setShowFeedback(false);
                 playSound('click');
+
+                // Scroll to top of question for better UX
+                scrollToQuestion();
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg mt-4"
               whileHover={{ scale: 1.05 }}

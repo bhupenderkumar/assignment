@@ -17,6 +17,8 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import AudioPlayer from '../common/AudioPlayer';
+import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
@@ -57,6 +59,7 @@ const PlayAssignment = ({
   const [timerInterval, setTimerInterval] = useState<number | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   // Registration is now handled by parent component
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
@@ -323,6 +326,9 @@ const PlayAssignment = ({
       // Pass the calculated score to the submitResponses function
       submitResponses(submissionId, responseArray, calculatedScore)
         .then(() => {
+          // Reset loading state
+          setIsSubmitting(false);
+
           // Show single success notification
           toast.success('Assignment completed successfully!', {
             duration: 3000,
@@ -333,6 +339,9 @@ const PlayAssignment = ({
           setTimeout(() => {
             setShowCelebration(true);
 
+            // Stop background music when assignment is completed
+            stopBackgroundMusic();
+
             // Notify parent that assignment is complete
             if (onAssignmentComplete) {
               onAssignmentComplete();
@@ -341,6 +350,10 @@ const PlayAssignment = ({
         })
         .catch(error => {
           console.error('Error submitting responses:', error);
+
+          // Reset loading state
+          setIsSubmitting(false);
+
           toast.error('Failed to submit assignment. Please try again.', {
             duration: 4000
           });
@@ -361,6 +374,14 @@ const PlayAssignment = ({
     if (!currentAssignment || timerInterval) {
       return;
     }
+
+    // Initialize sound system on first assignment load
+    initializeSoundSystem();
+
+    // Start background music after a short delay
+    setTimeout(() => {
+      startBackgroundMusic(0.1); // Very gentle volume
+    }, 1000);
 
     // Start the timer
     const interval = window.setInterval(() => {
@@ -405,8 +426,18 @@ const PlayAssignment = ({
       if (timerInterval) {
         clearInterval(timerInterval);
       }
+      // Stop all sounds when component unmounts or user navigates away
+      stopAllSounds();
     };
   }, [currentAssignment, anonymousUser, user, submissionId, timerInterval, createSubmission, onAssignmentStart]);
+
+  // Global cleanup effect to stop sounds when navigating away
+  useEffect(() => {
+    return () => {
+      // This runs when the component unmounts (user navigates away)
+      stopAllSounds();
+    };
+  }, []);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
@@ -422,21 +453,38 @@ const PlayAssignment = ({
     }));
   }, [submissionId]);
 
+
+
   // Handle question completion - memoized to prevent unnecessary re-renders
-  const handleQuestionComplete = useCallback((isCorrect: boolean) => {
+  const handleQuestionComplete = useCallback((isCorrect: boolean, score?: number) => {
     if (!currentAssignment || !currentAssignment.questions) return;
 
     const currentQuestion = currentAssignment.questions[currentQuestionIndex];
 
+    // Create response data with the actual user interaction
+    const responseData = {
+      answered: true,
+      timestamp: new Date().toISOString(),
+      score: score || (isCorrect ? 100 : 0)
+    };
+
     // Update response
-    handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
+    handleResponseUpdate(currentQuestion.id, responseData, isCorrect);
 
     // No auto-advance - users must manually click Next button
     // This gives users time to review their answer and feedback
-  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses]);
+  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate]);
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
+    // Set loading state
+    setIsSubmitting(true);
+
+    // Scroll to top of page for better UX
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+
     playSound('completion');
     // Just set isSubmitted to true, and the effect will handle the actual submission
     setIsSubmitted(true);
@@ -539,8 +587,8 @@ const PlayAssignment = ({
                 targetId: pair.id + '-right'
               }))
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
             audioInstructions={question.audioInstructions}
           />
@@ -564,8 +612,8 @@ const PlayAssignment = ({
               options: question.questionData.options,
               allowMultiple: question.questionData.allowMultiple || false
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -587,8 +635,8 @@ const PlayAssignment = ({
               text: question.questionData.text,
               blanks: question.questionData.blanks
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -610,8 +658,8 @@ const PlayAssignment = ({
               instructions: question.questionText,
               items: question.questionData.items
             }}
-            onComplete={(isCorrect) => {
-              handleQuestionComplete(isCorrect);
+            onComplete={(isCorrect, score) => {
+              handleQuestionComplete(isCorrect, score);
             }}
           />
         );
@@ -802,6 +850,15 @@ const PlayAssignment = ({
   // Get current question - memoized to prevent unnecessary re-renders
   const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
 
+  // Check if current question is completed (submitted)
+  const isCurrentQuestionCompleted = () => {
+    if (!currentQuestion) return false;
+
+    const response = responses[currentQuestion.id];
+    // Check if response exists and has been answered/submitted
+    return response && response.responseData && response.responseData.answered === true;
+  };
+
   // Check for error, payment requirement, or missing assignment first
   const errorContent = renderError();
   const paymentRequiredContent = renderPaymentRequired();
@@ -812,7 +869,13 @@ const PlayAssignment = ({
   if (noAssignmentContent) return noAssignmentContent;
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div
+      className="container mx-auto py-8 px-4"
+      onClick={() => {
+        // Initialize sound system on first user interaction
+        initializeSoundSystem();
+      }}
+    >
       {/* Assignment Header */}
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         {/* User Info Banner for Anonymous Users */}
@@ -964,6 +1027,10 @@ const PlayAssignment = ({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
+          data-testid="question-container"
+          data-question-index={currentQuestionIndex}
+          id="current-question"
+          className="question-container"
         >
           {renderQuestion(currentQuestion)}
         </motion.div>
@@ -987,6 +1054,9 @@ const PlayAssignment = ({
             if (currentQuestionIndex > 0) {
               setCurrentQuestionIndex(prev => prev - 1);
               playSound('click');
+
+              // Scroll to question container for better UX
+              setTimeout(() => scrollToQuestion(), 100);
             }
           }}
           disabled={currentQuestionIndex === 0 || isSubmitted}
@@ -1001,24 +1071,46 @@ const PlayAssignment = ({
 
         <button
           onClick={() => {
+            // Check if current question is completed before allowing navigation
+            if (!isCurrentQuestionCompleted()) {
+              toast.error('Please submit your answer before proceeding.', {
+                duration: 3000,
+                icon: '⚠️'
+              });
+              return;
+            }
+
             if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
               setCurrentQuestionIndex(prev => prev + 1);
               playSound('click');
+
+              // Scroll to question container for better UX
+              setTimeout(() => scrollToQuestion(), 100);
             } else {
               handleManualSubmit();
             }
           }}
-          disabled={isSubmitted}
-          className={`py-3 px-6 rounded-xl font-medium transition-colors ${
-            isSubmitted
+          disabled={isSubmitted || isSubmitting}
+          className={`py-3 px-6 rounded-xl font-medium transition-colors flex items-center space-x-2 ${
+            isSubmitted || isSubmitting
               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : !isCurrentQuestionCompleted()
+              ? 'bg-gray-300 text-gray-600 hover:bg-gray-400'
               : 'bg-blue-500 text-white hover:bg-blue-600'
           }`}
         >
-          {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
-            ? 'Next'
-            : 'Finish'
-          }
+          {/* Show loader when submitting */}
+          {isSubmitting && (
+            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+          )}
+          <span>
+            {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
+              ? 'Next'
+              : isSubmitting
+              ? 'Submitting...'
+              : 'Finish'
+            }
+          </span>
         </button>
       </div>
 
@@ -1067,29 +1159,27 @@ const PlayAssignment = ({
             </svg>
           </button>
 
-          {/* Audio Instructions Modal */}
+          {/* Audio Instructions Modal - Only show sound controls */}
           {showAudioPlayer && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-xl font-bold">Audio Instructions</h3>
+              <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Audio</h3>
                   <button
                     onClick={() => setShowAudioPlayer(false)}
                     className="text-gray-500 hover:text-gray-700"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
+                {/* Only show the audio player controls */}
                 <AudioPlayer
-                  audioUrl={currentAssignment?.audioInstructions}
+                  audioUrl={currentAssignment?.audioInstructions || ''}
                   autoPlay={true}
                   showLabel={false}
                 />
-                <p className="mt-4 text-sm text-gray-600">
-                  Listen to the audio instructions for this assignment. You can replay this anytime by clicking the audio button.
-                </p>
               </div>
             </div>
           )}

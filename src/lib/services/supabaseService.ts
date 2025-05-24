@@ -217,6 +217,12 @@ let _initializationInProgress = false;
 let _initializationPromise: Promise<SupabaseClient> | null = null;
 // Flag to track if connection test has been performed
 let _connectionTested = false;
+// Cache for connection status
+let _connectionStatus: 'unknown' | 'connected' | 'failed' = 'unknown';
+// Last connection test timestamp
+let _lastConnectionTest = 0;
+// Connection test interval (5 minutes)
+const CONNECTION_TEST_INTERVAL = 5 * 60 * 1000;
 
 /**
  * Creates and returns a Supabase client (singleton pattern)
@@ -225,17 +231,21 @@ let _connectionTested = false;
  * @returns A Supabase client
  */
 export const getSupabaseClient = async (_user: User | null): Promise<SupabaseClient> => {
-  // If we already have an instance and connection has been tested, return it immediately
-  if (_supabaseClientInstance && _connectionTested) {
+  // If we already have an instance and connection is known to be good, return it immediately
+  if (_supabaseClientInstance && _connectionStatus === 'connected') {
+    // Only test connection if it's been a while since last test
+    const now = Date.now();
+    if (now - _lastConnectionTest < CONNECTION_TEST_INTERVAL) {
+      return _supabaseClientInstance;
+    }
+  }
+
+  // If we have an instance but connection status is unknown, return it without testing
+  if (_supabaseClientInstance && _connectionStatus === 'unknown') {
     return _supabaseClientInstance;
   }
 
-  // If we have an instance but haven't tested connection, just return it without logging
-  if (_supabaseClientInstance) {
-    return _supabaseClientInstance;
-  }
-
-  // If initialization is already in progress, return the promise without logging
+  // If initialization is already in progress, return the promise
   if (_initializationInProgress && _initializationPromise) {
     return _initializationPromise;
   }
@@ -255,17 +265,22 @@ export const getSupabaseClient = async (_user: User | null): Promise<SupabaseCli
       console.log('Creating new Supabase client instance');
       _supabaseClientInstance = createClient(supabaseUrl, supabaseAnonKey);
 
-      // We'll test the connection with a more reliable method
-      if (!_connectionTested) {
+      // Test connection only if needed and not recently tested
+      const now = Date.now();
+      if (!_connectionTested || now - _lastConnectionTest > CONNECTION_TEST_INTERVAL) {
         try {
           console.log('Testing Supabase connection...');
-          // Use a more reliable method to test connection - auth.getSession() always exists
+          // Use a lightweight method to test connection
           await _supabaseClientInstance.auth.getSession();
           console.log('Supabase connection test completed');
           _connectionTested = true;
+          _connectionStatus = 'connected';
+          _lastConnectionTest = now;
         } catch (e) {
           console.error('Supabase connection test failed:', e);
-          // Even if this fails, we'll continue and let the app handle reconnection
+          _connectionStatus = 'failed';
+          _lastConnectionTest = now;
+          // Continue anyway - the app can handle reconnection
         }
       }
 
