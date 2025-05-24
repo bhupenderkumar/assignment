@@ -1,4 +1,5 @@
 // src/components/assignments/CelebrationOverlay.tsx
+// Fixed deployment issue - ensuring latest version is deployed
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
