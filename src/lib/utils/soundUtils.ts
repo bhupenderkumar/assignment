@@ -243,6 +243,27 @@ export const setBackgroundMusicVolume = (volume: number) => {
 };
 
 /**
+ * Stop all sounds and clean up audio resources
+ */
+export const stopAllSounds = () => {
+  // Stop background music
+  stopBackgroundMusic();
+
+  // Stop any playing sound effects
+  Object.values(audioCache).forEach(audio => {
+    if (audio && !audio.paused) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  });
+
+  // Stop TTS
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+  }
+};
+
+/**
  * Initialize audio system (call this on first user interaction)
  */
 export const initializeSoundSystem = () => {

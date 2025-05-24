@@ -16,7 +16,7 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import AudioPlayer from '../common/AudioPlayer';
-import { playSound, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic } from '../../lib/utils/soundUtils';
+import { playSound, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
@@ -49,6 +49,7 @@ const PlayAssignment = ({
   const [timerInterval, setTimerInterval] = useState<number | null>(null);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   // Registration is now handled by parent component
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
@@ -312,6 +313,9 @@ const PlayAssignment = ({
       // Pass the calculated score to the submitResponses function
       submitResponses(submissionId, responseArray, calculatedScore)
         .then(() => {
+          // Reset loading state
+          setIsSubmitting(false);
+
           // Show single success notification
           toast.success('Assignment completed successfully!', {
             duration: 3000,
@@ -333,6 +337,10 @@ const PlayAssignment = ({
         })
         .catch(error => {
           console.error('Error submitting responses:', error);
+
+          // Reset loading state
+          setIsSubmitting(false);
+
           toast.error('Failed to submit assignment. Please try again.', {
             duration: 4000
           });
@@ -404,10 +412,18 @@ const PlayAssignment = ({
       if (timerInterval) {
         clearInterval(timerInterval);
       }
-      // Stop background music when component unmounts
-      stopBackgroundMusic();
+      // Stop all sounds when component unmounts or user navigates away
+      stopAllSounds();
     };
   }, [currentAssignment, anonymousUser, submissionId, timerInterval, createSubmission, onAssignmentStart]);
+
+  // Global cleanup effect to stop sounds when navigating away
+  useEffect(() => {
+    return () => {
+      // This runs when the component unmounts (user navigates away)
+      stopAllSounds();
+    };
+  }, []);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
@@ -436,8 +452,24 @@ const PlayAssignment = ({
     // This gives users time to review their answer and feedback
   }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses]);
 
+  // Check if current question is completed
+  const isCurrentQuestionCompleted = useCallback(() => {
+    if (!currentQuestion) return false;
+
+    const response = responses[currentQuestion.id];
+    return response && response.responseData && Object.keys(response.responseData).length > 0;
+  }, [currentQuestion, responses]);
+
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
+    // Set loading state
+    setIsSubmitting(true);
+
+    // Scroll to top of page for better UX
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+
     // Just set isSubmitted to true, and the effect will handle the actual submission
     setIsSubmitted(true);
   };
@@ -977,17 +1009,25 @@ const PlayAssignment = ({
               handleManualSubmit();
             }
           }}
-          disabled={isSubmitted}
-          className={`py-3 px-6 rounded-xl font-medium transition-colors ${
-            isSubmitted
+          disabled={isSubmitted || isSubmitting}
+          className={`py-3 px-6 rounded-xl font-medium transition-colors flex items-center space-x-2 ${
+            isSubmitted || isSubmitting
               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
               : 'bg-blue-500 text-white hover:bg-blue-600'
           }`}
         >
-          {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
-            ? 'Next'
-            : 'Finish'
-          }
+          {/* Show loader when submitting */}
+          {isSubmitting && (
+            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+          )}
+          <span>
+            {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
+              ? 'Next'
+              : isSubmitting
+              ? 'Submitting...'
+              : 'Finish'
+            }
+          </span>
         </button>
       </div>
 

@@ -217,6 +217,13 @@ const CertificateTemplate = ({
       // Add a small delay to ensure the stage is fully rendered
       const timer = setTimeout(() => {
         try {
+          // Check if any external images are loaded that might cause CORS issues
+          const hasExternalImages = logoImage || signatureImage || sealImage;
+
+          if (hasExternalImages) {
+            console.log('Certificate contains images, attempting export...');
+          }
+
           // Always export at full resolution regardless of screen size
           const dataUrl = stageRef.current.toDataURL({
             pixelRatio: 2,
@@ -228,15 +235,58 @@ const CertificateTemplate = ({
           console.log('Certificate image generated successfully');
           onExport(dataUrl);
         } catch (error) {
-          console.error('Error generating certificate image:', error);
-          // Still call onExport with null to indicate failure but allow UI to update
-          onExport('');
+          console.error('Error generating certificate image (likely CORS issue):', error);
+
+          // If export fails due to CORS, try without images
+          try {
+            console.log('Attempting to export certificate without external images...');
+
+            // Temporarily hide images and try again
+            const originalLogoImage = logoImage;
+            const originalSignatureImage = signatureImage;
+            const originalSealImage = sealImage;
+
+            setLogoImage(null);
+            setSignatureImage(null);
+            setSealImage(null);
+
+            // Wait a moment for the stage to update
+            setTimeout(() => {
+              try {
+                const dataUrl = stageRef.current.toDataURL({
+                  pixelRatio: 2,
+                  width: width,
+                  height: height,
+                  x: 0,
+                  y: 0
+                });
+                console.log('Certificate image generated successfully without external images');
+                onExport(dataUrl);
+
+                // Restore images for display
+                setLogoImage(originalLogoImage);
+                setSignatureImage(originalSignatureImage);
+                setSealImage(originalSealImage);
+              } catch (retryError) {
+                console.error('Failed to export certificate even without images:', retryError);
+                onExport('');
+
+                // Restore images for display
+                setLogoImage(originalLogoImage);
+                setSignatureImage(originalSignatureImage);
+                setSealImage(originalSealImage);
+              }
+            }, 100);
+          } catch (fallbackError) {
+            console.error('Fallback export also failed:', fallbackError);
+            onExport('');
+          }
         }
-      }, 1000); // Increased delay to ensure all elements are loaded
+      }, 1500); // Increased delay to ensure all elements are loaded
 
       return () => clearTimeout(timer);
     }
-  }, [stageRef, onExport, width, height]);
+  }, [stageRef, onExport, width, height, logoImage, signatureImage, sealImage]);
 
   // Convert hex to RGB
   const hexToRgb = (hex: string) => {

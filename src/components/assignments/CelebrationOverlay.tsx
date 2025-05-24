@@ -165,7 +165,7 @@ const CelebrationOverlay = ({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 p-4 pt-8 md:items-center md:pt-4 overflow-y-auto"
         >
           <Confetti />
 
@@ -173,7 +173,7 @@ const CelebrationOverlay = ({
             initial={{ scale: 0.8, y: 50 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.8, y: 50 }}
-            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative z-20"
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative z-20 my-4"
           >
             {isLoading ? (
               // Loading state
