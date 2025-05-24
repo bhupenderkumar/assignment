@@ -102,7 +102,8 @@ const AnonymousUserCertificates: React.FC<AnonymousUserCertificatesProps> = ({
     setSelectedCertificate({
       submission: submissionForCertificate,
       assignmentTitle: certificate.assignmentTitle,
-      assignmentOrganizationId: certificate.organizationId
+      assignmentOrganizationId: certificate.organizationId,
+      username: anonymousUser?.name  // Pass the username directly
     });
     setShowCertificateViewer(true);
   };
@@ -231,6 +232,7 @@ const AnonymousUserCertificates: React.FC<AnonymousUserCertificatesProps> = ({
             }}
             assignmentTitle={selectedCertificate.assignmentTitle}
             assignmentOrganizationId={selectedCertificate.assignmentOrganizationId}
+            username={selectedCertificate.username}
           />
         )}
       </div>

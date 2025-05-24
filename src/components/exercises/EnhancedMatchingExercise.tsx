@@ -12,7 +12,8 @@ import {
   useDraggable,
   useDroppable
 } from '@dnd-kit/core';
-import { playSound } from '../../utils/soundUtils';
+import { playSound, playEnhancedFeedback } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import AudioPlayer from '../common/AudioPlayer';
 
@@ -169,7 +170,7 @@ const DraggableSourceItem = ({
       style={style}
       {...attributes}
       {...listeners}
-      className={`p-4 rounded-xl border-2 ${bgColor} cursor-grab ${shadowStyle} transition-colors duration-300 ${isDragging ? 'z-50' : 'z-10'} relative touch-none ${isSelected ? 'ring-4 ring-yellow-300' : ''}`}
+      className={`p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl border-2 ${bgColor} cursor-grab ${shadowStyle} transition-colors duration-300 ${isDragging ? 'z-50' : 'z-10'} relative touch-none ${isSelected ? 'ring-2 sm:ring-4 ring-yellow-300' : ''}`}
       whileHover={{ scale: !isMatched && !showFeedback ? 1.03 : 1.01 }}
       whileTap={{ scale: !isMatched && !showFeedback ? 0.97 : 1 }}
       animate={controls}
@@ -179,7 +180,7 @@ const DraggableSourceItem = ({
     >
       <div className="flex items-center">
         {item.imageUrl && (
-          <div className="w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg mr-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex-shrink-0 overflow-hidden rounded-md sm:rounded-lg mr-2 sm:mr-3">
             <img
               src={item.imageUrl}
               alt={item.content}
@@ -187,15 +188,15 @@ const DraggableSourceItem = ({
             />
           </div>
         )}
-        <span className={`text-lg font-medium ${textColor}`}>{item.content}</span>
+        <span className={`text-sm sm:text-base md:text-lg font-medium ${textColor} leading-tight`}>{item.content}</span>
 
         {/* Show checkmark or X for feedback */}
         {showFeedback && isMatched && (
           <div className="ml-auto">
             {isCorrect ? (
-              <span className="text-green-500 text-2xl">✓</span>
+              <span className="text-green-500 text-lg sm:text-xl md:text-2xl">✓</span>
             ) : (
-              <span className="text-red-500 text-2xl">✗</span>
+              <span className="text-red-500 text-lg sm:text-xl md:text-2xl">✗</span>
             )}
           </div>
         )}
@@ -203,7 +204,7 @@ const DraggableSourceItem = ({
         {/* Show arrow for selected item */}
         {isSelected && (
           <div className="ml-auto">
-            <span className="text-yellow-500 text-2xl">👈</span>
+            <span className="text-yellow-500 text-lg sm:text-xl md:text-2xl">👈</span>
           </div>
         )}
       </div>
@@ -265,7 +266,7 @@ const DroppableTargetItem = ({
   return (
     <motion.div
       ref={setNodeRef}
-      className={`p-4 rounded-xl border-2 ${bgColor} ${shadowStyle} transition-all duration-300 relative ${isSelected ? 'ring-4 ring-yellow-300' : ringStyle}`}
+      className={`p-2 sm:p-3 md:p-4 rounded-lg sm:rounded-xl border-2 ${bgColor} ${shadowStyle} transition-all duration-300 relative ${isSelected ? 'ring-2 sm:ring-4 ring-yellow-300' : ringStyle}`}
       whileHover={{ scale: !isMatched ? 1.01 : 1 }}
       data-id={item.id}
       data-is-source="false"
@@ -273,7 +274,7 @@ const DroppableTargetItem = ({
     >
       <div className="flex items-center">
         {item.imageUrl && (
-          <div className="w-12 h-12 flex-shrink-0 overflow-hidden rounded-lg mr-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex-shrink-0 overflow-hidden rounded-md sm:rounded-lg mr-2 sm:mr-3">
             <img
               src={item.imageUrl}
               alt={item.content}
@@ -281,12 +282,12 @@ const DroppableTargetItem = ({
             />
           </div>
         )}
-        <span className={`text-lg font-medium ${textColor}`}>{item.content}</span>
+        <span className={`text-sm sm:text-base md:text-lg font-medium ${textColor} leading-tight`}>{item.content}</span>
 
         {/* Show arrow for selected item */}
         {isSelected && (
           <div className="ml-auto">
-            <span className="text-yellow-500 text-2xl">👈</span>
+            <span className="text-yellow-500 text-lg sm:text-xl md:text-2xl">👈</span>
           </div>
         )}
       </div>
@@ -394,6 +395,16 @@ const generateMatchColors = (count: number) => {
   return Array.from({ length: count }, (_, i) => colorPalette[i % colorPalette.length]);
 };
 
+// Utility function to shuffle an array
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 // Main component
 const EnhancedMatchingExercise = ({
   data,
@@ -411,6 +422,10 @@ const EnhancedMatchingExercise = ({
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
   const [selectedItem, setSelectedItem] = useState<{ id: string; isSource: boolean } | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
+
+  // Randomize items order only once on component mount to prevent memorization
+  const [shuffledSourceItems] = useState(() => shuffleArray(data.sourceItems));
+  const [shuffledTargetItems] = useState(() => shuffleArray(data.targetItems));
 
   // Log audio instructions for debugging
   useEffect(() => {
@@ -497,13 +512,13 @@ const EnhancedMatchingExercise = ({
 
       // Play appropriate sound
       if (isCorrect) {
-        playSound('success');
+        playSound('correct');
         // Reduce toast frequency - only show for every few correct matches
         if (matches.length % 2 === 0) {
           toast.success('Great!', { duration: 1500, icon: '✓' });
         }
       } else {
-        playSound('error');
+        playSound('incorrect');
         // Brief feedback without excessive styling
         toast('Try again', { duration: 1500, icon: '🔄' });
       }
@@ -534,11 +549,11 @@ const EnhancedMatchingExercise = ({
           }
         }, 800);
 
-        // Play celebration sound if all correct
+        // Play enhanced audio feedback
         if (allCorrect) {
-          playSound('completion');
+          playEnhancedFeedback('correct');
         } else {
-          playSound('completion');
+          playEnhancedFeedback('incorrect');
         }
 
         onComplete(allCorrect, score);
@@ -625,13 +640,13 @@ const EnhancedMatchingExercise = ({
 
     // Play appropriate sound
     if (isCorrect) {
-      playSound('success');
+      playSound('correct');
       // Reduce toast frequency - only show for every few correct matches
       if (matches.length % 2 === 0) {
         toast.success('Great!', { duration: 1500, icon: '✓' });
       }
     } else {
-      playSound('error');
+      playSound('incorrect');
       // Brief feedback without excessive styling
       toast('Try again', { duration: 1500, icon: '🔄' });
     }
@@ -665,11 +680,11 @@ const EnhancedMatchingExercise = ({
         }
       }, 800);
 
-      // Play celebration sound if all correct
+      // Play enhanced audio feedback
       if (allCorrect) {
-        playSound('completion');
+        playEnhancedFeedback('correct');
       } else {
-        playSound('completion');
+        playEnhancedFeedback('incorrect');
       }
 
       onComplete(allCorrect, score);
@@ -683,10 +698,17 @@ const EnhancedMatchingExercise = ({
     );
   };
 
-  // Get all source items that are not yet matched
+  // Get all source items that are not yet matched (using shuffled order)
   const getUnmatchedSourceItems = () => {
-    return data.sourceItems.filter(item =>
+    return shuffledSourceItems.filter(item =>
       !matches.some(match => match.sourceId === item.id)
+    );
+  };
+
+  // Get all target items that are not yet matched (using shuffled order)
+  const getUnmatchedTargetItems = () => {
+    return shuffledTargetItems.filter(item =>
+      !matches.some(match => match.targetId === item.id)
     );
   };
 
@@ -782,16 +804,17 @@ const EnhancedMatchingExercise = ({
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           {/* Unmatched Items Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 md:gap-8 lg:gap-12">
             {/* Unmatched Source Items (Left Side) */}
-            <div className="flex flex-col space-y-4">
+            <div className="flex flex-col space-y-2 sm:space-y-3 md:space-y-4 bg-blue-50 p-2 sm:p-3 md:p-4 rounded-lg border-2 border-blue-200">
               <motion.h4
-                className="text-lg font-semibold text-center mb-2"
+                className="text-sm sm:text-base md:text-lg font-semibold text-center mb-1 sm:mb-2 text-blue-800"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
               >
-                Items
+                <span className="hidden sm:inline">📝 Items to Match</span>
+                <span className="sm:hidden">📝 Items</span>
               </motion.h4>
 
               <AnimatePresence>
@@ -815,18 +838,19 @@ const EnhancedMatchingExercise = ({
             </div>
 
             {/* Unmatched Target Items (Right Side) */}
-            <div className="flex flex-col space-y-4">
+            <div className="flex flex-col space-y-2 sm:space-y-3 md:space-y-4 bg-green-50 p-2 sm:p-3 md:p-4 rounded-lg border-2 border-green-200">
               <motion.h4
-                className="text-lg font-semibold text-center mb-2"
+                className="text-sm sm:text-base md:text-lg font-semibold text-center mb-1 sm:mb-2 text-green-800"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
               >
-                Matches
+                <span className="hidden sm:inline">🎯 Match Options</span>
+                <span className="sm:hidden">🎯 Options</span>
               </motion.h4>
 
               <AnimatePresence>
-                {data.targetItems.filter(item => !matches.some(m => m.targetId === item.id)).map((item, index) => (
+                {getUnmatchedTargetItems().map((item, index) => (
                   <motion.div
                     key={item.id}
                     initial={{ opacity: 0, x: 20 }}
@@ -880,7 +904,7 @@ const EnhancedMatchingExercise = ({
                       transition={{ duration: 0.3, delay: 0.1 * index }}
                       className="relative"
                     >
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 relative">
                         {/* Source Item */}
                         <div className="relative">
                           <DraggableSourceItem
@@ -913,9 +937,9 @@ const EnhancedMatchingExercise = ({
                         </div>
 
                         {/* Connection arrow between matched items */}
-                        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden md:block">
+                        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 hidden sm:block">
                           <div
-                            className={`flex items-center justify-center w-8 h-8 rounded-full ${
+                            className={`flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-full ${
                               showFeedback
                                 ? isCorrect
                                   ? 'bg-green-500'
@@ -925,7 +949,7 @@ const EnhancedMatchingExercise = ({
                                   : 'bg-blue-500'
                             }`}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 md:h-5 md:w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M12.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -972,6 +996,9 @@ const EnhancedMatchingExercise = ({
               onClick={() => {
                 setShowFeedback(false);
                 playSound('click');
+
+                // Scroll to top of question for better UX
+                scrollToQuestion();
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg mt-4"
               whileHover={{ scale: 1.05 }}

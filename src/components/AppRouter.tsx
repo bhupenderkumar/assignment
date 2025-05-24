@@ -1,35 +1,52 @@
 // src/components/AppRouter.tsx
 
+import React, { Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './layout/Layout';
-import SharedAssignmentPage from './pages/SharedAssignmentPage';
-import PlayAssignmentPage from './pages/PlayAssignmentPage';
-import AdminDashboard from './admin/AdminDashboard';
 import HomePage from './pages/HomePage';
 import LandingPage from './pages/LandingPage';
-import UserDashboardPage from './pages/UserDashboardPage';
-import DashboardPage from './pages/DashboardPage';
-import AssignmentGalleryPage from './pages/AssignmentGalleryPage';
-import PaymentDemoPage from './pages/PaymentDemoPage';
-import OrganizationManagementPage from '../pages/OrganizationManagementPage';
-import OrganizationSettingsPage from '../pages/OrganizationSettingsPage';
-import AnonymousUserActivity from './admin/AnonymousUserActivity';
-import OrganizationRequestsPage from '../pages/OrganizationRequestsPage';
-import JoinOrganizationPage from '../pages/JoinOrganizationPage';
-import SettingsPage from '../pages/settings';
 import HelpCenter from './pages/HelpCenter';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
-import SignInPage from './pages/SignInPage';
-import SignUpPage from './pages/SignUpPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import StandaloneCertificatePage from '../pages/StandaloneCertificatePage';
-import CertificatesPage from '../pages/CertificatesPage';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { InteractiveAssignmentProvider } from '../context/InteractiveAssignmentContext';
 import { OrganizationProvider } from '../context/OrganizationContext';
 import toast from 'react-hot-toast';
+import { motion } from 'framer-motion';
+
+// Lazy load heavy components for better performance
+const SharedAssignmentPage = React.lazy(() => import('./pages/SharedAssignmentPage'));
+const PlayAssignmentPage = React.lazy(() => import('./pages/PlayAssignmentPage'));
+const AdminDashboard = React.lazy(() => import('./admin/AdminDashboard'));
+const UserDashboardPage = React.lazy(() => import('./pages/UserDashboardPage'));
+const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
+const AssignmentGalleryPage = React.lazy(() => import('./pages/AssignmentGalleryPage'));
+const PaymentDemoPage = React.lazy(() => import('./pages/PaymentDemoPage'));
+const OrganizationManagementPage = React.lazy(() => import('../pages/OrganizationManagementPage'));
+const OrganizationSettingsPage = React.lazy(() => import('../pages/OrganizationSettingsPage'));
+const AnonymousUserActivity = React.lazy(() => import('./admin/AnonymousUserActivity'));
+const OrganizationRequestsPage = React.lazy(() => import('../pages/OrganizationRequestsPage'));
+const JoinOrganizationPage = React.lazy(() => import('../pages/JoinOrganizationPage'));
+const SettingsPage = React.lazy(() => import('../pages/settings'));
+const SignInPage = React.lazy(() => import('./pages/SignInPage'));
+const SignUpPage = React.lazy(() => import('./pages/SignUpPage'));
+const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
+const StandaloneCertificatePage = React.lazy(() => import('../pages/StandaloneCertificatePage'));
+const CertificatesPage = React.lazy(() => import('../pages/CertificatesPage'));
+const AudioDebugPage = React.lazy(() => import('./debug/AudioDebugPage'));
+
+// Loading component for lazy-loaded routes
+const RouteLoadingSpinner = ({ message = 'Loading...' }: { message?: string }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="flex flex-col items-center justify-center min-h-screen"
+  >
+    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+    <p className="text-gray-600 text-center">{message}</p>
+  </motion.div>
+);
 
 // Protected route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -79,13 +96,27 @@ const AppRouter = () => {
       {/* Public routes - Landing page redirects to dashboard if authenticated */}
       <Route path="/" element={<LandingRoute><Layout><LandingPage /></Layout></LandingRoute>} />
       <Route path="/home" element={<Layout><HomePage /></Layout>} />
-      <Route path="/play/share/:shareableLink" element={<Layout hideNavigation><SharedAssignmentPage /></Layout>} />
-      <Route path="/play/assignment/:assignmentId" element={<Layout><PlayAssignmentPage /></Layout>} />
+      <Route path="/play/share/:shareableLink" element={
+        <Layout hideNavigation>
+          <Suspense fallback={<RouteLoadingSpinner message="Loading assignment..." />}>
+            <SharedAssignmentPage />
+          </Suspense>
+        </Layout>
+      } />
+      <Route path="/play/assignment/:assignmentId" element={
+        <Layout>
+          <Suspense fallback={<RouteLoadingSpinner message="Loading assignment..." />}>
+            <PlayAssignmentPage />
+          </Suspense>
+        </Layout>
+      } />
       <Route path="/gallery" element={
         <Layout>
           <InteractiveAssignmentProvider>
             <OrganizationProvider>
-              <AssignmentGalleryPage />
+              <Suspense fallback={<RouteLoadingSpinner message="Loading gallery..." />}>
+                <AssignmentGalleryPage />
+              </Suspense>
             </OrganizationProvider>
           </InteractiveAssignmentProvider>
         </Layout>
@@ -95,13 +126,33 @@ const AppRouter = () => {
       <Route path="/terms" element={<Layout><TermsOfService /></Layout>} />
 
       {/* Auth routes */}
-      <Route path="/sign-in/*" element={<SignInPage />} />
-      <Route path="/sign-up/*" element={<SignUpPage />} />
-      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/sign-in/*" element={
+        <Suspense fallback={<RouteLoadingSpinner message="Loading sign in..." />}>
+          <SignInPage />
+        </Suspense>
+      } />
+      <Route path="/sign-up/*" element={
+        <Suspense fallback={<RouteLoadingSpinner message="Loading sign up..." />}>
+          <SignUpPage />
+        </Suspense>
+      } />
+      <Route path="/forgot-password" element={
+        <Suspense fallback={<RouteLoadingSpinner message="Loading..." />}>
+          <ForgotPasswordPage />
+        </Suspense>
+      } />
+      <Route path="/reset-password" element={
+        <Suspense fallback={<RouteLoadingSpinner message="Loading..." />}>
+          <ResetPasswordPage />
+        </Suspense>
+      } />
 
       {/* Standalone certificate page - no layout */}
-      <Route path="/certificate" element={<StandaloneCertificatePage />} />
+      <Route path="/certificate" element={
+        <Suspense fallback={<RouteLoadingSpinner message="Loading certificate..." />}>
+          <StandaloneCertificatePage />
+        </Suspense>
+      } />
 
       {/* Protected routes */}
       <Route
@@ -111,7 +162,9 @@ const AppRouter = () => {
             <Layout>
               <InteractiveAssignmentProvider>
                 <OrganizationProvider>
-                  <DashboardPage />
+                  <Suspense fallback={<RouteLoadingSpinner message="Loading dashboard..." />}>
+                    <DashboardPage />
+                  </Suspense>
                 </OrganizationProvider>
               </InteractiveAssignmentProvider>
             </Layout>
@@ -126,7 +179,9 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <InteractiveAssignmentProvider>
-                <UserDashboardPage certificatesMode={true} showJoinRequests={false} />
+                <Suspense fallback={<RouteLoadingSpinner message="Loading user dashboard..." />}>
+                  <UserDashboardPage certificatesMode={true} showJoinRequests={false} />
+                </Suspense>
               </InteractiveAssignmentProvider>
             </Layout>
           </ProtectedRoute>
@@ -138,7 +193,9 @@ const AppRouter = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              <AdminDashboard />
+              <Suspense fallback={<RouteLoadingSpinner message="Loading admin dashboard..." />}>
+                <AdminDashboard />
+              </Suspense>
             </Layout>
           </ProtectedRoute>
         }
@@ -273,6 +330,20 @@ const AppRouter = () => {
           </ProtectedRoute>
         }
       />
+
+      {/* Debug routes - only in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <Route
+          path="/debug/audio"
+          element={
+            <Layout>
+              <Suspense fallback={<RouteLoadingSpinner message="Loading debug page..." />}>
+                <AudioDebugPage />
+              </Suspense>
+            </Layout>
+          }
+        />
+      )}
 
       {/* Fallback route */}
       <Route path="*" element={<Navigate to="/" replace />} />

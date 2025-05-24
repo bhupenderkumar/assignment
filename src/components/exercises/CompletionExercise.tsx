@@ -1,7 +1,8 @@
 // src/components/exercises/CompletionExercise.tsx
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../../utils/soundUtils';
+import { playSound, playEnhancedFeedback } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 
 // Define types for the completion exercise
@@ -151,11 +152,11 @@ const CompletionExercise = ({
     // Calculate score
     const score = Math.round((correctAnswers.length / data.blanks.length) * 100);
 
-    // Play appropriate sound
+    // Play enhanced audio feedback
     if (isAllCorrect) {
-      playSound('success');
+      playEnhancedFeedback('correct');
     } else {
-      playSound('error');
+      playEnhancedFeedback('incorrect');
     }
 
     // Show brief feedback without excessive notifications
@@ -302,6 +303,9 @@ const CompletionExercise = ({
                   setShowFeedback(false);
                   setIsSubmitted(false);
                   playSound('click');
+
+                  // Scroll to top of question for better UX
+                  scrollToQuestion();
                 }
               }}
               className={`font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg mt-4 ${

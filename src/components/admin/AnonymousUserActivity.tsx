@@ -38,44 +38,16 @@ interface AnonymousActivity {
   organizationId?: string;
 }
 
-interface DetailedResponse {
-  id: string;
-  questionId: string;
-  questionText: string;
-  questionType: string;
-  responseData: any;
-  isCorrect?: boolean;
-  questionData: any;
-}
-
-interface AssignmentFilters {
-  category: string | null;
-  topic: string | null;
-  difficulty: string | null;
-  status: string | null;
-  dateRange: string | null;
-}
+// Removed unused interfaces:
+// - DetailedResponse: was declared but never used
+// - AssignmentFilters: was declared but never used
 
 const AnonymousUserActivity = () => {
   const [anonymousUsers, setAnonymousUsers] = useState<AnonymousUserData[]>([]);
   const [activities, setActivities] = useState<AnonymousActivity[]>([]);
-  const [filteredActivities, setFilteredActivities] = useState<AnonymousActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [selectedSubmission, setSelectedSubmission] = useState<string | null>(null);
-  const [detailedResponses, setDetailedResponses] = useState<DetailedResponse[]>([]);
-  const [showResponseModal, setShowResponseModal] = useState(false);
-  const [filters, setFilters] = useState<AssignmentFilters>({
-    category: null,
-    topic: null,
-    difficulty: null,
-    status: null,
-    dateRange: null
-  });
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
-  const [availableTopics, setAvailableTopics] = useState<string[]>([]);
-  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>([]);
   const { user, supabase } = useSupabaseAuth();
   const { isAdmin, isOwner, isLoading: roleLoading } = useUserRole();
   const [showCertificate, setShowCertificate] = useState(false);
@@ -148,7 +120,8 @@ const AnonymousUserActivity = () => {
       setSelectedCertificateData({
         submission: submissionForCertificate,
         assignmentTitle: activity.assignmentName,
-        assignmentOrganizationId: assignmentData?.organization_id
+        assignmentOrganizationId: assignmentData?.organization_id,
+        username: activity.userName  // Pass the username directly
       });
       setShowCertificate(true);
     } catch (error) {
@@ -157,51 +130,7 @@ const AnonymousUserActivity = () => {
     }
   };
 
-  // Function to create sample anonymous users for testing
-  const createSampleData = async () => {
-    try {
-      console.log('Creating sample anonymous users...');
 
-      // Create sample anonymous users
-      const sampleUsers = [
-        { name: 'John Doe', contact_info: 'john@example.com' },
-        { name: 'Jane Smith', contact_info: '555-1234' },
-        { name: 'Bob Johnson', contact_info: 'bob@test.com' },
-        { name: 'Alice Brown', contact_info: '555-5678' },
-        { name: 'Charlie Wilson', contact_info: null }
-      ];
-
-      for (const userData of sampleUsers) {
-        if (!supabase) {
-          throw new Error('Supabase client not available');
-        }
-
-        const { data, error } = await supabase
-          .from('anonymous_user')
-          .insert({
-            name: userData.name,
-            contact_info: userData.contact_info,
-            created_at: new Date().toISOString(),
-            last_active_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (error) {
-          console.error('Error creating user:', error);
-        } else {
-          console.log('Created user:', data);
-        }
-      }
-
-      toast.success('Sample data created successfully!');
-      // Refresh the data
-      window.location.reload();
-    } catch (error) {
-      console.error('Error creating sample data:', error);
-      toast.error('Failed to create sample data');
-    }
-  };
 
   // Fetch anonymous users with enhanced data
   useEffect(() => {
@@ -327,7 +256,6 @@ const AnonymousUserActivity = () => {
     const fetchUserActivities = async () => {
       if (!selectedUser || !supabase) {
         setActivities([]);
-        setFilteredActivities([]);
         return;
       }
 
@@ -433,16 +361,6 @@ const AnonymousUserActivity = () => {
         );
 
         setActivities(activitiesWithDetails);
-        setFilteredActivities(activitiesWithDetails);
-
-        // Extract unique filter values
-        const categories = [...new Set(activitiesWithDetails.map(a => a.category).filter(Boolean))];
-        const topics = [...new Set(activitiesWithDetails.map(a => a.topic).filter(Boolean))];
-        const difficulties = [...new Set(activitiesWithDetails.map(a => a.difficultyLevel).filter(Boolean))];
-
-        setAvailableCategories(categories);
-        setAvailableTopics(topics);
-        setAvailableDifficulties(difficulties);
 
       } catch (err) {
         console.error('Error fetching user activities:', err);
@@ -625,6 +543,7 @@ const AnonymousUserActivity = () => {
           }}
           assignmentTitle={selectedCertificateData.assignmentTitle}
           assignmentOrganizationId={selectedCertificateData.assignmentOrganizationId}
+          username={selectedCertificateData.username}
         />
       )}
     </div>

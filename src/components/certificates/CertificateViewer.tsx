@@ -10,13 +10,15 @@ interface CertificateViewerProps {
   onClose: () => void;
   assignmentTitle?: string;
   assignmentOrganizationId?: string;
+  username?: string;
 }
 
 const CertificateViewer = ({
   submission,
   onClose,
   assignmentTitle: propAssignmentTitle,
-  assignmentOrganizationId
+  assignmentOrganizationId,
+  username
 }: CertificateViewerProps) => {
   const [downloading, setDownloading] = useState(false);
   const [certificateDataUrl, setCertificateDataUrl] = useState<string | null>(null);
@@ -232,6 +234,7 @@ const CertificateViewer = ({
                 submission={submission}
                 assignmentTitle={assignmentTitle}
                 assignmentOrganizationId={assignmentOrganizationId}
+                username={username}
                 width={800}
                 height={600}
                 onExport={handleExport}
