@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { getDatabaseSetupService } from '../lib/db/databaseSetupService';
 import { getSupabaseClient } from '../lib/services/supabaseService';
 import { useDatabaseState } from './DatabaseStateContext';
+import { getUserActivityLogger, ActivityType } from '../lib/services/userActivityLogger';
 
 // Declare global window property for TypeScript
 declare global {
@@ -27,6 +28,8 @@ interface SupabaseAuthContextType {
   signOut: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ user: User; session: Session; weakPassword?: WeakPassword }>;
   signUp: (email: string, password: string, metadata?: { name?: string }) => Promise<{ user: User | null; session: Session | null }>;
+  resetPasswordForEmail: (email: string, redirectTo?: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
   joinOrganization: (organizationId: string) => Promise<void>; // Add joinOrganization function
   supabase: SupabaseClient | null;
   user: User | null;
@@ -194,7 +197,12 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
   const signIn = async (email: string, password: string) => {
     if (!supabase) throw new Error('Supabase client not initialized');
 
+    const activityLogger = getUserActivityLogger();
+
     try {
+      // Log the sign-in attempt
+      await activityLogger.logAuthEvent('Sign in attempt', null, { email });
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
@@ -202,11 +210,21 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
 
       if (error) throw error;
 
+      // Log successful sign-in
+      await activityLogger.logAuthEvent('Sign in successful', data.user, { email });
+
       toast.success('Signed in successfully');
       return data;
     } catch (error: unknown) {
       const err = error as Error;
       console.error('Error signing in:', err);
+
+      // Log sign-in failure
+      await activityLogger.logAuthEvent('Sign in failed', null, {
+        email,
+        error: err.message
+      });
+
       toast.error(err.message || 'Failed to sign in');
       throw error;
     }
@@ -216,7 +234,15 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
   const signUp = async (email: string, password: string, metadata?: { name?: string }) => {
     if (!supabase) throw new Error('Supabase client not initialized');
 
+    const activityLogger = getUserActivityLogger();
+
     try {
+      // Log the sign-up attempt
+      await activityLogger.logAuthEvent('Sign up attempt', null, {
+        email,
+        name: metadata?.name
+      });
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -226,6 +252,13 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
       });
 
       if (error) throw error;
+
+      // Log successful sign-up
+      await activityLogger.logAuthEvent(
+        data.session ? 'Sign up and login successful' : 'Sign up successful, email confirmation required',
+        data.user,
+        { email, name: metadata?.name }
+      );
 
       if (data.session) {
         toast.success('Signed up and logged in successfully');
@@ -237,6 +270,14 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
     } catch (error: unknown) {
       const err = error as Error;
       console.error('Error signing up:', err);
+
+      // Log sign-up failure
+      await activityLogger.logAuthEvent('Sign up failed', null, {
+        email,
+        name: metadata?.name,
+        error: err.message
+      });
+
       toast.error(err.message || 'Failed to sign up');
       throw error;
     }
@@ -246,15 +287,30 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
   const signOut = async () => {
     if (!supabase) throw new Error('Supabase client not initialized');
 
+    const activityLogger = getUserActivityLogger();
+    const currentUser = user; // Capture current user before signing out
+
     try {
+      // Log sign-out attempt
+      await activityLogger.logAuthEvent('Sign out attempt', currentUser);
+
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
 
+      // Log successful sign-out
+      await activityLogger.logAuthEvent('Sign out successful', currentUser);
+
       toast.success('Signed out successfully');
-      } catch (error: unknown) {
-        const err = error as Error;
-        console.error('Error signing out:', err);
-        toast.error('Failed to sign out');
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Error signing out:', err);
+
+      // Log sign-out failure
+      await activityLogger.logAuthEvent('Sign out failed', currentUser, {
+        error: err.message
+      });
+
+      toast.error('Failed to sign out');
     }
   };
 
@@ -385,6 +441,79 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
 
   // Organization management is now handled by OrganizationContext
 
+  // Reset password for email
+  const resetPasswordForEmail = async (email: string, redirectTo?: string) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
+    const activityLogger = getUserActivityLogger();
+
+    try {
+      // Log password reset request
+      await activityLogger.logAuthEvent('Password reset requested', null, { email });
+
+      // Get the base URL for the reset password page
+      const baseUrl = window.location.origin;
+      const resetUrl = redirectTo || `${baseUrl}/reset-password`;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: resetUrl
+      });
+
+      if (error) throw error;
+
+      // Log successful password reset email
+      await activityLogger.logAuthEvent('Password reset email sent', null, { email });
+
+      toast.success('Password reset email sent. Please check your inbox.');
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Error sending password reset email:', err);
+
+      // Log password reset failure
+      await activityLogger.logAuthEvent('Password reset email failed', null, {
+        email,
+        error: err.message
+      });
+
+      toast.error(err.message || 'Failed to send password reset email');
+      throw error;
+    }
+  };
+
+  // Update password (used after reset password email)
+  const updatePassword = async (newPassword: string) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+
+    const activityLogger = getUserActivityLogger();
+
+    try {
+      // Log password update attempt
+      await activityLogger.logAuthEvent('Password update attempt', user);
+
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      // Log successful password update
+      await activityLogger.logAuthEvent('Password updated successfully', user);
+
+      toast.success('Password updated successfully');
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.error('Error updating password:', err);
+
+      // Log password update failure
+      await activityLogger.logAuthEvent('Password update failed', user, {
+        error: err.message
+      });
+
+      toast.error(err.message || 'Failed to update password');
+      throw error;
+    }
+  };
+
   // Join an organization directly (used for invitations)
   const joinOrganization = async (organizationId: string) => {
     if (!supabase) throw new Error('Supabase client not initialized');
@@ -449,7 +578,9 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
     signOut,
     signIn,
     signUp,
-    joinOrganization, // Add joinOrganization function
+    resetPasswordForEmail,
+    updatePassword,
+    joinOrganization,
     supabase,
     user,
     organizations: [], // Default empty array for organizations

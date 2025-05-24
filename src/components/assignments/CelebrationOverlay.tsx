@@ -1,25 +1,48 @@
 // src/components/assignments/CelebrationOverlay.tsx
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { playSound } from '../../lib/utils/soundUtils';
 import { useConfiguration } from '../../context/ConfigurationContext';
+import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
+import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import CertificateViewer from '../certificates/CertificateViewer';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
   score: number;
   submissionId?: string;
   onClose: () => void;
+  assignmentTitle?: string;
+  totalQuestions?: number;
+  correctAnswers?: number;
+  assignmentOrganizationId?: string;
 }
 
 const CelebrationOverlay = ({
   isVisible,
   score,
   submissionId,
-  onClose
+  onClose,
+  assignmentTitle,
+  totalQuestions,
+  correctAnswers,
+  assignmentOrganizationId
 }: CelebrationOverlayProps) => {
   const navigate = useNavigate();
   const { config } = useConfiguration();
+  const { anonymousUser } = useInteractiveAssignment();
+  const { user } = useSupabaseAuth();
+  const [showCertificate, setShowCertificate] = useState(false);
+
+  // Create submission object for certificate
+  const submissionForCertificate = submissionId ? {
+    id: submissionId,
+    userId: anonymousUser?.id || user?.id || '',
+    score: score,
+    submittedAt: new Date(),
+    status: 'SUBMITTED' as const
+  } : null;
   // Play celebration sound when visible
   useEffect(() => {
     if (isVisible) {
@@ -175,43 +198,136 @@ const CelebrationOverlay = ({
               <div className="text-center mb-2">
                 {renderStars(getStarRating(score))}
               </div>
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-2xl font-bold text-blue-600 mb-4">
                 Score: {score !== null && score !== undefined ? score : 0}%
               </p>
+
+              {/* Detailed Results */}
+              <div className="bg-gray-50 rounded-lg p-4 text-left">
+                <h4 className="font-semibold text-gray-800 mb-3">Quiz Results</h4>
+
+                {assignmentTitle && (
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-600">Assignment: </span>
+                    <span className="text-sm font-medium text-gray-800">{assignmentTitle}</span>
+                  </div>
+                )}
+
+                {anonymousUser && (
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-600">Student: </span>
+                    <span className="text-sm font-medium text-gray-800">{anonymousUser.name}</span>
+                  </div>
+                )}
+
+                {totalQuestions && (
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-600">Questions: </span>
+                    <span className="text-sm font-medium text-gray-800">{totalQuestions} total</span>
+                  </div>
+                )}
+
+                {correctAnswers !== undefined && totalQuestions && (
+                  <div className="mb-2">
+                    <span className="text-sm text-gray-600">Correct Answers: </span>
+                    <span className="text-sm font-medium text-gray-800">{correctAnswers} out of {totalQuestions}</span>
+                  </div>
+                )}
+
+                <div className="mb-2">
+                  <span className="text-sm text-gray-600">Completed: </span>
+                  <span className="text-sm font-medium text-gray-800">{new Date().toLocaleString()}</span>
+                </div>
+
+                {submissionId && (
+                  <div className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-200">
+                    Submission ID: {submissionId.substring(0, 8)}...
+                  </div>
+                )}
+              </div>
             </motion.div>
 
             <div className="flex flex-col space-y-3">
+              {/* Certificate Button for all users */}
               {submissionId && (
                 <motion.button
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.6 }}
-                  onClick={() => {
-                    navigate('/dashboard');
-                    onClose();
-                  }}
-                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg"
+                  onClick={() => setShowCertificate(true)}
+                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg flex items-center justify-center space-x-2"
                   style={{ backgroundColor: config.primaryColor }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  View Certificate
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <span>View Certificate</span>
+                </motion.button>
+              )}
+
+              {/* Dashboard/Navigation Button */}
+              {user && (
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  onClick={() => {
+                    navigate('/user-dashboard');
+                    onClose();
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg"
+                  style={{ backgroundColor: config.secondaryColor }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Go to Dashboard
+                </motion.button>
+              )}
+
+              {anonymousUser && (
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  onClick={() => {
+                    navigate('/home');
+                    onClose();
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg"
+                  style={{ backgroundColor: config.secondaryColor }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  Take Another Quiz
                 </motion.button>
               )}
 
               <motion.button
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
+                transition={{ delay: 0.8 }}
                 onClick={onClose}
-                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg"
-                style={{ backgroundColor: submissionId ? config.secondaryColor : config.primaryColor }}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-xl shadow-md transition-all duration-300 text-lg"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                Continue
+                {anonymousUser ? 'Close Results' : 'Continue'}
               </motion.button>
             </div>
+
+            {/* Certificate Viewer Modal */}
+            {showCertificate && submissionForCertificate && (
+              <CertificateViewer
+                submission={submissionForCertificate}
+                onClose={() => setShowCertificate(false)}
+                assignmentTitle={assignmentTitle}
+                assignmentOrganizationId={assignmentOrganizationId}
+              />
+            )}
+
+
           </motion.div>
         </motion.div>
       )}

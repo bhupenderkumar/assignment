@@ -524,9 +524,17 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
       submitted_at: new Date().toISOString(),
     };
 
-    // Add score to update data if provided
+    // Add score to update data if provided, or calculate it from responses
     if (score !== undefined) {
       updateData.score = score;
+      console.log('Updating submission with provided score:', score);
+    } else {
+      // Calculate score from responses if not provided
+      const totalResponses = responses.length;
+      const correctResponses = responses.filter(r => r.isCorrect === true).length;
+      const calculatedScore = totalResponses > 0 ? Math.round((correctResponses / totalResponses) * 100) : 0;
+      updateData.score = calculatedScore;
+      console.log('Calculated score from responses:', calculatedScore, 'correct:', correctResponses, 'total:', totalResponses);
     }
 
     await executeCustomQuery(

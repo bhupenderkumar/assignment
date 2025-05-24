@@ -35,6 +35,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
       hasAudioFeedback: effectiveInitialData?.hasAudioFeedback ?? false,
       hasCelebration: effectiveInitialData?.hasCelebration ?? true,
       requiresHelp: effectiveInitialData?.requiresHelp ?? false,
+      requiresPayment: effectiveInitialData?.requiresPayment ?? false,
+      paymentAmount: effectiveInitialData?.paymentAmount || 0.5,
       ageGroup: effectiveInitialData?.ageGroup || '',
       audioInstructions: effectiveInitialData?.audioInstructions || '',
     };
@@ -77,6 +79,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
             hasAudioFeedback: refreshedAssignment.hasAudioFeedback ?? false,
             hasCelebration: refreshedAssignment.hasCelebration ?? true,
             requiresHelp: refreshedAssignment.requiresHelp ?? false,
+            requiresPayment: refreshedAssignment.requiresPayment ?? false,
+            paymentAmount: refreshedAssignment.paymentAmount || 0.5,
             ageGroup: refreshedAssignment.ageGroup || '',
             audioInstructions: refreshedAssignment.audioInstructions || '',
           }));
@@ -116,6 +120,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
         hasAudioFeedback: contextAssignment.hasAudioFeedback ?? false,
         hasCelebration: contextAssignment.hasCelebration ?? true,
         requiresHelp: contextAssignment.requiresHelp ?? false,
+        requiresPayment: contextAssignment.requiresPayment ?? false,
+        paymentAmount: contextAssignment.paymentAmount || 0.5,
         ageGroup: contextAssignment.ageGroup || '',
         audioInstructions: contextAssignment.audioInstructions || '',
       }));
@@ -130,6 +136,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else if (name === 'estimatedTimeMinutes') {
       setFormData(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
+    } else if (name === 'paymentAmount') {
+      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -384,6 +392,38 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
               Requires Help/Assistance
             </label>
           </div>
+          
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="requiresPayment"
+              name="requiresPayment"
+              checked={formData.requiresPayment}
+              onChange={handleChange}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            <label htmlFor="requiresPayment" className="ml-2 block text-sm text-gray-700">
+              Requires Payment (Premium Assignment)
+            </label>
+          </div>
+          
+          {formData.requiresPayment && (
+            <div className="pl-6 pt-1">
+              <label htmlFor="paymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Amount (SOL)
+              </label>
+              <input
+                type="number"
+                id="paymentAmount"
+                name="paymentAmount"
+                value={formData.paymentAmount}
+                onChange={handleChange}
+                min="0.1"
+                step="0.1"
+                className="w-32 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              />
+            </div>
+          )}
         </div>
       </div>
 

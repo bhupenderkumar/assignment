@@ -85,10 +85,10 @@ const MultipleChoiceExercise = ({
     // Play appropriate sound
     if (isCorrect) {
       playSound('correct');
-      toast.success('Correct answer!');
+      toast.success('Correct!', { duration: 2000 });
     } else {
       playSound('incorrect');
-      toast.error('Not quite right. Try again!');
+      toast('Try again!', { duration: 2000, icon: '🤔' });
     }
 
     onComplete(isCorrect, score);

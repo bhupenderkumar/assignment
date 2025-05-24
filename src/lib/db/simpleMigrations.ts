@@ -105,6 +105,11 @@ export const runMigrations = async (
       updateProgress(80, 'Assignment RLS migration failed');
     }
 
+    // Skip user activity log migration for now (browser compatibility)
+    updateProgress(90, 'Skipping user activity logging setup');
+    console.log('User activity log migration skipped - browser environment');
+    updateProgress(95, 'User activity log migration skipped');
+
     updateProgress(100, 'Database initialization completed');
     return true;
   } catch (error: unknown) {
