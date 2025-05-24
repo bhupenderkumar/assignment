@@ -4,7 +4,7 @@ import { Organization, OrganizationInput, OrganizationType } from '../../types/o
 import { useOrganization } from '../../context/OrganizationContext';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { validateOrganizationName, sanitizeInput, validateFile } from '../../lib/utils/securityUtils';
+import { validateOrganizationName, sanitizeInput } from '../../lib/utils/securityUtils';
 
 interface OrganizationFormProps {
   initialData?: Organization;

@@ -6,7 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import DatabaseStatusIndicator from '../common/DatabaseStatusIndicator';
 import { hexToRgbString, hexToRgba } from '../../utils/colorUtils';
-import { Analytics } from "@vercel/analytics/next";
+
 
 interface LayoutProps {
   children?: ReactNode;

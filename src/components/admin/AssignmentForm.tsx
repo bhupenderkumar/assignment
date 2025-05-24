@@ -167,8 +167,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
     }
 
     // SECURITY: Validate assignment content if it exists
-    if (formData.exercises && formData.exercises.length > 0) {
-      const contentValidation = validateAssignmentContent(formData.exercises);
+    if (formData.questions && formData.questions.length > 0) {
+      const contentValidation = validateAssignmentContent(formData.questions);
       if (!contentValidation.isValid) {
         newErrors.content = contentValidation.errors.join(', ');
       }
