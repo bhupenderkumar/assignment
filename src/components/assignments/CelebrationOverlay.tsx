@@ -38,8 +38,10 @@ const CelebrationOverlay = ({
   // Create submission object for certificate
   const submissionForCertificate = submissionId ? {
     id: submissionId,
+    assignmentId: '', // This will be filled by the certificate viewer if needed
     userId: anonymousUser?.id || user?.id || '',
     score: score,
+    startedAt: new Date(),
     submittedAt: new Date(),
     status: 'SUBMITTED' as const
   } : null;

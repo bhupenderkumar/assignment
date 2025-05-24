@@ -21,6 +21,13 @@ import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
 
+// Extend window interface for payment tracking
+declare global {
+  interface Window {
+    _checkedPayments?: Record<string, boolean>;
+  }
+}
+
 interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
   onAssignmentStart?: () => void;
@@ -241,7 +248,9 @@ const PlayAssignment = ({
         setPaymentAmount(paymentStatus.paymentAmount);
 
         // Mark this combination as checked
-        window._checkedPayments[paymentCheckKey] = true;
+        if (window._checkedPayments) {
+          window._checkedPayments[paymentCheckKey] = true;
+        }
 
         // If payment is required but not paid, redirect to payment page
         if (paymentStatus.requiresPayment && !paymentStatus.hasPaid) {
