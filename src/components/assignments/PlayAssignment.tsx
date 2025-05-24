@@ -17,7 +17,7 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import SimpleAudioPlayer, { SimpleAudioPlayerRef } from '../common/SimpleAudioPlayer';
-import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
+import { initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
@@ -49,6 +49,8 @@ const PlayAssignment = ({
   const navigate = useNavigate();
 
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
+  const [audioInstructions, setAudioInstructions] = useState<string | null>(null);
+  const [audioInstructionsLoaded, setAudioInstructionsLoaded] = useState(false);
 
   // Debug effect to track currentAssignment changes
   useEffect(() => {
@@ -63,6 +65,42 @@ const PlayAssignment = ({
       timestamp: new Date().toISOString()
     });
   }, [currentAssignment]);
+
+  // Direct fetch for audio instructions - bypassing service layer issues
+  useEffect(() => {
+    const fetchAudioInstructions = async () => {
+      if (!currentAssignment?.id || !supabase || audioInstructionsLoaded) return;
+
+      try {
+        console.log('🎵 Fetching audio instructions directly from database...');
+        const { data, error } = await supabase
+          .from('interactive_assignment')
+          .select('audio_instructions')
+          .eq('id', currentAssignment.id)
+          .single();
+
+        if (error) {
+          console.error('❌ Error fetching audio instructions:', error);
+          setAudioInstructionsLoaded(true);
+          return;
+        }
+
+        console.log('✅ Audio instructions fetched:', {
+          audioInstructions: data?.audio_instructions,
+          type: typeof data?.audio_instructions,
+          length: data?.audio_instructions?.length || 0
+        });
+
+        setAudioInstructions(data?.audio_instructions || null);
+        setAudioInstructionsLoaded(true);
+      } catch (err) {
+        console.error('❌ Exception fetching audio instructions:', err);
+        setAudioInstructionsLoaded(true);
+      }
+    };
+
+    fetchAudioInstructions();
+  }, [currentAssignment?.id, supabase, audioInstructionsLoaded]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -179,7 +217,7 @@ const PlayAssignment = ({
 
     // Check cache first
     const cachedAssignmentKey = `cached_assignment_${assignmentId}`;
-    const cachedAssignment = getCachedItem(cachedAssignmentKey);
+    const cachedAssignment = getCachedItem<InteractiveAssignment>(cachedAssignmentKey);
 
     console.log('💾 Cache check result:', {
       assignmentId,
@@ -195,7 +233,7 @@ const PlayAssignment = ({
         audioInstructions: cachedAssignment.audioInstructions,
         allKeys: Object.keys(cachedAssignment)
       });
-      setCurrentAssignment(cachedAssignment as InteractiveAssignment);
+      setCurrentAssignment(cachedAssignment);
       return;
     }
 
@@ -938,7 +976,22 @@ const PlayAssignment = ({
     return response && response.responseData && response.responseData.answered === true;
   };
 
-  // Check for error, payment requirement, or missing assignment first
+  // Check for loading state first
+  if (loading || !audioInstructionsLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">
+            {!currentAssignment ? 'Loading assignment...' : 'Loading audio instructions...'}
+          </p>
+
+        </div>
+      </div>
+    );
+  }
+
+  // Check for error, payment requirement, or missing assignment
   const errorContent = renderError();
   const paymentRequiredContent = renderPaymentRequired();
   const noAssignmentContent = renderNoAssignment();
@@ -1028,28 +1081,11 @@ const PlayAssignment = ({
 
         {/* Always render audio player, let it handle empty/loading states */}
         <div className="mb-4">
-          {/* Debug info for audio instructions */}
-          <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-2 text-xs">
-            <strong>🐛 Audio Debug Info:</strong>
-            <br />
-            <strong>Assignment ID:</strong> {currentAssignment?.id || 'Not loaded'}
-            <br />
-            <strong>Audio Instructions:</strong> {currentAssignment?.audioInstructions || 'None/Empty'}
-            <br />
-            <strong>Audio Instructions Type:</strong> {typeof currentAssignment?.audioInstructions}
-            <br />
-            <strong>Audio Instructions Length:</strong> {currentAssignment?.audioInstructions?.length || 0}
-            <br />
-            <strong>Current Assignment Keys:</strong> {currentAssignment ? Object.keys(currentAssignment).join(', ') : 'No assignment'}
-            <br />
-            <strong>Loading State:</strong> {loading ? 'Loading...' : 'Loaded'}
-            <br />
-            <strong>Error State:</strong> {error || 'No error'}
-          </div>
+
 
           <SimpleAudioPlayer
             ref={audioPlayerRef}
-            audioUrl={currentAssignment?.audioInstructions || ''}
+            audioUrl={audioInstructions || ''}
             autoPlay={true}
             label="Audio Instructions"
             className="w-full"
@@ -1231,7 +1267,7 @@ const PlayAssignment = ({
       />
 
       {/* Text-to-Speech Button (only show if TTS is available and no audio instructions) */}
-      {!currentAssignment?.audioInstructions && isTTSAvailable() && currentQuestion && (
+      {!audioInstructions && isTTSAvailable() && currentQuestion && (
         <button
           onClick={() => {
             playSound('click');
@@ -1248,7 +1284,7 @@ const PlayAssignment = ({
       )}
 
       {/* Floating Audio Button (only show if there are audio instructions) */}
-      {currentAssignment?.audioInstructions && (
+      {audioInstructions && (
         <>
           <button
             onClick={() => setShowAudioPlayer(true)}
