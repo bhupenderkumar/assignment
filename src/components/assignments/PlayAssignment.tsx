@@ -1,15 +1,16 @@
 // src/components/assignments/PlayAssignment.tsx
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
+import { checkAssignmentPaymentAccess } from '../pages/PaymentDemoPage';
 import ProgressDisplay from './ProgressDisplay';
 import CelebrationOverlay from './CelebrationOverlay';
-import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
+// Anonymous user registration moved to parent component
 import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
 import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
@@ -18,6 +19,7 @@ import AudioPlayer from '../common/AudioPlayer';
 import { playSound } from '../../lib/utils/soundUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
+import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
 
 interface PlayAssignmentProps {
   assignment?: InteractiveAssignment | null;
@@ -32,7 +34,8 @@ const PlayAssignment = ({
 }: PlayAssignmentProps) => {
   const { assignmentId } = useParams<{ assignmentId: string }>();
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
-  const { user, isSupabaseLoading } = useSupabaseAuth();
+  const { user, isSupabaseLoading, supabase } = useSupabaseAuth();
+  const navigate = useNavigate();
 
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
   const [loading, setLoading] = useState(false);
@@ -46,8 +49,16 @@ const PlayAssignment = ({
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [showRegistration, setShowRegistration] = useState(false);
+  // Registration is now handled by parent component
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  const [requiresPayment, setRequiresPayment] = useState(false);
+  const [hasPaid, setHasPaid] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
+
+  // Ref to prevent duplicate submissions
+  const isSubmittingRef = useRef(false);
 
   // Create the enhanced service
   const assignmentService = useCallback(() => {
@@ -73,6 +84,29 @@ const PlayAssignment = ({
       }
     }
   }, [assignment, currentAssignment]);
+
+  // Fetch assignment organization data
+  useEffect(() => {
+    const fetchAssignmentOrganization = async () => {
+      if (currentAssignment?.organizationId && supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('organization')
+            .select('id, name, logo_url, primary_color, secondary_color')
+            .eq('id', currentAssignment.organizationId)
+            .single();
+
+          if (data && !error) {
+            setAssignmentOrganization(data);
+          }
+        } catch (error) {
+          console.error('Error fetching assignment organization:', error);
+        }
+      }
+    };
+
+    fetchAssignmentOrganization();
+  }, [currentAssignment?.organizationId, supabase]);
 
   // Function to fetch assignment with retry logic and caching - optimized to reduce calls
   const fetchAssignment = useCallback(async () => {
@@ -180,18 +214,59 @@ const PlayAssignment = ({
     return () => clearTimeout(timeoutId);
   }, [assignment, assignmentId, fetchAssignment, isSupabaseLoading, retryCount, isDatabaseReady, dbState, executeWhenReady, currentAssignment]);
 
-  // Check if user is registered
+  // We're moving the user registration check to the parent component
+
+  // Check if assignment requires payment
   useEffect(() => {
-    if (currentAssignment && !anonymousUser) {
-      setShowRegistration(true);
+    // Added isSubmitted to prevent repeated calls after assignment is submitted
+    if (!currentAssignment?.id || !user?.id || checkingPayment || isSubmitted) return;
+
+    // Use a ref to track if we've already checked payment for this assignment/user combo
+    const paymentCheckKey = `${currentAssignment.id}-${user.id}`;
+    if (window._checkedPayments && window._checkedPayments[paymentCheckKey]) {
+      return; // Don't check again if we've already checked for this combination
     }
-  }, [currentAssignment, anonymousUser]);
+
+    // Initialize the global tracker if it doesn't exist
+    if (!window._checkedPayments) {
+      window._checkedPayments = {};
+    }
+
+    const checkPayment = async () => {
+      setCheckingPayment(true);
+      try {
+        const paymentStatus = await checkAssignmentPaymentAccess(currentAssignment.id, user.id);
+        setRequiresPayment(paymentStatus.requiresPayment);
+        setHasPaid(paymentStatus.hasPaid);
+        setPaymentAmount(paymentStatus.paymentAmount);
+
+        // Mark this combination as checked
+        window._checkedPayments[paymentCheckKey] = true;
+
+        // If payment is required but not paid, redirect to payment page
+        if (paymentStatus.requiresPayment && !paymentStatus.hasPaid) {
+          toast.error('This assignment requires payment', { duration: 4000 });
+          setTimeout(() => {
+            navigate(`/payment-demo?assignmentId=${currentAssignment.id}&amount=${paymentStatus.paymentAmount || 0.5}`);
+          }, 2000);
+        }
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+      } finally {
+        setCheckingPayment(false);
+      }
+    };
+
+    checkPayment();
+  }, [currentAssignment?.id, user?.id, checkingPayment, navigate, isSubmitted]);
 
   // Effect to handle submission when isSubmitted changes
   useEffect(() => {
     // We need to define a local function here to avoid the circular dependency
     const submitAssignment = () => {
-      if (!currentAssignment || !submissionId) return;
+      if (!currentAssignment || !submissionId || isSubmittingRef.current) return;
+
+      isSubmittingRef.current = true;
 
       // Make sure we have the current question's response before calculating score
       const ensureCurrentQuestionResponse = () => {
@@ -227,18 +302,17 @@ const PlayAssignment = ({
 
       setScore(calculatedScore);
 
-      // Show a loading toast while submitting
-      const loadingToast = toast.loading('Saving your results...');
-
       // Submit responses to server
       const responseArray = Object.values(finalResponses);
 
       // Pass the calculated score to the submitResponses function
       submitResponses(submissionId, responseArray, calculatedScore)
         .then(() => {
-          // Dismiss loading toast
-          toast.dismiss(loadingToast);
-          toast.success('Assignment completed!');
+          // Show single success notification
+          toast.success('Assignment completed successfully!', {
+            duration: 3000,
+            icon: '🎉'
+          });
 
           // Show celebration overlay with a slight delay to ensure UI updates
           setTimeout(() => {
@@ -251,12 +325,13 @@ const PlayAssignment = ({
           }, 300);
         })
         .catch(error => {
-          // Dismiss loading toast
-          toast.dismiss(loadingToast);
           console.error('Error submitting responses:', error);
-          toast.error('Failed to submit responses. Please try again.');
+          toast.error('Failed to submit assignment. Please try again.', {
+            duration: 4000
+          });
           // Allow retry if submission fails
           setIsSubmitted(false);
+          isSubmittingRef.current = false;
         });
     };
 
@@ -340,19 +415,9 @@ const PlayAssignment = ({
     // Update response
     handleResponseUpdate(currentQuestion.id, responses[currentQuestion.id]?.responseData || {}, isCorrect);
 
-    // Auto-advance to next question after a delay
-    setTimeout(() => {
-      if (currentQuestionIndex < currentAssignment.questions!.length - 1) {
-        setCurrentQuestionIndex(prev => prev + 1);
-        playSound('click');
-      } else {
-        // This is the last question, submit the assignment
-        if (currentAssignment && submissionId) {
-          setIsSubmitted(true);
-        }
-      }
-    }, 2000);
-  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses, submissionId]);
+    // No auto-advance - users must manually click Next button
+    // This gives users time to review their answer and feedback
+  }, [currentAssignment, currentQuestionIndex, handleResponseUpdate, responses]);
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
@@ -504,7 +569,7 @@ const PlayAssignment = ({
   }, [handleQuestionComplete]); // Add handleQuestionComplete as a dependency
 
   // Loading state
-  if (loading || isSupabaseLoading) {
+  if (loading || isSupabaseLoading || checkingPayment) {
     return (
       <div className="flex flex-col justify-center items-center min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
@@ -518,12 +583,56 @@ const PlayAssignment = ({
         {!isSupabaseLoading && loading && (
           <p className="text-gray-600">Loading assignment...</p>
         )}
+        {checkingPayment && (
+          <p className="text-gray-600">Checking payment status...</p>
+        )}
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  // Payment required but not paid - must be after all hooks
+  const renderPaymentRequired = () => {
+    if (requiresPayment && !hasPaid && currentAssignment) {
+      return (
+        <div className="container mx-auto py-8 px-4">
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h1 className="text-3xl font-bold mb-2">{currentAssignment.title}</h1>
+            <p className="text-gray-600 mb-4">{currentAssignment.description}</p>
+
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-medium text-yellow-800">Premium Assignment</h3>
+                  <div className="mt-2 text-yellow-700">
+                    <p>This assignment requires payment of {paymentAmount || 0.5} SOL to access.</p>
+                  </div>
+                  <div className="mt-4">
+                    <button
+                      onClick={() => navigate(`/payment-demo?assignmentId=${currentAssignment.id}&amount=${paymentAmount || 0.5}`)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                    >
+                      Make Payment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // Error state - converted to render function
+  const renderError = () => {
+    if (!error) return null;
+
     // Check if it's a database initialization error
     const isDatabaseInitError = error.includes('Database connection is initializing');
     const isConnectionError = error.includes('connection') || error.includes('network') || error.includes('failed to fetch');
@@ -593,52 +702,128 @@ const PlayAssignment = ({
     );
   }
 
-  // No assignment found
-  if (!currentAssignment) {
-    return (
-      <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-xl my-6">
-        <h3 className="font-bold text-lg">Assignment Not Found</h3>
-        <p>The requested assignment could not be found or has been removed.</p>
-        <div className="flex flex-wrap gap-3 mt-4">
-          <button
-            onClick={() => {
-              setRetryCount(0);
-              fetchAssignment();
-            }}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300"
-          >
-            Try Again
-          </button>
+  // No assignment found - converted to render function
+  const renderNoAssignment = () => {
+    if (!currentAssignment) {
+      return (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-xl my-6">
+          <h3 className="font-bold text-lg">Assignment Not Found</h3>
+          <p>The requested assignment could not be found or has been removed.</p>
+          <div className="flex flex-wrap gap-3 mt-4">
+            <button
+              onClick={() => {
+                setRetryCount(0);
+                fetchAssignment();
+              }}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300"
+            >
+              Try Again
+            </button>
 
-          <button
-            onClick={() => {
-              window.location.reload();
-            }}
-            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300"
-          >
-            Refresh Page
-          </button>
+            <button
+              onClick={() => {
+                window.location.reload();
+              }}
+              className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded transition-colors duration-300"
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   }
 
   // Get current question - memoized to prevent unnecessary re-renders
-  const currentQuestion = useMemo(() => {
-    return currentAssignment.questions?.[currentQuestionIndex];
-  }, [currentAssignment, currentQuestionIndex]);
+  const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
+
+  // Check for error, payment requirement, or missing assignment first
+  const errorContent = renderError();
+  const paymentRequiredContent = renderPaymentRequired();
+  const noAssignmentContent = renderNoAssignment();
+
+  if (errorContent) return errorContent;
+  if (paymentRequiredContent) return paymentRequiredContent;
+  if (noAssignmentContent) return noAssignmentContent;
 
   return (
     <div className="container mx-auto py-8 px-4">
       {/* Assignment Header */}
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        <h1 className="text-3xl font-bold mb-2">{currentAssignment.title}</h1>
-        <p className="text-gray-600 mb-4">{currentAssignment.description}</p>
+        {/* User Info Banner for Anonymous Users */}
+        {anonymousUser && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-blue-800">
+                  Welcome, {anonymousUser.name}!
+                </h3>
+                <div className="mt-1 text-sm text-blue-600">
+                  <p>You're taking this quiz as a guest. Your results will be saved and can be viewed by the instructor.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {currentAssignment.audioInstructions && (
+        <h1 className="text-3xl font-bold mb-2">
+          {assignmentOrganization?.name ? (
+            <>
+              <span className="text-blue-600">{assignmentOrganization.name}</span>
+              <span className="text-gray-400 mx-2">|</span>
+              <span>{currentAssignment?.title}</span>
+            </>
+          ) : (
+            currentAssignment?.title
+          )}
+        </h1>
+        <p className="text-gray-600 mb-4">{currentAssignment?.description}</p>
+
+        {/* Quiz Information */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <h3 className="text-lg font-semibold mb-2 text-gray-800">Quiz Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="flex items-center">
+              <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-gray-700">
+                <strong>{currentAssignment?.questions?.length || 0}</strong> Questions
+              </span>
+            </div>
+            {currentAssignment?.estimatedTimeMinutes && (
+              <div className="flex items-center">
+                <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-gray-700">
+                  <strong>{currentAssignment?.estimatedTimeMinutes}</strong> minutes
+                </span>
+              </div>
+            )}
+            {currentAssignment?.difficultyLevel && (
+              <div className="flex items-center">
+                <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-gray-700">
+                  <strong>{currentAssignment?.difficultyLevel}</strong> Level
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {currentAssignment?.audioInstructions && (
           <div className="mb-4">
             <AudioPlayer
-              audioUrl={currentAssignment.audioInstructions}
+              audioUrl={currentAssignment?.audioInstructions}
               autoPlay={true}
               label="Audio Instructions"
               className="w-full"
@@ -647,21 +832,21 @@ const PlayAssignment = ({
         )}
 
         <div className="flex flex-wrap gap-4 text-sm">
-          {currentAssignment.difficultyLevel && (
+          {currentAssignment?.difficultyLevel && (
             <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full">
-              {currentAssignment.difficultyLevel}
+              {currentAssignment?.difficultyLevel}
             </span>
           )}
 
-          {currentAssignment.estimatedTimeMinutes && (
+          {currentAssignment?.estimatedTimeMinutes && (
             <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full">
-              {currentAssignment.estimatedTimeMinutes} minutes
+              {currentAssignment?.estimatedTimeMinutes} minutes
             </span>
           )}
 
-          {currentAssignment.ageGroup && (
+          {currentAssignment?.ageGroup && (
             <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full">
-              {currentAssignment.ageGroup}
+              {currentAssignment?.ageGroup}
             </span>
           )}
         </div>
@@ -698,10 +883,10 @@ const PlayAssignment = ({
       </div>
 
       {/* Progress Display */}
-      {currentAssignment.questions && (
+      {currentAssignment?.questions && (
         <ProgressDisplay
           currentQuestion={currentQuestionIndex + 1}
-          totalQuestions={currentAssignment.questions.length}
+          totalQuestions={currentAssignment?.questions.length || 0}
           score={score || 0}
           timeSpent={timeSpent}
         />
@@ -752,7 +937,7 @@ const PlayAssignment = ({
 
         <button
           onClick={() => {
-            if (currentAssignment.questions && currentQuestionIndex < currentAssignment.questions.length - 1) {
+            if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
               setCurrentQuestionIndex(prev => prev + 1);
               playSound('click');
             } else {
@@ -766,22 +951,14 @@ const PlayAssignment = ({
               : 'bg-blue-500 text-white hover:bg-blue-600'
           }`}
         >
-          {currentAssignment.questions && currentQuestionIndex < currentAssignment.questions.length - 1
+          {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
             ? 'Next'
             : 'Finish'
           }
         </button>
       </div>
 
-      {/* Anonymous User Registration Modal */}
-      <AnonymousUserRegistration
-        isOpen={showRegistration}
-        onClose={() => setShowRegistration(false)}
-        onSuccess={() => {
-          // The submission will be created by the useEffect hook when anonymousUser changes
-          setShowRegistration(false);
-        }}
-      />
+      {/* We'll handle anonymous user registration in the PlayAssignmentPage component instead */}
 
       {/* Celebration Overlay */}
       <CelebrationOverlay
@@ -789,10 +966,14 @@ const PlayAssignment = ({
         score={score || 0}
         submissionId={submissionId || undefined}
         onClose={() => setShowCelebration(false)}
+        assignmentTitle={currentAssignment?.title}
+        totalQuestions={currentAssignment?.questions?.length}
+        correctAnswers={Object.values(responses).filter(r => r.isCorrect).length}
+        assignmentOrganizationId={currentAssignment?.organizationId}
       />
 
       {/* Floating Audio Button (only show if there are audio instructions) */}
-      {currentAssignment.audioInstructions && (
+      {currentAssignment?.audioInstructions && (
         <>
           <button
             onClick={() => setShowAudioPlayer(true)}
@@ -821,7 +1002,7 @@ const PlayAssignment = ({
                   </button>
                 </div>
                 <AudioPlayer
-                  audioUrl={currentAssignment.audioInstructions}
+                  audioUrl={currentAssignment?.audioInstructions}
                   autoPlay={true}
                   showLabel={false}
                 />
@@ -833,6 +1014,9 @@ const PlayAssignment = ({
           )}
         </>
       )}
+
+      {/* Certificate Floating Button for Anonymous Users */}
+      <CertificateFloatingButton />
     </div>
   );
 };

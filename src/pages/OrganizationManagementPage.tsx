@@ -1,5 +1,5 @@
 // src/pages/OrganizationManagementPage.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useOrganization } from '../context/OrganizationContext';
@@ -10,11 +10,14 @@ import OrganizationAnalytics from '../components/organization/OrganizationAnalyt
 import OrganizationBranding from '../components/organization/OrganizationBranding';
 import toast from 'react-hot-toast';
 
+// Lazy load payment settings component
+const OrganizationPaymentSettings = lazy(() => import('../components/organization/OrganizationPaymentSettings'));
+
 const OrganizationManagementPage: React.FC = () => {
   const { organizationId } = useParams<{ organizationId: string }>();
   const { supabase, user } = useSupabaseAuth();
   const { organizations, currentOrganization, setCurrentOrganization } = useOrganization();
-  const [activeTab, setActiveTab] = useState<'users' | 'invites' | 'analytics' | 'branding'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'invites' | 'analytics' | 'branding' | 'payments'>('users');
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [userOrganizations, setUserOrganizations] = useState<UserOrganization[]>([]);
   const [isLoadingUserOrgs, setIsLoadingUserOrgs] = useState<boolean>(true);
@@ -349,6 +352,21 @@ const OrganizationManagementPage: React.FC = () => {
             >
               Branding
             </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'payments'
+                  ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center">
+                <span>Payments</span>
+                <span className="ml-2 px-1.5 py-0.5 text-xs rounded bg-gradient-to-r from-cyan-500 to-purple-500 text-white">
+                  Solana
+                </span>
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -372,6 +390,44 @@ const OrganizationManagementPage: React.FC = () => {
               organization={organization}
               onUpdate={handleOrganizationUpdate}
             />
+          )}
+          {activeTab === 'payments' && (
+            <div>
+              <div className="mb-6">
+                <h2 className="text-xl font-bold mb-2">
+                  <span className="bg-gradient-to-r from-cyan-500 to-purple-600 bg-clip-text text-transparent">Payment Settings</span>
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  Configure payment options for premium assignments in your organization.
+                  Students can pay using Solana cryptocurrency to access premium content.  
+                </p>
+              </div>
+              
+              <Suspense fallback={
+                <div className="animate-pulse" id="payment-settings-placeholder">
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-4"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-full mb-4"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-full mb-4"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-full mb-4"></div>
+                </div>
+              }>
+                <OrganizationPaymentSettings organizationId={organization.id} />
+              </Suspense>
+              
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-8">
+                <h3 className="text-lg font-semibold mb-4 dark:text-white">
+                  Payment Transactions
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  View all payment transactions for assignments in your organization.
+                </p>
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                  <p className="text-center text-gray-500 dark:text-gray-400 py-8">
+                    No payment transactions yet. They will appear here when students make payments for premium assignments.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

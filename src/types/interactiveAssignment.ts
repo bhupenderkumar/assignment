@@ -56,6 +56,8 @@ export interface InteractiveAssignment {
   hasCelebration?: boolean;
   ageGroup?: string;
   requiresHelp?: boolean;
+  requiresPayment?: boolean; // Whether this assignment requires payment
+  paymentAmount?: number; // Amount in SOL required to access this assignment
   shareableLink?: string;
   shareableLinkExpiresAt?: Date;
   category?: string; // Category for filtering in gallery

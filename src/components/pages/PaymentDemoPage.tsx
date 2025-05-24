@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
-
+import { useOrganization } from '../../context/OrganizationContext';
+import { Connection, PublicKey, LAMPORTS_PER_SOL, ConfirmedSignatureInfo } from '@solana/web3.js';
 import { hexToRgba } from '../../utils/colorUtils';
+import { paymentService, PaymentSettings, PaymentTransaction } from '../../lib/services/paymentService';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 // Define types for Solana transaction
 interface SolanaTransaction {
@@ -26,18 +29,35 @@ interface SolanaTransaction {
 
 const PaymentDemoPage: React.FC = () => {
   const { config } = useConfiguration();
-  const { user } = useSupabaseAuth();
+  const { user, supabase } = useSupabaseAuth();
+  const { currentOrganization } = useOrganization();
+  const navigate = useNavigate();
+
+  // Get URL parameters for assignment ID and amount
+  const [searchParams] = useState(new URLSearchParams(window.location.search));
 
   // Payment history state
   const [paymentHistory, setPaymentHistory] = useState<SolanaTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [network, setNetwork] = useState<'mainnet' | 'devnet' | 'testnet'>('devnet');
-  const [walletAddress] = useState(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
+  const [walletAddress, setWalletAddress] = useState<string>('');
   const [verifyingTransaction, setVerifyingTransaction] = useState(false);
-  const [transactionDetails, setTransactionDetails] = useState<any>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
+  const [assignmentId, setAssignmentId] = useState<string | null>(searchParams.get('assignmentId'));
+  const [transactionDetails, setTransactionDetails] = useState<{
+    slot: number;
+    blockTime: number | undefined;
+    confirmations: number;
+    amount: number;
+    fromWallet: string;
+    toWallet: string;
+    status: SolanaTransaction['status'];
+  } | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [senderWallet, setSenderWallet] = useState('');
-  const [amount] = useState('0.5');
+  const [amount, setAmount] = useState(searchParams.get('amount') || '0.5');
+  const [accessGranted, setAccessGranted] = useState(false);
+  const [assignmentTitle, setAssignmentTitle] = useState('Premium Assignment');
 
   // Solana network endpoints
   const networkEndpoints = {
@@ -46,130 +66,213 @@ const PaymentDemoPage: React.FC = () => {
     testnet: import.meta.env.VITE_SOLANA_TESTNET_URL || 'https://api.testnet.solana.com'
   };
 
-  // Load crypto payment history data
+  // Initialize Solana connection
+  const getConnection = () => {
+    return new Connection(networkEndpoints[network]);
+  };
+
+  // Load payment settings, assignment details, and transaction history
   useEffect(() => {
-    // Simulate loading payment history from blockchain
-    setIsLoading(true);
-
-    // Generate mock Solana payment data
-    setTimeout(() => {
-      const mockSolanaPayments: SolanaTransaction[] = [
-        {
-          id: '1',
-          assignmentId: 'assign-123',
-          assignmentTitle: 'Advanced Mathematics Quiz',
-          amount: 0.5,
-          currency: 'SOL',
-          status: 'confirmed' as const,
-          date: '2023-12-15',
-          user: 'john.doe@example.com',
-          txHash: '4RPyPQSAqPiYKXMD7SJgLpqEYMz9s5RLx9yShT6Snxgu5NwuwuSQRne5cw3aWQi47JKw5G2h72HWMUtF6jZMyJq5',
-          fromWallet: '8ZUczUAUZbSrHBpJdZw2HTGZjaCXQzGjTKbNULZ9x5g2',
-          toWallet: walletAddress,
-          blockTime: 1703116800,
-          slot: 234567890,
-          confirmations: 1000
-        },
-        {
-          id: '2',
-          assignmentId: 'assign-456',
-          assignmentTitle: 'Science Fundamentals',
-          amount: 0.25,
-          currency: 'SOL',
-          status: 'confirmed' as const,
-          date: '2023-11-28',
-          user: 'jane.smith@example.com',
-          txHash: '2JDhTZ3EzNLBzKvC9YnYkNvNxD4BvJeGKpEMqQJqmMvSYWpzNMuqgBJXrZZdFDfYe5LXTQwjQQKFMYP8ZgJSQnbL',
-          fromWallet: '5ZUczUAUZbSrHBpJdZw2HTGZjaCXQzGjTKbNULZ9x5g2',
-          toWallet: walletAddress,
-          blockTime: 1701388800,
-          slot: 234567000,
-          confirmations: 2000
-        },
-        {
-          id: '3',
-          assignmentId: 'assign-789',
-          assignmentTitle: 'History of Ancient Civilizations',
-          amount: 0.75,
-          currency: 'SOL',
-          status: 'pending' as const,
-          date: '2023-12-20',
-          user: 'robert.johnson@example.com',
-          txHash: '3RPyPQSAqPiYKXMD7SJgLpqEYMz9s5RLx9yShT6Snxgu5NwuwuSQRne5cw3aWQi47JKw5G2h72HWMUtF6jZMyJq5',
-          fromWallet: '9ZUczUAUZbSrHBpJdZw2HTGZjaCXQzGjTKbNULZ9x5g2',
-          toWallet: walletAddress
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        // Load payment settings if we have an active organization
+        if (currentOrganization) {
+          const settings = await paymentService.getOrganizationPaymentSettings(currentOrganization.id);
+          setPaymentSettings(settings);
+          if (settings?.walletAddress) {
+            setWalletAddress(settings.walletAddress);
+          } else {
+            // Use default wallet if no settings are configured
+            setWalletAddress(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
+          }
+        } else {
+          // Use default wallet if no organization
+          setWalletAddress(import.meta.env.VITE_SOLANA_WALLET_ADDRESS || 'GJQUFnCu7ZJHbxvKZKMsnaYoi9goieCtkqZ5HXDqZxST');
         }
-      ];
 
-      setPaymentHistory(mockSolanaPayments);
-      setIsLoading(false);
-    }, 1000);
-  }, [network, walletAddress]);
+        // Load assignment details if we have an assignment ID
+        if (assignmentId && supabase) {
+          try {
+            // Get assignment information to show the user what they're paying for
+            const { data: assignmentData, error: assignmentError } = await supabase
+              .from('interactive_assignment')
+              .select('title')
+              .eq('id', assignmentId)
+              .single();
 
-  // Verify Solana transaction
+            if (!assignmentError && assignmentData) {
+              setAssignmentTitle(assignmentData.title);
+            }
+          } catch (err) {
+            console.error('Error loading assignment details:', err);
+          }
+        }
+
+        // Load transaction history if we have a wallet address
+        if (walletAddress) {
+          const connection = getConnection();
+          const pubKey = new PublicKey(walletAddress);
+          const signatures = await connection.getSignaturesForAddress(pubKey, { limit: 10 });
+
+          const transactions = await Promise.all(
+            signatures.map(async (sig: ConfirmedSignatureInfo) => {
+              const tx = await connection.getTransaction(sig.signature, {
+                maxSupportedTransactionVersion: 0
+              });
+              if (!tx) return null;
+
+              const amount = tx.meta?.postBalances[0]
+                ? (tx.meta.preBalances[0] - tx.meta.postBalances[0]) / LAMPORTS_PER_SOL
+                : 0;
+
+              return {
+                id: sig.signature,
+                assignmentId: `assign-${sig.slot}`,
+                assignmentTitle: 'Assignment Payment',
+                amount: Math.abs(amount),
+                currency: 'SOL',
+                status: 'confirmed' as const,
+                date: sig.blockTime ? new Date(sig.blockTime * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                user: user?.email || 'anonymous',
+                txHash: sig.signature,
+                fromWallet: tx.transaction.message.getAccountKeys().get(0)?.toBase58() || '',
+                toWallet: walletAddress,
+                blockTime: sig.blockTime || undefined,
+                slot: sig.slot,
+                confirmations: await connection.getBlockHeight() - sig.slot
+              };
+            })
+          );
+
+          const validTransactions = transactions.filter((tx): tx is NonNullable<typeof tx> => tx !== null);
+          setPaymentHistory(validTransactions);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+        toast.error('Failed to load data');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [network, walletAddress, user?.email, currentOrganization, assignmentId]);
+
+  // Verify Solana transaction and record it if valid
   const verifyTransaction = async () => {
     if (!transactionHash || !senderWallet) {
       toast.error('Please enter both transaction hash and sender wallet address');
       return;
     }
 
+    if (!walletAddress) {
+      toast.error('Recipient wallet address not available');
+      return;
+    }
+
     setVerifyingTransaction(true);
 
     try {
-      // Simulate blockchain API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Use payment service to verify the transaction
+      const minimumConfirmations = paymentSettings?.minimumConfirmations || 1;
+      const expectedAmount = parseFloat(amount);
 
-      // Mock verification result
-      const mockTransactionDetails: {
-        slot: number;
-        blockTime: number;
-        confirmations: number;
-        amount: number;
-        fromWallet: string;
-        toWallet: string;
-        status: SolanaTransaction['status'];
-      } = {
-        slot: 234567890,
-        blockTime: Math.floor(Date.now() / 1000),
-        confirmations: 1000,
-        amount: parseFloat(amount),
-        fromWallet: senderWallet,
-        toWallet: walletAddress,
-        status: 'confirmed' as const
-      };
+      const { verified, details } = await paymentService.verifyTransaction(
+        network,
+        transactionHash,
+        expectedAmount,
+        walletAddress,
+        minimumConfirmations
+      );
 
-      setTransactionDetails(mockTransactionDetails);
+      // If transaction details are available, update the UI
+      if (details) {
+        const txDetails = {
+          slot: details.slot || 0,
+          blockTime: details.blockTime,
+          confirmations: details.confirmations || 0,
+          amount: details.amount || 0,
+          fromWallet: details.fromWallet || senderWallet,
+          toWallet: details.toWallet || walletAddress,
+          status: details.status
+        };
+
+        setTransactionDetails(txDetails);
+      }
+
+      if (!verified) {
+        // Show error message but still display details
+        toast.error(details.reason || 'Transaction verification failed');
+        return;
+      }
+
+      // Transaction verified successfully
       toast.success('Transaction verified successfully!');
 
-      // Add to payment history
-      const newTransaction: SolanaTransaction = {
-        id: Date.now().toString(),
-        assignmentId: `assign-${Date.now()}`,
-        assignmentTitle: 'New Assignment Payment',
-        amount: parseFloat(amount),
-        currency: 'SOL',
-        status: 'confirmed' as const,
-        date: new Date().toISOString().split('T')[0],
-        user: user?.email || 'anonymous',
-        txHash: transactionHash,
-        fromWallet: senderWallet,
-        toWallet: walletAddress,
-        blockTime: mockTransactionDetails.blockTime,
-        slot: mockTransactionDetails.slot,
-        confirmations: mockTransactionDetails.confirmations
-      };
+      // Record the payment transaction in our database if user is logged in
+      if (user && details.fromWallet && details.amount) {
+        try {
+          const paymentTransaction = await paymentService.recordPaymentTransaction({
+            userId: user.id,
+            assignmentId: assignmentId || undefined,
+            organizationId: currentOrganization?.id,
+            transactionHash,
+            amount: details.amount,
+            fromWallet: details.fromWallet,
+            toWallet: walletAddress,
+            status: 'confirmed',
+            slot: details.slot,
+            blockTime: details.blockTime,
+            confirmations: details.confirmations
+          });
 
-      setPaymentHistory(prev => [newTransaction, ...prev]);
+          // Grant access to the assignment if this is for a specific assignment
+          if (assignmentId) {
+            setAccessGranted(true);
+            toast.success('You now have access to the premium assignment!', { duration: 5000 });
+            // Redirect to the assignment after a short delay
+            setTimeout(() => {
+              navigate(`/play/assignment/${assignmentId}`);
+            }, 2000);
+          }
+        } catch (error) {
+          console.error('Error recording payment transaction:', error);
+          // Don't show error to user, as the verification was successful
+        }
+      }
+
+      // Add to UI payment history
+      if (details.fromWallet && details.amount && details.slot) {
+        const newTransaction: SolanaTransaction = {
+          id: transactionHash,
+          assignmentId: assignmentId || `assign-${details.slot}`,
+          assignmentTitle: assignmentId ? 'Premium Assignment Access' : 'New Payment',
+          amount: details.amount,
+          currency: 'SOL',
+          status: 'confirmed',
+          date: new Date().toISOString().split('T')[0],
+          user: user?.email || 'anonymous',
+          txHash: transactionHash,
+          fromWallet: details.fromWallet,
+          toWallet: walletAddress,
+          blockTime: details.blockTime,
+          slot: details.slot,
+          confirmations: details.confirmations
+        };
+
+        setPaymentHistory(prev => [newTransaction, ...prev]);
+      }
     } catch (error) {
       console.error('Error verifying transaction:', error);
-      toast.error('Failed to verify transaction. Please try again.');
+      toast.error(error instanceof Error ? error.message : 'Failed to verify transaction');
     } finally {
       setVerifyingTransaction(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 bg-gradient-to-b from-slate-900 to-slate-800 min-h-screen text-white">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -177,19 +280,35 @@ const PaymentDemoPage: React.FC = () => {
         className="max-w-2xl mx-auto"
       >
         <h1
-          className="text-3xl font-bold mb-6"
-          style={{ color: config.primaryColor }}
+        className="text-3xl font-bold mb-2"
+        style={{
+          background: `linear-gradient(90deg, #00F5FF, #7B68EE)`,
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          textShadow: '0 0 10px rgba(0,245,255,0.2)'
+        }}
         >
-          Solana Payment Demo
+        {assignmentId ? 'Premium Assignment Payment' : 'Solana Payment Demo'}
         </h1>
+          {assignmentId && (
+            <div className="text-lg mb-6">
+              <p>Making payment for: <span className="font-semibold">{assignmentTitle}</span></p>
+            </div>
+          )}
 
         <div
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8"
+          className="rounded-xl shadow-lg p-6 mb-8 backdrop-blur-lg relative overflow-hidden"
           style={{
-            borderTop: `4px solid ${config.primaryColor}`,
-            boxShadow: `0 10px 25px ${hexToRgba(config.primaryColor, 0.1)}`
+            backgroundColor: 'rgba(13, 17, 23, 0.7)',
+            boxShadow: `0 10px 25px rgba(0, 245, 255, 0.15), 0 5px 10px rgba(123, 104, 238, 0.1)`,
+            borderImage: 'linear-gradient(90deg, #00F5FF, #7B68EE) 1',
+            borderWidth: '1px',
+            borderStyle: 'solid'
           }}
         >
+          {/* Decorative elements */}
+          <div className="absolute -top-20 -right-20 w-40 h-40 rounded-full bg-cyan-500 opacity-10 blur-3xl"></div>
+          <div className="absolute -bottom-20 -left-20 w-40 h-40 rounded-full bg-purple-500 opacity-10 blur-3xl"></div>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold dark:text-white">Premium Assignment Access</h2>
             <span
@@ -237,8 +356,8 @@ const PaymentDemoPage: React.FC = () => {
                 value={transactionHash}
                 onChange={(e) => setTransactionHash(e.target.value)}
                 placeholder="Enter your transaction hash"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                style={{ '--tw-ring-color': config.primaryColor } as React.CSSProperties}
+                className="w-full px-4 py-2 rounded-lg border-0 bg-gray-800/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all duration-200 backdrop-blur-sm"
+                style={{ '--tw-ring-color': '#00F5FF' } as React.CSSProperties}
               />
             </div>
 
@@ -251,20 +370,22 @@ const PaymentDemoPage: React.FC = () => {
                 value={senderWallet}
                 onChange={(e) => setSenderWallet(e.target.value)}
                 placeholder="Enter your wallet address"
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-opacity-50"
-                style={{ '--tw-ring-color': config.primaryColor } as React.CSSProperties}
+                className="w-full px-4 py-2 rounded-lg border-0 bg-gray-800/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-all duration-200 backdrop-blur-sm"
+                style={{ '--tw-ring-color': '#00F5FF' } as React.CSSProperties}
               />
             </div>
 
             <button
               onClick={verifyTransaction}
               disabled={verifyingTransaction}
-              className="w-full py-3 px-4 rounded-lg font-bold text-white transition-all duration-300 relative overflow-hidden"
+              className="w-full py-3 px-4 rounded-lg font-bold text-white transition-all duration-300 relative overflow-hidden group"
               style={{
-                background: `linear-gradient(to right, ${config.primaryColor}, ${config.secondaryColor})`,
-                opacity: verifyingTransaction ? 0.8 : 1
+                background: `linear-gradient(to right, #00F5FF, #7B68EE)`,
+                opacity: verifyingTransaction ? 0.8 : 1,
+                boxShadow: '0 4px 10px rgba(0,245,255,0.3)'
               }}
             >
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-cyan-400 to-purple-500 opacity-0 group-hover:opacity-20 transition-opacity duration-300"></div>
               {verifyingTransaction ? (
                 <div className="flex items-center justify-center">
                   <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -311,8 +432,21 @@ const PaymentDemoPage: React.FC = () => {
         </div>
 
         {/* Transaction History */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 dark:text-white">Transaction History</h2>
+        <div className="rounded-xl shadow-lg p-6 backdrop-blur-lg relative overflow-hidden"
+          style={{
+            backgroundColor: 'rgba(13, 17, 23, 0.7)',
+            boxShadow: `0 10px 25px rgba(0, 245, 255, 0.15), 0 5px 10px rgba(123, 104, 238, 0.1)`,
+            borderImage: 'linear-gradient(90deg, #00F5FF, #7B68EE) 1',
+            borderWidth: '1px',
+            borderStyle: 'solid'
+          }}
+        >
+          {/* Decorative elements */}
+          <div className="absolute top-20 -left-20 w-40 h-40 rounded-full bg-cyan-500 opacity-10 blur-3xl"></div>
+          <div className="absolute -bottom-20 right-20 w-40 h-40 rounded-full bg-purple-500 opacity-10 blur-3xl"></div>
+          <h2 className="text-xl font-semibold mb-4">
+            <span className="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">Transaction History</span>
+          </h2>
 
           {isLoading ? (
             <div className="flex justify-center items-center py-8">
@@ -362,18 +496,22 @@ const PaymentDemoPage: React.FC = () => {
         </div>
 
         {/* Information Box */}
-        <div className="mt-8 bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-400 p-4 rounded">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-yellow-700 dark:text-yellow-200">
-                This is a demo payment page using Solana blockchain. No actual transactions are processed.
-                For testing, you can use any valid-format Solana transaction hash and wallet address.
-              </p>
+        <div className="mt-8 relative backdrop-blur-sm backdrop-filter p-1 rounded-lg overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 animate-pulse"></div>
+          <div className="relative bg-gray-900/80 p-4 rounded-lg border border-blue-500/20">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-cyan-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-300">
+                  This payment page uses the Solana blockchain. Please ensure you're connected to the correct network
+                  and have sufficient SOL in your wallet before making a transaction. The transaction will be verified
+                  on-chain for security.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -383,3 +521,23 @@ const PaymentDemoPage: React.FC = () => {
 };
 
 export default PaymentDemoPage;
+
+// Utility function to check if the user can access a premium assignment
+export const checkAssignmentPaymentAccess = async (assignmentId: string, userId?: string): Promise<{
+  requiresPayment: boolean;
+  hasPaid: boolean;
+  paymentAmount?: number;
+  paymentSettings?: PaymentSettings;
+}> => {
+  if (!userId) {
+    return { requiresPayment: false, hasPaid: false };
+  }
+
+  try {
+    return await paymentService.getAssignmentPaymentStatus(assignmentId, userId);
+  } catch (error) {
+    console.error('Error checking assignment payment status:', error);
+    // Default to not requiring payment on error
+    return { requiresPayment: false, hasPaid: false };
+  }
+};

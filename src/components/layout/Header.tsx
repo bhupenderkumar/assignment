@@ -85,6 +85,8 @@ const Header: React.FC<HeaderProps> = ({ onNavigate, hideNavigation = false, onT
       url = '/gallery';
     } else if (view === 'payment') {
       url = '/payment-demo';
+    } else if (view === 'anonymous-users') {
+      url = '/anonymous-users';
     }
 
     // Use React Router navigation

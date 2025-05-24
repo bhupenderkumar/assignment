@@ -8,15 +8,22 @@ import CertificateTemplate from './CertificateTemplate';
 interface CertificateViewerProps {
   submission: InteractiveSubmission;
   onClose: () => void;
+  assignmentTitle?: string;
+  assignmentOrganizationId?: string;
 }
 
-const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
+const CertificateViewer = ({
+  submission,
+  onClose,
+  assignmentTitle: propAssignmentTitle,
+  assignmentOrganizationId
+}: CertificateViewerProps) => {
   const [downloading, setDownloading] = useState(false);
   const [certificateDataUrl, setCertificateDataUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(true);
   const { config } = useConfiguration();
   // Extract assignment title from submission
-  const assignmentTitle = 'Interactive Assignment';
+  const assignmentTitle = propAssignmentTitle || 'Interactive Assignment';
 
   // No need to load assignment data separately - we already have what we need in the submission
 
@@ -224,6 +231,7 @@ const CertificateViewer = ({ submission, onClose }: CertificateViewerProps) => {
               <CertificateTemplate
                 submission={submission}
                 assignmentTitle={assignmentTitle}
+                assignmentOrganizationId={assignmentOrganizationId}
                 width={800}
                 height={600}
                 onExport={handleExport}

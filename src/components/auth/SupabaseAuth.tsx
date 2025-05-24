@@ -721,9 +721,9 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                         Password
                       </label>
                       {mode === 'signIn' && (
-                        <a href="#" className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                        <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
                           Forgot password?
-                        </a>
+                        </Link>
                       )}
                     </div>
                     <div className="relative">

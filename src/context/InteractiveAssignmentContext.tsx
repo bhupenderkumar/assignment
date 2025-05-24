@@ -748,11 +748,11 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     try {
       const service = getService();
       await service.submitResponses(submissionId, responses, score);
-      toast.success('Responses submitted successfully');
+      // Don't show toast here - let the calling component handle notifications
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
       setError(errorMessage);
-      toast.error(errorMessage);
+      // Don't show toast here - let the calling component handle error notifications
       throw err;
     } finally {
       setLoading(false);
@@ -950,11 +950,11 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
 
       const userProgressService = createUserProgressService(supabase);
       const updatedProgress = await userProgressService.updateUserProgress(progressWithUserId);
-      
+
       if (!updatedProgress) {
         throw new Error('Failed to update user progress');
       }
-      
+
       return updatedProgress;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
