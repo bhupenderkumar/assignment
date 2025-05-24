@@ -12,7 +12,7 @@ import {
   useDraggable,
   useDroppable
 } from '@dnd-kit/core';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound } from '../../utils/soundUtils';
 import toast from 'react-hot-toast';
 import AudioPlayer from '../common/AudioPlayer';
 
@@ -497,13 +497,13 @@ const EnhancedMatchingExercise = ({
 
       // Play appropriate sound
       if (isCorrect) {
-        playSound('correct');
+        playSound('success');
         // Reduce toast frequency - only show for every few correct matches
         if (matches.length % 2 === 0) {
           toast.success('Great!', { duration: 1500, icon: '✓' });
         }
       } else {
-        playSound('incorrect');
+        playSound('error');
         // Brief feedback without excessive styling
         toast('Try again', { duration: 1500, icon: '🔄' });
       }
@@ -536,9 +536,9 @@ const EnhancedMatchingExercise = ({
 
         // Play celebration sound if all correct
         if (allCorrect) {
-          playSound('celebration');
+          playSound('completion');
         } else {
-          playSound('complete');
+          playSound('completion');
         }
 
         onComplete(allCorrect, score);
@@ -625,13 +625,13 @@ const EnhancedMatchingExercise = ({
 
     // Play appropriate sound
     if (isCorrect) {
-      playSound('correct');
+      playSound('success');
       // Reduce toast frequency - only show for every few correct matches
       if (matches.length % 2 === 0) {
         toast.success('Great!', { duration: 1500, icon: '✓' });
       }
     } else {
-      playSound('incorrect');
+      playSound('error');
       // Brief feedback without excessive styling
       toast('Try again', { duration: 1500, icon: '🔄' });
     }
@@ -667,9 +667,9 @@ const EnhancedMatchingExercise = ({
 
       // Play celebration sound if all correct
       if (allCorrect) {
-        playSound('celebration');
+        playSound('completion');
       } else {
-        playSound('complete');
+        playSound('completion');
       }
 
       onComplete(allCorrect, score);

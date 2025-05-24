@@ -1,7 +1,7 @@
 // src/components/exercises/MultipleChoiceExercise.tsx
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound } from '../../utils/soundUtils';
 import toast from 'react-hot-toast';
 
 // Define types for the multiple choice exercise
@@ -84,10 +84,10 @@ const MultipleChoiceExercise = ({
 
     // Play appropriate sound
     if (isCorrect) {
-      playSound('correct');
+      playSound('success');
       toast.success('Correct!', { duration: 2000 });
     } else {
-      playSound('incorrect');
+      playSound('error');
       toast('Try again!', { duration: 2000, icon: '🤔' });
     }
 

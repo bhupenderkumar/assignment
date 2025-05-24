@@ -1,7 +1,7 @@
 // src/components/exercises/CompletionExercise.tsx
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound } from '../../utils/soundUtils';
 import toast from 'react-hot-toast';
 
 // Define types for the completion exercise
@@ -153,9 +153,9 @@ const CompletionExercise = ({
 
     // Play appropriate sound
     if (isAllCorrect) {
-      playSound('correct');
+      playSound('success');
     } else {
-      playSound('incorrect');
+      playSound('error');
     }
 
     // Show brief feedback without excessive notifications
