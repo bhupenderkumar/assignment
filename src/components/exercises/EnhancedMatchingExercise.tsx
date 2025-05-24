@@ -498,13 +498,13 @@ const EnhancedMatchingExercise = ({
 
       // Play appropriate sound
       if (isCorrect) {
-        playSound('success');
+        playSound('correct');
         // Reduce toast frequency - only show for every few correct matches
         if (matches.length % 2 === 0) {
           toast.success('Great!', { duration: 1500, icon: '✓' });
         }
       } else {
-        playSound('error');
+        playSound('incorrect');
         // Brief feedback without excessive styling
         toast('Try again', { duration: 1500, icon: '🔄' });
       }
@@ -626,13 +626,13 @@ const EnhancedMatchingExercise = ({
 
     // Play appropriate sound
     if (isCorrect) {
-      playSound('success');
+      playSound('correct');
       // Reduce toast frequency - only show for every few correct matches
       if (matches.length % 2 === 0) {
         toast.success('Great!', { duration: 1500, icon: '✓' });
       }
     } else {
-      playSound('error');
+      playSound('incorrect');
       // Brief feedback without excessive styling
       toast('Try again', { duration: 1500, icon: '🔄' });
     }
