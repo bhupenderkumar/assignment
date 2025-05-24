@@ -17,7 +17,6 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import AudioPlayer from '../common/AudioPlayer';
-import { playSound } from '../../lib/utils/soundUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';

@@ -154,7 +154,7 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
 
       <Footer />
       <Toaster
-        position="bottom-right"
+        position={window.innerWidth < 768 ? "top-center" : "bottom-right"}
         toastOptions={{
           duration: 4000,
           style: {
@@ -166,8 +166,9 @@ const Layout: React.FC<LayoutProps> = ({ children, hideNavigation = false }) => 
             fontSize: '16px',
             boxShadow: `0 8px 30px rgba(0, 0, 0, 0.4), 0 0 10px rgba(${hexToRgbString(config.accentColor)}, 0.3)`,
             border: `1px solid rgba(${hexToRgbString(config.accentColor)}, 0.15)`,
-            transform: 'translateY(-10px)',
+            transform: window.innerWidth < 768 ? 'translateY(10px)' : 'translateY(-10px)',
             transition: 'all 0.3s ease-in-out',
+            marginTop: window.innerWidth < 768 ? '80px' : '0', // Account for mobile header
           },
           success: {
             iconTheme: {

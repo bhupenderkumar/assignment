@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "pre-push": "npm run build",
     "migrate": "node scripts/run-migrations.mjs",
     "create-samples": "node scripts/create-sample-assignments.js"
   },
