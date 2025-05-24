@@ -1,6 +1,7 @@
 // src/components/common/AudioPlayer.tsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import toast from 'react-hot-toast';
+import { audioManager, AUDIO_PRIORITIES } from '../../lib/utils/audioManager';
 
 interface AudioPlayerProps {
   audioUrl: string;
@@ -8,24 +9,59 @@ interface AudioPlayerProps {
   showLabel?: boolean;
   label?: string;
   className?: string;
+  onAutoPlayBlocked?: () => void;
+  priority?: number;
+  audioType?: 'instruction' | 'background' | 'effect' | 'other';
+  audioId?: string;
 }
 
-const AudioPlayer = ({
+export interface AudioPlayerRef {
+  play: () => void;
+  pause: () => void;
+  isPlaying: boolean;
+}
+
+const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   audioUrl,
   autoPlay = false,
   showLabel = true,
   label = 'Audio Instructions',
-  className = ''
-}: AudioPlayerProps) => {
+  className = '',
+  onAutoPlayBlocked,
+  priority = AUDIO_PRIORITIES.INSTRUCTION,
+  audioType = 'instruction',
+  audioId
+}, ref) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [autoPlayBlocked, setAutoPlayBlocked] = useState(false);
+  const [hasShownNotification, setHasShownNotification] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const instanceId = useRef<string>(audioId || `audio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    play: async () => {
+      if (!error) {
+        const success = await audioManager.play(instanceId.current);
+        if (!success) {
+          console.log('AudioPlayer: Play blocked by audio manager');
+        }
+      }
+    },
+    pause: () => {
+      audioManager.pause(instanceId.current);
+    },
+    isPlaying
+  }), [isPlaying, error]);
 
   // Log the audio URL for debugging
   useEffect(() => {
-    console.log('AudioPlayer: Audio URL:', audioUrl);
+    console.log('AudioPlayer: Audio URL received:', audioUrl);
+    console.log('AudioPlayer: Audio URL type:', typeof audioUrl);
+    console.log('AudioPlayer: Audio URL length:', audioUrl?.length);
 
     // Validate the URL
     if (!audioUrl) {
@@ -34,9 +70,18 @@ const AudioPlayer = ({
       return;
     }
 
+    if (typeof audioUrl !== 'string') {
+      console.error('AudioPlayer: Audio URL is not a string:', audioUrl);
+      setError('Invalid audio URL format');
+      return;
+    }
+
     try {
       // Check if URL is valid
-      new URL(audioUrl);
+      const url = new URL(audioUrl);
+      console.log('AudioPlayer: Valid URL parsed:', url.href);
+      console.log('AudioPlayer: URL protocol:', url.protocol);
+      console.log('AudioPlayer: URL hostname:', url.hostname);
     } catch (e) {
       console.error('AudioPlayer: Invalid audio URL:', audioUrl, e);
       setError('Invalid audio URL');
@@ -45,15 +90,81 @@ const AudioPlayer = ({
 
     // Reset error state if URL is valid
     setError(null);
+    console.log('AudioPlayer: URL validation passed, error state cleared');
   }, [audioUrl]);
 
+  // Register with audio manager
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Register with audio manager
+    audioManager.register(instanceId.current, audio, audioType, priority);
+
+    // Cleanup on unmount
+    return () => {
+      audioManager.unregister(instanceId.current);
+    };
+  }, [audioType, priority]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      console.log('AudioPlayer: No audio element ref available');
+      return;
+    }
+
+    console.log('AudioPlayer: Setting up audio element with URL:', audioUrl);
+
     const setAudioData = () => {
       setDuration(audio.duration);
       console.log('AudioPlayer: Audio loaded successfully, duration:', audio.duration);
+      console.log('AudioPlayer: Audio readyState:', audio.readyState);
+      console.log('AudioPlayer: Audio networkState:', audio.networkState);
+
+      // Try autoplay after audio is loaded
+      if (autoPlay && !error) {
+        console.log('AudioPlayer: Attempting autoplay...');
+        // Add a small delay to ensure audio is fully loaded
+        setTimeout(async () => {
+          const success = await audioManager.play(instanceId.current);
+          if (success) {
+            console.log('AudioPlayer: Autoplay successful!');
+            // Show success notification only once
+            if (!hasShownNotification) {
+              toast('🎵 Audio instructions are now playing!', {
+                duration: 3000,
+                icon: '🔊',
+                style: {
+                  background: '#10B981',
+                  color: 'white',
+                },
+              });
+              setHasShownNotification(true);
+            }
+          } else {
+            console.error('AudioPlayer: Auto play failed or blocked');
+            setAutoPlayBlocked(true);
+            // Call the callback if provided
+            if (onAutoPlayBlocked) {
+              onAutoPlayBlocked();
+            }
+            // Show blocked notification only once
+            if (!hasShownNotification) {
+              toast('🔊 Audio instructions available! Click play to listen.', {
+                duration: 5000,
+                icon: '🎵',
+                style: {
+                  background: '#3B82F6',
+                  color: 'white',
+                  fontWeight: 'bold',
+                },
+              });
+              setHasShownNotification(true);
+            }
+          }
+        }, 100);
+      }
     };
 
     const setAudioTime = () => {
@@ -66,50 +177,74 @@ const AudioPlayer = ({
     };
 
     const handleError = (e: Event) => {
-      console.error('AudioPlayer: Audio error:', e);
+      console.error('AudioPlayer: Audio error event:', e);
+      const target = e.target as HTMLAudioElement;
+      console.error('AudioPlayer: Audio error details:', {
+        error: target.error,
+        networkState: target.networkState,
+        readyState: target.readyState,
+        src: target.src,
+        currentSrc: target.currentSrc
+      });
+      if (target.error) {
+        console.error('AudioPlayer: Media error code:', target.error.code);
+        console.error('AudioPlayer: Media error message:', target.error.message);
+      }
       setError('Failed to load audio file');
+      setIsPlaying(false);
+    };
+
+    const handleCanPlay = () => {
+      console.log('AudioPlayer: Audio can play');
+      // Try autoplay when audio can play
+      if (autoPlay && !error && !isPlaying) {
+        audioManager.play(instanceId.current).catch(error => {
+          console.error('Auto play failed on canplay:', error);
+        });
+      }
+    };
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+    };
+
+    const handlePause = () => {
       setIsPlaying(false);
     };
 
     // Add event listeners
     audio.addEventListener('loadeddata', setAudioData);
+    audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('timeupdate', setAudioTime);
     audio.addEventListener('ended', handleAudioEnd);
     audio.addEventListener('error', handleError);
-
-    // Auto play if enabled
-    if (autoPlay && !error) {
-      audio.play().catch(error => {
-        console.error('Auto play failed:', error);
-        // Most browsers block autoplay unless there's user interaction
-        // So we'll show a toast to let the user know they can play manually
-        toast.error('Autoplay blocked by browser. Please click play to listen to the audio instructions.');
-      });
-    }
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
 
     // Clean up
     return () => {
       audio.removeEventListener('loadeddata', setAudioData);
+      audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('timeupdate', setAudioTime);
       audio.removeEventListener('ended', handleAudioEnd);
       audio.removeEventListener('error', handleError);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
     };
-  }, [audioUrl, autoPlay, error]);
+  }, [audioUrl, autoPlay, error, isPlaying]);
 
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio || error) return;
+  const togglePlay = async () => {
+    if (error) return;
 
     if (isPlaying) {
-      audio.pause();
+      audioManager.pause(instanceId.current);
     } else {
-      audio.play().catch(error => {
-        console.error('Play failed:', error);
-        setError('Failed to play audio');
-        toast.error('Failed to play audio. Please try again.');
-      });
+      const success = await audioManager.play(instanceId.current);
+      if (!success) {
+        console.error('Play failed or blocked by audio manager');
+        toast.error('Failed to play audio. Another audio might be playing.');
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleTimeUpdate = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,8 +280,36 @@ const AudioPlayer = ({
           <span className="text-sm font-medium text-gray-700">{label}</span>
         </div>
       )}
-      <div className="bg-gray-100 rounded-lg p-3 flex items-center space-x-2">
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+
+      {/* Show autoplay blocked message */}
+      {autoPlayBlocked && (
+        <div className="w-full bg-blue-100 border border-blue-300 rounded-lg p-2 mb-2">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+            </svg>
+            <span className="text-sm text-blue-700 font-medium">Click play to hear audio instructions</span>
+          </div>
+        </div>
+      )}
+
+      <div className={`rounded-lg p-3 flex items-center space-x-2 ${
+        autoPlayBlocked
+          ? 'bg-blue-50 border-2 border-blue-200'
+          : 'bg-gray-100'
+      }`}>
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+          onLoadStart={() => console.log('AudioPlayer: Load start')}
+          onLoadedMetadata={() => console.log('AudioPlayer: Metadata loaded')}
+          onCanPlay={() => console.log('AudioPlayer: Can play')}
+          onCanPlayThrough={() => console.log('AudioPlayer: Can play through')}
+          onPlay={() => console.log('AudioPlayer: Play event')}
+          onPause={() => console.log('AudioPlayer: Pause event')}
+          onError={(e) => console.error('AudioPlayer: Audio element error:', e)}
+        />
 
         {error ? (
           <div className="w-full flex flex-col items-center justify-center text-center p-2">
@@ -169,8 +332,18 @@ const AudioPlayer = ({
         ) : (
           <>
             <button
-              onClick={togglePlay}
-              className="w-10 h-10 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white rounded-full focus:outline-none"
+              onClick={() => {
+                togglePlay();
+                // Clear autoplay blocked state when user manually plays
+                if (autoPlayBlocked) {
+                  setAutoPlayBlocked(false);
+                }
+              }}
+              className={`flex items-center justify-center text-white rounded-full focus:outline-none transition-all duration-200 ${
+                autoPlayBlocked
+                  ? 'w-12 h-12 bg-blue-600 hover:bg-blue-700 shadow-lg animate-bounce'
+                  : 'w-10 h-10 bg-blue-500 hover:bg-blue-600'
+              }`}
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
@@ -201,6 +374,8 @@ const AudioPlayer = ({
       </div>
     </div>
   );
-};
+});
+
+AudioPlayer.displayName = 'AudioPlayer';
 
 export default AudioPlayer;

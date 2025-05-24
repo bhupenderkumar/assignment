@@ -16,7 +16,8 @@ import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
 import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
-import AudioPlayer from '../common/AudioPlayer';
+import AudioPlayer, { AudioPlayerRef } from '../common/AudioPlayer';
+import { audioManager, AUDIO_PRIORITIES } from '../../lib/utils/audioManager';
 import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
@@ -68,6 +69,8 @@ const PlayAssignment = ({
   const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const audioPlayerRef = useRef<AudioPlayerRef>(null);
 
   // Ref to prevent duplicate submissions
   const isSubmittingRef = useRef(false);
@@ -383,6 +386,8 @@ const PlayAssignment = ({
       startBackgroundMusic(0.1); // Very gentle volume
     }, 1000);
 
+    // Audio instructions notification will be handled by the AudioPlayer component
+
     // Start the timer
     const interval = window.setInterval(() => {
       setTimeSpent(prev => prev + 1);
@@ -438,6 +443,30 @@ const PlayAssignment = ({
       stopAllSounds();
     };
   }, []);
+
+  // Add user interaction handler to enable audio playback
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      if (!hasUserInteracted) {
+        setHasUserInteracted(true);
+        // Try to play audio instructions if available and autoplay was blocked
+        if (currentAssignment?.audioInstructions && audioPlayerRef.current) {
+          // This will be handled by the AudioPlayer component
+        }
+      }
+    };
+
+    // Add event listeners for user interaction
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+    };
+  }, [hasUserInteracted, currentAssignment?.audioInstructions]);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
@@ -950,10 +979,17 @@ const PlayAssignment = ({
         {currentAssignment?.audioInstructions && (
           <div className="mb-4">
             <AudioPlayer
+              ref={audioPlayerRef}
               audioUrl={currentAssignment?.audioInstructions}
               autoPlay={true}
               label="Audio Instructions"
               className="w-full"
+              priority={AUDIO_PRIORITIES.INSTRUCTION}
+              audioType="instruction"
+              audioId={`assignment-audio-${currentAssignment.id}`}
+              onAutoPlayBlocked={() => {
+                // Callback handled by AudioPlayer component internally
+              }}
             />
           </div>
         )}
@@ -1179,6 +1215,12 @@ const PlayAssignment = ({
                   audioUrl={currentAssignment?.audioInstructions || ''}
                   autoPlay={true}
                   showLabel={false}
+                  priority={AUDIO_PRIORITIES.INSTRUCTION}
+                  audioType="instruction"
+                  audioId={`modal-audio-${currentAssignment?.id}`}
+                  onAutoPlayBlocked={() => {
+                    // Callback handled by AudioPlayer component internally
+                  }}
                 />
               </div>
             </div>
