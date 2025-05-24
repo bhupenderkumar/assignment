@@ -61,7 +61,7 @@ const SharedAssignmentPage = () => {
 
   return (
     <>
-      {/* Dynamic page title based on organization */}
+      {/* Dynamic page title and meta tags for social sharing */}
       <Helmet>
         <title>
           {assignmentOrganization?.name
@@ -71,6 +71,56 @@ const SharedAssignmentPage = () => {
             : 'Interactive Assignment'
           }
         </title>
+
+        {/* Basic Meta Tags */}
+        <meta name="description" content={
+          currentAssignment?.description ||
+          `Take the interactive assignment "${currentAssignment?.title || 'Assignment'}" ${assignmentOrganization?.name ? `from ${assignmentOrganization.name}` : ''}`
+        } />
+
+        {/* Open Graph Meta Tags for Facebook, WhatsApp, etc. */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={
+          assignmentOrganization?.name
+            ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
+            : currentAssignment?.title
+            ? `${currentAssignment.title} | Interactive Assignment`
+            : 'Interactive Assignment'
+        } />
+        <meta property="og:description" content={
+          currentAssignment?.description ||
+          `Take the interactive assignment "${currentAssignment?.title || 'Assignment'}" ${assignmentOrganization?.name ? `from ${assignmentOrganization.name}` : ''}`
+        } />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:site_name" content={assignmentOrganization?.name || 'Interactive Assignments'} />
+        {assignmentOrganization?.logo_url && (
+          <meta property="og:image" content={assignmentOrganization.logo_url} />
+        )}
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+
+        {/* Twitter Card Meta Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={
+          assignmentOrganization?.name
+            ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
+            : currentAssignment?.title
+            ? `${currentAssignment.title} | Interactive Assignment`
+            : 'Interactive Assignment'
+        } />
+        <meta name="twitter:description" content={
+          currentAssignment?.description ||
+          `Take the interactive assignment "${currentAssignment?.title || 'Assignment'}" ${assignmentOrganization?.name ? `from ${assignmentOrganization.name}` : ''}`
+        } />
+        {assignmentOrganization?.logo_url && (
+          <meta name="twitter:image" content={assignmentOrganization.logo_url} />
+        )}
+
+        {/* Additional Meta Tags */}
+        <meta name="author" content={assignmentOrganization?.name || 'Interactive Assignments'} />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href={window.location.href} />
+
         {assignmentOrganization?.logo_url && (
           <link rel="icon" type="image/png" href={assignmentOrganization.logo_url} />
         )}
