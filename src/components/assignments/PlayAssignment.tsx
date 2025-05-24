@@ -16,7 +16,8 @@ import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
 import AudioPlayer from '../common/AudioPlayer';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
@@ -241,6 +242,9 @@ const PlayAssignment = ({
         setPaymentAmount(paymentStatus.paymentAmount);
 
         // Mark this combination as checked
+        if (!window._checkedPayments) {
+          window._checkedPayments = {};
+        }
         window._checkedPayments[paymentCheckKey] = true;
 
         // If payment is required but not paid, redirect to payment page
@@ -318,6 +322,9 @@ const PlayAssignment = ({
           setTimeout(() => {
             setShowCelebration(true);
 
+            // Stop background music when assignment is completed
+            stopBackgroundMusic();
+
             // Notify parent that assignment is complete
             if (onAssignmentComplete) {
               onAssignmentComplete();
@@ -346,6 +353,14 @@ const PlayAssignment = ({
     if (!currentAssignment || timerInterval) {
       return;
     }
+
+    // Initialize sound system on first assignment load
+    initializeSoundSystem();
+
+    // Start background music after a short delay
+    setTimeout(() => {
+      startBackgroundMusic(0.1); // Very gentle volume
+    }, 1000);
 
     // Start the timer
     const interval = window.setInterval(() => {
@@ -389,6 +404,8 @@ const PlayAssignment = ({
       if (timerInterval) {
         clearInterval(timerInterval);
       }
+      // Stop background music when component unmounts
+      stopBackgroundMusic();
     };
   }, [currentAssignment, anonymousUser, submissionId, timerInterval, createSubmission, onAssignmentStart]);
 
@@ -748,7 +765,13 @@ const PlayAssignment = ({
   if (noAssignmentContent) return noAssignmentContent;
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div
+      className="container mx-auto py-8 px-4"
+      onClick={() => {
+        // Initialize sound system on first user interaction
+        initializeSoundSystem();
+      }}
+    >
       {/* Assignment Header */}
       <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
         {/* User Info Banner for Anonymous Users */}
@@ -900,6 +923,10 @@ const PlayAssignment = ({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
+          data-testid="question-container"
+          data-question-index={currentQuestionIndex}
+          id="current-question"
+          className="question-container"
         >
           {renderQuestion(currentQuestion)}
         </motion.div>
@@ -923,6 +950,9 @@ const PlayAssignment = ({
             if (currentQuestionIndex > 0) {
               setCurrentQuestionIndex(prev => prev - 1);
               playSound('click');
+
+              // Scroll to question container for better UX
+              setTimeout(() => scrollToQuestion(), 100);
             }
           }}
           disabled={currentQuestionIndex === 0 || isSubmitted}
@@ -940,6 +970,9 @@ const PlayAssignment = ({
             if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
               setCurrentQuestionIndex(prev => prev + 1);
               playSound('click');
+
+              // Scroll to question container for better UX
+              setTimeout(() => scrollToQuestion(), 100);
             } else {
               handleManualSubmit();
             }

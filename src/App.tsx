@@ -1,4 +1,5 @@
 import './App.css';
+import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { InteractiveAssignmentProvider } from './context/InteractiveAssignmentContext';
 import { ConfigurationProvider } from './context/ConfigurationContext';
@@ -8,8 +9,21 @@ import { OrganizationProvider } from './context/OrganizationContext';
 import { OrganizationJoinRequestProvider } from './context/OrganizationJoinRequestContext';
 import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './components/AppRouter';
+import { performanceMonitor } from './lib/services/performanceMonitoringService';
 
 function App() {
+  // Initialize performance monitoring
+  useEffect(() => {
+    const endTracking = performanceMonitor.trackComponentRender('App');
+
+    // Log app initialization in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🚀 Interactive Assignments App initialized with performance monitoring');
+    }
+
+    return endTracking;
+  }, []);
+
   return (
     <BrowserRouter>
       <ConfigurationProvider>

@@ -1,7 +1,8 @@
 // src/components/exercises/MultipleChoiceExercise.tsx
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound, playEnhancedFeedback } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 
 // Define types for the multiple choice exercise
@@ -82,12 +83,12 @@ const MultipleChoiceExercise = ({
       ? Math.round(((correctOptions.length - (correctOptions.length - userCorrectSelections.length) - userIncorrectSelections.length) / correctOptions.length) * 100)
       : isCorrect ? 100 : 0;
 
-    // Play appropriate sound
+    // Play enhanced audio feedback
     if (isCorrect) {
-      playSound('correct');
+      playEnhancedFeedback('correct');
       toast.success('Correct!', { duration: 2000 });
     } else {
-      playSound('incorrect');
+      playEnhancedFeedback('incorrect');
       toast('Try again!', { duration: 2000, icon: '🤔' });
     }
 
@@ -201,6 +202,9 @@ const MultipleChoiceExercise = ({
                 setIsSubmitted(false);
                 setSelectedOptions([]);
                 playSound('click');
+
+                // Scroll to top of question for better UX
+                scrollToQuestion();
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg mt-4"
             >

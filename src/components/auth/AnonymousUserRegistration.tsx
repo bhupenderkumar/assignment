@@ -21,7 +21,6 @@ const AnonymousUserRegistration = ({
   const [contactInfo, setContactInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [existingUser, setExistingUser] = useState<any>(null);
-  const [showDuplicateForm, setShowDuplicateForm] = useState(false);
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   const { registerAnonymousUser } = useInteractiveAssignment();
@@ -59,13 +58,11 @@ const AnonymousUserRegistration = ({
   const handleNameChange = async (newName: string) => {
     setName(newName);
     setExistingUser(null);
-    setShowDuplicateForm(false);
 
     if (newName.trim().length >= 2) {
       const existing = await checkForExistingUser(newName);
       if (existing) {
         setExistingUser(existing);
-        setShowDuplicateForm(true);
         // If existing user has contact info, pre-fill it
         if (existing.contact_info) {
           setContactInfo(existing.contact_info);

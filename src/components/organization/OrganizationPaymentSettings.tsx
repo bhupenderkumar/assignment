@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useConfiguration } from '../../context/ConfigurationContext';
-import { paymentService, PaymentSettings } from '../../lib/services/paymentService';
+import { paymentService } from '../../lib/services/paymentService';
 import toast from 'react-hot-toast';
 
 interface OrganizationPaymentSettingsProps {
@@ -13,7 +13,6 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
   const { config } = useConfiguration();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [mainnetEnabled, setMainnetEnabled] = useState(false);
@@ -23,12 +22,11 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
   useEffect(() => {
     const loadPaymentSettings = async () => {
       if (!organizationId) return;
-      
+
       setIsLoading(true);
       try {
         const settings = await paymentService.getOrganizationPaymentSettings(organizationId);
         if (settings) {
-          setSettings(settings);
           setWalletAddress(settings.walletAddress || '');
           setEnabled(settings.enabled);
           setMainnetEnabled(settings.mainnetEnabled);
@@ -57,7 +55,7 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
 
     setIsSaving(true);
     try {
-      const updatedSettings = await paymentService.saveOrganizationPaymentSettings(
+      await paymentService.saveOrganizationPaymentSettings(
         organizationId,
         {
           walletAddress,
@@ -67,7 +65,6 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
         }
       );
 
-      setSettings(updatedSettings);
       toast.success('Payment settings saved successfully');
     } catch (error) {
       console.error('Error saving payment settings:', error);
@@ -91,7 +88,7 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
       <h2 className="text-xl font-semibold mb-6 dark:text-white">Payment Settings</h2>
-      
+
       <div className="space-y-6">
         {/* Enable payments */}
         <div className="flex items-center justify-between">
@@ -102,17 +99,17 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
             </p>
           </div>
           <div className="relative inline-block w-12 mr-2 align-middle select-none">
-            <input 
-              type="checkbox" 
-              name="toggle" 
+            <input
+              type="checkbox"
+              name="toggle"
               id="toggle-payment"
               checked={enabled}
               onChange={() => setEnabled(!enabled)}
               className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer"
               style={{ right: enabled ? '0' : '', backgroundColor: enabled ? config.primaryColor : '' }}
             />
-            <label 
-              htmlFor="toggle-payment" 
+            <label
+              htmlFor="toggle-payment"
               className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"
               style={{ backgroundColor: enabled ? `${config.primaryColor}40` : '' }}
             ></label>
@@ -144,9 +141,9 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
           </label>
           <div className="flex items-center">
             <div className="relative inline-block w-12 mr-2 align-middle select-none">
-              <input 
-                type="checkbox" 
-                name="toggle-mainnet" 
+              <input
+                type="checkbox"
+                name="toggle-mainnet"
                 id="toggle-mainnet"
                 checked={mainnetEnabled}
                 onChange={() => setMainnetEnabled(!mainnetEnabled)}
@@ -154,8 +151,8 @@ const OrganizationPaymentSettings: React.FC<OrganizationPaymentSettingsProps> = 
                 disabled={!enabled}
                 style={{ right: mainnetEnabled ? '0' : '', backgroundColor: mainnetEnabled ? config.primaryColor : '' }}
               />
-              <label 
-                htmlFor="toggle-mainnet" 
+              <label
+                htmlFor="toggle-mainnet"
                 className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 dark:bg-gray-600 cursor-pointer"
                 style={{ backgroundColor: mainnetEnabled ? `${config.primaryColor}40` : '' }}
               ></label>

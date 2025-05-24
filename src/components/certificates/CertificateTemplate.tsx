@@ -167,14 +167,23 @@ const CertificateTemplate = ({
   // Load signature image if organization has one
   useEffect(() => {
     if (currentOrganization?.signatureUrl) {
+      // Skip external URLs that might cause CORS issues
+      if (currentOrganization.signatureUrl.startsWith('http') && !currentOrganization.signatureUrl.includes(window.location.hostname)) {
+        console.log('Skipping external signature to prevent CORS issues:', currentOrganization.signatureUrl);
+        setSignatureImage(null);
+        return;
+      }
+
       const image = new window.Image();
-      image.src = currentOrganization.signatureUrl;
+      image.crossOrigin = 'anonymous'; // Enable CORS
       image.onload = () => {
         setSignatureImage(image);
       };
       image.onerror = () => {
-        console.log('Error loading signature image');
+        console.log('Error loading signature image, skipping to prevent CORS issues');
+        setSignatureImage(null);
       };
+      image.src = currentOrganization.signatureUrl;
     }
   }, [currentOrganization]);
 
@@ -182,14 +191,23 @@ const CertificateTemplate = ({
   useEffect(() => {
     const logoUrl = assignmentOrganization?.logo_url || currentOrganization?.logoUrl;
     if (logoUrl) {
+      // Skip external URLs that might cause CORS issues
+      if (logoUrl.startsWith('http') && !logoUrl.includes(window.location.hostname)) {
+        console.log('Skipping external logo to prevent CORS issues:', logoUrl);
+        setLogoImage(null);
+        return;
+      }
+
       const image = new window.Image();
-      image.src = logoUrl;
+      image.crossOrigin = 'anonymous'; // Enable CORS
       image.onload = () => {
         setLogoImage(image);
       };
       image.onerror = () => {
-        console.log('Error loading organization logo');
+        console.log('Error loading organization logo, skipping to prevent CORS issues');
+        setLogoImage(null);
       };
+      image.src = logoUrl;
     }
   }, [assignmentOrganization, currentOrganization]);
 

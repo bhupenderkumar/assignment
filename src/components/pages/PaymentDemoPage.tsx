@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useOrganization } from '../../context/OrganizationContext';
 import { Connection, PublicKey, LAMPORTS_PER_SOL, ConfirmedSignatureInfo } from '@solana/web3.js';
-import { hexToRgba } from '../../utils/colorUtils';
-import { paymentService, PaymentSettings, PaymentTransaction } from '../../lib/services/paymentService';
+import { paymentService, PaymentSettings } from '../../lib/services/paymentService';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -43,7 +42,7 @@ const PaymentDemoPage: React.FC = () => {
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [verifyingTransaction, setVerifyingTransaction] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
-  const [assignmentId, setAssignmentId] = useState<string | null>(searchParams.get('assignmentId'));
+  const [assignmentId] = useState<string | null>(searchParams.get('assignmentId'));
   const [transactionDetails, setTransactionDetails] = useState<{
     slot: number;
     blockTime: number | undefined;
@@ -55,8 +54,7 @@ const PaymentDemoPage: React.FC = () => {
   } | null>(null);
   const [transactionHash, setTransactionHash] = useState('');
   const [senderWallet, setSenderWallet] = useState('');
-  const [amount, setAmount] = useState(searchParams.get('amount') || '0.5');
-  const [accessGranted, setAccessGranted] = useState(false);
+  const [amount] = useState(searchParams.get('amount') || '0.5');
   const [assignmentTitle, setAssignmentTitle] = useState('Premium Assignment');
 
   // Solana network endpoints
@@ -213,7 +211,7 @@ const PaymentDemoPage: React.FC = () => {
       // Record the payment transaction in our database if user is logged in
       if (user && details.fromWallet && details.amount) {
         try {
-          const paymentTransaction = await paymentService.recordPaymentTransaction({
+          await paymentService.recordPaymentTransaction({
             userId: user.id,
             assignmentId: assignmentId || undefined,
             organizationId: currentOrganization?.id,
@@ -229,7 +227,6 @@ const PaymentDemoPage: React.FC = () => {
 
           // Grant access to the assignment if this is for a specific assignment
           if (assignmentId) {
-            setAccessGranted(true);
             toast.success('You now have access to the premium assignment!', { duration: 5000 });
             // Redirect to the assignment after a short delay
             setTimeout(() => {

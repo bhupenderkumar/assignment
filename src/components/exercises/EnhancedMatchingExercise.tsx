@@ -12,7 +12,8 @@ import {
   useDraggable,
   useDroppable
 } from '@dnd-kit/core';
-import { playSound } from '../../lib/utils/soundUtils';
+import { playSound, playEnhancedFeedback } from '../../lib/utils/soundUtils';
+import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import AudioPlayer from '../common/AudioPlayer';
 
@@ -534,11 +535,11 @@ const EnhancedMatchingExercise = ({
           }
         }, 800);
 
-        // Play celebration sound if all correct
+        // Play enhanced audio feedback
         if (allCorrect) {
-          playSound('celebration');
+          playEnhancedFeedback('correct');
         } else {
-          playSound('complete');
+          playEnhancedFeedback('incorrect');
         }
 
         onComplete(allCorrect, score);
@@ -665,11 +666,11 @@ const EnhancedMatchingExercise = ({
         }
       }, 800);
 
-      // Play celebration sound if all correct
+      // Play enhanced audio feedback
       if (allCorrect) {
-        playSound('celebration');
+        playEnhancedFeedback('correct');
       } else {
-        playSound('complete');
+        playEnhancedFeedback('incorrect');
       }
 
       onComplete(allCorrect, score);
@@ -972,6 +973,9 @@ const EnhancedMatchingExercise = ({
               onClick={() => {
                 setShowFeedback(false);
                 playSound('click');
+
+                // Scroll to top of question for better UX
+                scrollToQuestion();
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all duration-300 text-lg mt-4"
               whileHover={{ scale: 1.05 }}

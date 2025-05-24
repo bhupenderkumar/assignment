@@ -34,19 +34,32 @@ const CelebrationOverlay = ({
   const { anonymousUser } = useInteractiveAssignment();
   const { user } = useSupabaseAuth();
   const [showCertificate, setShowCertificate] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Create submission object for certificate
   const submissionForCertificate = submissionId ? {
     id: submissionId,
+    assignmentId: '', // Will be filled by the certificate component
     userId: anonymousUser?.id || user?.id || '',
     score: score,
     submittedAt: new Date(),
+    startedAt: new Date(), // Approximate start time
     status: 'SUBMITTED' as const
   } : null;
-  // Play celebration sound when visible
+
+  // Play celebration sound when visible and handle loading
   useEffect(() => {
     if (isVisible) {
       playSound('celebration', 0.7);
+
+      // Simulate loading time for celebration preparation
+      const loadingTimer = setTimeout(() => {
+        setIsLoading(false);
+      }, 800);
+
+      return () => clearTimeout(loadingTimer);
+    } else {
+      setIsLoading(true);
     }
   }, [isVisible]);
 
@@ -162,14 +175,22 @@ const CelebrationOverlay = ({
             exit={{ scale: 0.8, y: 50 }}
             className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative z-20"
           >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1, rotate: [0, 10, -10, 0] }}
-              transition={{ delay: 0.2, duration: 0.5 }}
-              className="text-6xl mb-4"
-            >
-              🎉
-            </motion.div>
+            {isLoading ? (
+              // Loading state
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mb-4"></div>
+                <p className="text-lg text-gray-600">Preparing your results...</p>
+              </div>
+            ) : (
+              <>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1, rotate: [0, 10, -10, 0] }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className="text-6xl mb-4"
+                >
+                  🎉
+                </motion.div>
 
             <motion.h2
               initial={{ opacity: 0, y: 20 }}
@@ -326,8 +347,8 @@ const CelebrationOverlay = ({
                 assignmentOrganizationId={assignmentOrganizationId}
               />
             )}
-
-
+              </>
+            )}
           </motion.div>
         </motion.div>
       )}

@@ -28,7 +28,7 @@ const ProgressDisplay = ({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+    <div className="bg-white rounded-xl shadow-md p-4 mb-6 progress-display">
       <div className="flex flex-wrap items-center justify-between">
         <div className="mb-2 md:mb-0">
           <h3 className="text-lg font-bold">Progress</h3>
