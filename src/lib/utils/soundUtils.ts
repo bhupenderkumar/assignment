@@ -270,6 +270,18 @@ export const stopAllSounds = () => {
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
   }
+
+  // Stop all HTML audio elements that might not be managed by audioManager
+  // This catches SimpleAudioPlayer and any other unmanaged audio elements
+  const allAudioElements = document.querySelectorAll('audio');
+  allAudioElements.forEach(audio => {
+    if (!audio.paused) {
+      audio.pause();
+    }
+  });
+
+  // Stop any Web Audio API sources (though these are typically short-lived)
+  // Note: Web Audio API sources can't be stopped once started, but they're usually very short
 };
 
 /**

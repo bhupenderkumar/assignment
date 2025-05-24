@@ -594,6 +594,10 @@ const PlayAssignment = ({
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
+    // Stop all sounds immediately when finish is clicked
+    stopAllSounds();
+    stopSpeaking(); // Also stop any text-to-speech
+
     // Set loading state
     setIsSubmitting(true);
 
@@ -602,7 +606,11 @@ const PlayAssignment = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }, 100);
 
-    playSound('completion');
+    // Play completion sound after stopping others
+    setTimeout(() => {
+      playSound('completion');
+    }, 200);
+
     // Just set isSubmitted to true, and the effect will handle the actual submission
     setIsSubmitted(true);
   };
