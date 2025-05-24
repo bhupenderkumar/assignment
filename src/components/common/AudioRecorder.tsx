@@ -153,7 +153,8 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
         .from(bucketName)
         .getPublicUrl(fileName);
 
-      const publicUrl = publicUrlData.publicUrl;
+      // Fix double slash issue in URL
+      const publicUrl = publicUrlData.publicUrl.replace(/\/\/+/g, '/').replace(':/', '://');
       setAudioURL(publicUrl);
       onAudioChange(publicUrl);
       toast.success('Audio uploaded successfully');
@@ -252,7 +253,8 @@ const AudioRecorder = ({ initialAudioUrl, onAudioChange, label = 'Audio Instruct
         .from(bucketName)
         .getPublicUrl(fileName);
 
-      const publicUrl = publicUrlData.publicUrl;
+      // Fix double slash issue in URL
+      const publicUrl = publicUrlData.publicUrl.replace(/\/\/+/g, '/').replace(':/', '://');
       setAudioURL(publicUrl);
       onAudioChange(publicUrl);
       toast.success('Audio uploaded successfully');

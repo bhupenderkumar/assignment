@@ -11,7 +11,7 @@ const soundMap: Record<SoundType, string> = {
   click: 'https://assets.mixkit.co/active_storage/sfx/2997/2997-preview.mp3', // Gentle click
   celebration: 'https://assets.mixkit.co/active_storage/sfx/1993/1993-preview.mp3', // Happy celebration
   complete: 'https://assets.mixkit.co/active_storage/sfx/1995/1995-preview.mp3', // Completion fanfare
-  clapping: 'https://assets.mixkit.co/active_storage/sfx/1997/1997-preview.mp3', // Applause
+  clapping: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Applause
   'very-good': 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Placeholder - will use TTS
   'better-luck': 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3', // Placeholder - will use TTS
   background: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', // Gentle background music

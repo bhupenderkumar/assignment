@@ -1,5 +1,5 @@
 // src/components/common/AudioPlayer.tsx
-import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { audioManager, AUDIO_PRIORITIES } from '../../lib/utils/audioManager';
 
@@ -43,6 +43,13 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   const instanceId = useRef<string>(audioId || `audio-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
   const autoPlayAttempted = useRef<boolean>(false);
 
+  // Sanitize audio URL to fix double slash issues
+  const sanitizedAudioUrl = useMemo(() => {
+    if (!audioUrl) return '';
+    // Fix double slashes in the path while preserving protocol
+    return audioUrl.replace(/\/\/+/g, '/').replace(':/', '://');
+  }, [audioUrl]);
+
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
     play: async () => {
@@ -62,30 +69,31 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
   // Log the audio URL for debugging
   useEffect(() => {
     console.log('AudioPlayer: Audio URL received:', audioUrl);
+    console.log('AudioPlayer: Sanitized Audio URL:', sanitizedAudioUrl);
     console.log('AudioPlayer: Audio URL type:', typeof audioUrl);
     console.log('AudioPlayer: Audio URL length:', audioUrl?.length);
 
     // Validate the URL
-    if (!audioUrl) {
+    if (!sanitizedAudioUrl) {
       console.error('AudioPlayer: No audio URL provided');
       setError('No audio URL provided');
       return;
     }
 
-    if (typeof audioUrl !== 'string') {
-      console.error('AudioPlayer: Audio URL is not a string:', audioUrl);
+    if (typeof sanitizedAudioUrl !== 'string') {
+      console.error('AudioPlayer: Audio URL is not a string:', sanitizedAudioUrl);
       setError('Invalid audio URL format');
       return;
     }
 
     try {
       // Check if URL is valid
-      const url = new URL(audioUrl);
+      const url = new URL(sanitizedAudioUrl);
       console.log('AudioPlayer: Valid URL parsed:', url.href);
       console.log('AudioPlayer: URL protocol:', url.protocol);
       console.log('AudioPlayer: URL hostname:', url.hostname);
     } catch (e) {
-      console.error('AudioPlayer: Invalid audio URL:', audioUrl, e);
+      console.error('AudioPlayer: Invalid audio URL:', sanitizedAudioUrl, e);
       setError('Invalid audio URL');
       return;
     }
@@ -93,7 +101,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     // Reset error state if URL is valid
     setError(null);
     console.log('AudioPlayer: URL validation passed, error state cleared');
-  }, [audioUrl]);
+  }, [audioUrl, sanitizedAudioUrl]);
 
   // Register with audio manager
   useEffect(() => {
@@ -109,6 +117,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     };
   }, [audioType, priority]);
 
+  // Separate effect for audio event listeners (only depends on audioUrl)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -116,7 +125,14 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       return;
     }
 
-    console.log('AudioPlayer: Setting up audio element with URL:', audioUrl);
+    console.log('AudioPlayer: Setting up audio element with URL:', sanitizedAudioUrl);
+
+    // Reset states when URL changes
+    setIsLoaded(false);
+    setError(null);
+    setAutoPlayBlocked(false);
+    setHasShownNotification(false);
+    autoPlayAttempted.current = false;
 
     const setAudioData = () => {
       setDuration(audio.duration);
@@ -125,51 +141,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       console.log('AudioPlayer: Audio readyState:', audio.readyState);
       console.log('AudioPlayer: Audio networkState:', audio.networkState);
 
-      // Try autoplay after audio is loaded (only once)
-      if (autoPlay && !error && !autoPlayAttempted.current) {
-        autoPlayAttempted.current = true;
-        console.log('AudioPlayer: Attempting autoplay...');
-
-        // Add a small delay to ensure audio is fully loaded
-        setTimeout(async () => {
-          const success = await audioManager.play(instanceId.current);
-          if (success) {
-            console.log('AudioPlayer: Autoplay successful!');
-            // Show success notification only once
-            if (!hasShownNotification) {
-              toast('🎵 Audio instructions are now playing!', {
-                duration: 3000,
-                icon: '🔊',
-                style: {
-                  background: '#10B981',
-                  color: 'white',
-                },
-              });
-              setHasShownNotification(true);
-            }
-          } else {
-            console.error('AudioPlayer: Auto play failed or blocked');
-            setAutoPlayBlocked(true);
-            // Call the callback if provided
-            if (onAutoPlayBlocked) {
-              onAutoPlayBlocked();
-            }
-            // Show blocked notification only once
-            if (!hasShownNotification) {
-              toast('🔊 Audio instructions available! Click play to listen.', {
-                duration: 5000,
-                icon: '🎵',
-                style: {
-                  background: '#3B82F6',
-                  color: 'white',
-                  fontWeight: 'bold',
-                },
-              });
-              setHasShownNotification(true);
-            }
-          }
-        }, 200);
-      }
+      // Autoplay will be handled in a separate effect
     };
 
     const setAudioTime = () => {
@@ -201,7 +173,22 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     const handleCanPlay = () => {
       console.log('AudioPlayer: Audio can play');
-      // Don't attempt autoplay here to avoid conflicts with loadeddata handler
+      // If loadeddata didn't fire, try setting loaded state here as fallback
+      if (!isLoaded) {
+        console.log('AudioPlayer: Setting loaded state from canplay event');
+        setIsLoaded(true);
+        setDuration(audio.duration);
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      console.log('AudioPlayer: Metadata loaded');
+      // Another fallback for setting loaded state
+      if (!isLoaded) {
+        console.log('AudioPlayer: Setting loaded state from loadedmetadata event');
+        setIsLoaded(true);
+        setDuration(audio.duration);
+      }
     };
 
     const handlePlay = () => {
@@ -214,6 +201,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
 
     // Add event listeners
     audio.addEventListener('loadeddata', setAudioData);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('timeupdate', setAudioTime);
     audio.addEventListener('ended', handleAudioEnd);
@@ -221,9 +209,26 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
 
+    // Fallback timeout to prevent infinite loading
+    const loadTimeout = setTimeout(() => {
+      if (!isLoaded && !error) {
+        console.warn('AudioPlayer: Loading timeout, checking audio state');
+        if (audio.readyState >= 2) { // HAVE_CURRENT_DATA or higher
+          console.log('AudioPlayer: Audio ready, setting loaded state from timeout');
+          setIsLoaded(true);
+          setDuration(audio.duration || 0);
+        } else {
+          console.error('AudioPlayer: Audio failed to load within timeout');
+          setError('Audio loading timeout');
+        }
+      }
+    }, 10000); // 10 second timeout
+
     // Clean up
     return () => {
+      clearTimeout(loadTimeout);
       audio.removeEventListener('loadeddata', setAudioData);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('timeupdate', setAudioTime);
       audio.removeEventListener('ended', handleAudioEnd);
@@ -231,7 +236,55 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
     };
-  }, [audioUrl, autoPlay, error, isPlaying]);
+  }, [sanitizedAudioUrl]); // Only depend on sanitizedAudioUrl to avoid re-running on state changes
+
+  // Separate effect for autoplay when audio is loaded
+  useEffect(() => {
+    if (isLoaded && autoPlay && !error && !autoPlayAttempted.current) {
+      autoPlayAttempted.current = true;
+      console.log('AudioPlayer: Attempting autoplay...');
+
+      // Add a small delay to ensure audio is fully loaded
+      setTimeout(async () => {
+        const success = await audioManager.play(instanceId.current);
+        if (success) {
+          console.log('AudioPlayer: Autoplay successful!');
+          // Show success notification only once
+          if (!hasShownNotification) {
+            toast('🎵 Audio instructions are now playing!', {
+              duration: 3000,
+              icon: '🔊',
+              style: {
+                background: '#10B981',
+                color: 'white',
+              },
+            });
+            setHasShownNotification(true);
+          }
+        } else {
+          console.error('AudioPlayer: Auto play failed or blocked');
+          setAutoPlayBlocked(true);
+          // Call the callback if provided
+          if (onAutoPlayBlocked) {
+            onAutoPlayBlocked();
+          }
+          // Show blocked notification only once
+          if (!hasShownNotification) {
+            toast('🔊 Audio instructions available! Click play to listen.', {
+              duration: 5000,
+              icon: '🎵',
+              style: {
+                background: '#3B82F6',
+                color: 'white',
+                fontWeight: 'bold',
+              },
+            });
+            setHasShownNotification(true);
+          }
+        }
+      }, 200);
+    }
+  }, [isLoaded, autoPlay, error, hasShownNotification, onAutoPlayBlocked]);
 
   const togglePlay = async () => {
     if (error) return;
@@ -317,7 +370,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
       }`}>
         <audio
           ref={audioRef}
-          src={audioUrl}
+          src={sanitizedAudioUrl}
           preload="metadata"
           onLoadStart={() => console.log('AudioPlayer: Load start')}
           onLoadedMetadata={() => console.log('AudioPlayer: Metadata loaded')}
@@ -343,7 +396,7 @@ const AudioPlayer = forwardRef<AudioPlayerRef, AudioPlayerProps>(({
               Retry
             </button>
             <p className="text-xs text-gray-500 mt-2">
-              Audio URL: {audioUrl ? audioUrl.substring(0, 50) + (audioUrl.length > 50 ? '...' : '') : 'None'}
+              Audio URL: {sanitizedAudioUrl ? sanitizedAudioUrl.substring(0, 50) + (sanitizedAudioUrl.length > 50 ? '...' : '') : 'None'}
             </p>
           </div>
         ) : (

@@ -39,11 +39,11 @@ export const SECURITY_CONFIG = {
   // Content Security Policy
   CSP_DIRECTIVES: {
     'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+    'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://va.vercel-scripts.com"],
     'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     'img-src': ["'self'", "data:", "https:", "blob:"],
     'font-src': ["'self'", "https://fonts.gstatic.com"],
-    'connect-src': ["'self'", "https://*.supabase.co", "https://*.supabase.in", "wss://*.supabase.co", "wss://*.supabase.in"],
+    'connect-src': ["'self'", "https://*.supabase.co", "https://*.supabase.in", "wss://*.supabase.co", "wss://*.supabase.in", "https://vitals.vercel-insights.com"],
     'media-src': ["'self'", "blob:", "data:", "https://*.supabase.co", "https://assets.mixkit.co"],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
@@ -270,14 +270,8 @@ export const initializeSecurity = (): void => {
     throw error;
   }
 
-  // Set up CSP if in browser environment
-  if (typeof document !== 'undefined') {
-    const csp = generateCSP();
-    const metaTag = document.createElement('meta');
-    metaTag.httpEquiv = 'Content-Security-Policy';
-    metaTag.content = csp;
-    document.head.appendChild(metaTag);
-  }
+  // CSP is already set in index.html meta tag to avoid conflicts
+  // No need to set it programmatically
 
   // Log security initialization
   console.log('🔒 Security configuration initialized');

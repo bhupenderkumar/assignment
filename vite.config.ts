@@ -85,7 +85,13 @@ export default defineConfig({
   },
   // Performance optimizations
   esbuild: {
-    // Remove console logs in production
-    drop: ['console', 'debugger']
+    // Only remove console logs in production, not in development
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
+  },
+  // Resolve buffer polyfill for browser compatibility
+  resolve: {
+    alias: {
+      buffer: 'buffer'
+    }
   }
 })

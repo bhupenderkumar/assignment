@@ -16,8 +16,7 @@ import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
 import MultipleChoiceExercise from '../exercises/MultipleChoiceExercise';
 import CompletionExercise from '../exercises/CompletionExercise';
 import OrderingExercise from '../exercises/OrderingExercise';
-import AudioPlayer, { AudioPlayerRef } from '../common/AudioPlayer';
-import { audioManager, AUDIO_PRIORITIES } from '../../lib/utils/audioManager';
+import SimpleAudioPlayer, { SimpleAudioPlayerRef } from '../common/SimpleAudioPlayer';
 import { playSound as playSoundLib, initializeSoundSystem, startBackgroundMusic, stopBackgroundMusic, stopAllSounds } from '../../lib/utils/soundUtils';
 import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
@@ -50,6 +49,20 @@ const PlayAssignment = ({
   const navigate = useNavigate();
 
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
+
+  // Debug effect to track currentAssignment changes
+  useEffect(() => {
+    console.log('🎯 currentAssignment changed:', {
+      hasAssignment: !!currentAssignment,
+      id: currentAssignment?.id,
+      title: currentAssignment?.title,
+      audioInstructions: currentAssignment?.audioInstructions,
+      audioInstructionsType: typeof currentAssignment?.audioInstructions,
+      audioInstructionsLength: currentAssignment?.audioInstructions?.length || 0,
+      allKeys: currentAssignment ? Object.keys(currentAssignment) : 'none',
+      timestamp: new Date().toISOString()
+    });
+  }, [currentAssignment]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -70,7 +83,7 @@ const PlayAssignment = ({
   const [checkingPayment, setCheckingPayment] = useState(false);
   const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
-  const audioPlayerRef = useRef<AudioPlayerRef>(null);
+  const audioPlayerRef = useRef<SimpleAudioPlayerRef>(null);
 
   // Ref to prevent duplicate submissions
   const isSubmittingRef = useRef(false);
@@ -85,7 +98,22 @@ const PlayAssignment = ({
 
   // Update currentAssignment when assignment prop changes - only once
   useEffect(() => {
+    console.log('🔄 Assignment prop effect triggered:', {
+      hasAssignmentProp: !!assignment,
+      hasCurrentAssignment: !!currentAssignment,
+      assignmentPropKeys: assignment ? Object.keys(assignment) : 'none',
+      assignmentPropAudio: assignment?.audioInstructions,
+      currentAssignmentKeys: currentAssignment ? Object.keys(currentAssignment) : 'none',
+      currentAssignmentAudio: currentAssignment?.audioInstructions
+    });
+
     if (assignment && !currentAssignment) {
+      console.log('📥 Setting assignment from props:', {
+        id: assignment.id,
+        title: assignment.title,
+        audioInstructions: assignment.audioInstructions,
+        allKeys: Object.keys(assignment)
+      });
       setCurrentAssignment(assignment);
 
       // Cache the assignment data for persistence
@@ -153,7 +181,20 @@ const PlayAssignment = ({
     const cachedAssignmentKey = `cached_assignment_${assignmentId}`;
     const cachedAssignment = getCachedItem(cachedAssignmentKey);
 
+    console.log('💾 Cache check result:', {
+      assignmentId,
+      hasCachedAssignment: !!cachedAssignment,
+      cachedKeys: cachedAssignment ? Object.keys(cachedAssignment) : 'none',
+      cachedAudioInstructions: cachedAssignment?.audioInstructions
+    });
+
     if (cachedAssignment) {
+      console.log('📦 Using cached assignment:', {
+        id: cachedAssignment.id,
+        title: cachedAssignment.title,
+        audioInstructions: cachedAssignment.audioInstructions,
+        allKeys: Object.keys(cachedAssignment)
+      });
       setCurrentAssignment(cachedAssignment as InteractiveAssignment);
       return;
     }
@@ -182,6 +223,14 @@ const PlayAssignment = ({
       }
 
       if (fetchedAssignment) {
+        console.log('🎯 Assignment fetched successfully:', {
+          id: fetchedAssignment.id,
+          title: fetchedAssignment.title,
+          audioInstructions: fetchedAssignment.audioInstructions,
+          audioInstructionsType: typeof fetchedAssignment.audioInstructions,
+          audioInstructionsLength: fetchedAssignment.audioInstructions?.length || 0,
+          allKeys: Object.keys(fetchedAssignment)
+        });
         setCurrentAssignment(fetchedAssignment);
         // Try to cache the assignment data, but don't worry if it fails
         try {
@@ -193,6 +242,7 @@ const PlayAssignment = ({
           console.warn('Failed to cache assignment, proceeding without caching:', cacheError);
         }
       } else {
+        console.error('🚨 No assignment data returned from service');
         setError('Assignment not found or not published');
       }
     } catch (err) {
@@ -976,23 +1026,39 @@ const PlayAssignment = ({
           </div>
         </div>
 
-        {currentAssignment?.audioInstructions && (
-          <div className="mb-4">
-            <AudioPlayer
-              ref={audioPlayerRef}
-              audioUrl={currentAssignment?.audioInstructions}
-              autoPlay={true}
-              label="Audio Instructions"
-              className="w-full"
-              priority={AUDIO_PRIORITIES.INSTRUCTION}
-              audioType="instruction"
-              audioId={`assignment-audio-${currentAssignment.id}`}
-              onAutoPlayBlocked={() => {
-                // Callback handled by AudioPlayer component internally
-              }}
-            />
+        {/* Always render audio player, let it handle empty/loading states */}
+        <div className="mb-4">
+          {/* Debug info for audio instructions */}
+          <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mb-2 text-xs">
+            <strong>🐛 Audio Debug Info:</strong>
+            <br />
+            <strong>Assignment ID:</strong> {currentAssignment?.id || 'Not loaded'}
+            <br />
+            <strong>Audio Instructions:</strong> {currentAssignment?.audioInstructions || 'None/Empty'}
+            <br />
+            <strong>Audio Instructions Type:</strong> {typeof currentAssignment?.audioInstructions}
+            <br />
+            <strong>Audio Instructions Length:</strong> {currentAssignment?.audioInstructions?.length || 0}
+            <br />
+            <strong>Current Assignment Keys:</strong> {currentAssignment ? Object.keys(currentAssignment).join(', ') : 'No assignment'}
+            <br />
+            <strong>Loading State:</strong> {loading ? 'Loading...' : 'Loaded'}
+            <br />
+            <strong>Error State:</strong> {error || 'No error'}
           </div>
-        )}
+
+          <SimpleAudioPlayer
+            ref={audioPlayerRef}
+            audioUrl={currentAssignment?.audioInstructions || ''}
+            autoPlay={true}
+            label="Audio Instructions"
+            className="w-full"
+            onAutoPlayBlocked={() => {
+              // Callback handled by SimpleAudioPlayer component internally
+            }}
+          />
+        </div>
+
 
         <div className="flex flex-wrap gap-4 text-sm">
           {currentAssignment?.difficultyLevel && (
@@ -1211,15 +1277,12 @@ const PlayAssignment = ({
                   </button>
                 </div>
                 {/* Only show the audio player controls */}
-                <AudioPlayer
+                <SimpleAudioPlayer
                   audioUrl={currentAssignment?.audioInstructions || ''}
                   autoPlay={true}
                   showLabel={false}
-                  priority={AUDIO_PRIORITIES.INSTRUCTION}
-                  audioType="instruction"
-                  audioId={`modal-audio-${currentAssignment?.id}`}
                   onAutoPlayBlocked={() => {
-                    // Callback handled by AudioPlayer component internally
+                    // Callback handled by SimpleAudioPlayer component internally
                   }}
                 />
               </div>
