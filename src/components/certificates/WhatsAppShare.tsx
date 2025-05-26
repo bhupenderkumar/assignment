@@ -33,7 +33,7 @@ const WhatsAppShare: React.FC<WhatsAppShareProps> = ({
   const { config } = useConfiguration();
   const [isSharing, setIsSharing] = useState(false);
   const [message, setMessage] = useState('');
-  const [phoneNumber] = useState('+91 9717267473'); // Fixed recipient number
+  const [phoneNumber] = useState('+91 9311872001'); // Fixed recipient number
   const [platform, setPlatform] = useState(detectPlatform());
 
   // Initialize message when component opens

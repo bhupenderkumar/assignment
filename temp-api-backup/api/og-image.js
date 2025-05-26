@@ -8,7 +8,7 @@ export const config = {
 export default async function handler(request) {
   try {
     const { searchParams } = new URL(request.url);
-    
+
     // Get parameters from URL
     const title = searchParams.get('title') || 'Interactive Assignment';
     const organization = searchParams.get('organization') || 'First Step School';
@@ -45,7 +45,7 @@ export default async function handler(request) {
               backgroundImage: `radial-gradient(circle at 25% 25%, ${primaryColor}20 0%, transparent 50%), radial-gradient(circle at 75% 75%, ${secondaryColor}20 0%, transparent 50%)`,
             }}
           />
-          
+
           {/* Content Container */}
           <div
             style={{
@@ -74,7 +74,7 @@ export default async function handler(request) {
                 }}
               />
             )}
-            
+
             {/* Organization Name */}
             <div
               style={{
@@ -87,7 +87,7 @@ export default async function handler(request) {
             >
               {organization}
             </div>
-            
+
             {/* Assignment Title */}
             <div
               style={{
@@ -102,7 +102,7 @@ export default async function handler(request) {
             >
               {title}
             </div>
-            
+
             {/* Description */}
             <div
               style={{
@@ -115,7 +115,7 @@ export default async function handler(request) {
             >
               {description}
             </div>
-            
+
             {/* Call to Action */}
             <div
               style={{
@@ -133,7 +133,7 @@ export default async function handler(request) {
               🎓 Take Assignment
             </div>
           </div>
-          
+
           {/* Bottom Branding */}
           <div
             style={{
