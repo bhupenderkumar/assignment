@@ -8,6 +8,7 @@ import AssignmentForm from './AssignmentForm';
 import AssignmentManagementList from './AssignmentManagementList';
 import ShareAssignmentModal from './ShareAssignmentModal';
 import AnonymousUserActivity from './AnonymousUserActivity';
+import AllUserActivity from './AllUserActivity';
 import UserProgressDashboard from './UserProgressDashboard';
 import DatabaseMigrationRunner from './DatabaseMigrationRunner';
 import toast from 'react-hot-toast';
@@ -276,6 +277,10 @@ const AdminDashboard = () => {
 
             {activeTab === 'activity' && (
               <AnonymousUserActivity />
+            )}
+
+            {activeTab === 'all-activity' && (
+              <AllUserActivity />
             )}
 
             {activeTab === 'database' && (
