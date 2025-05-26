@@ -1,4 +1,4 @@
-# Interactive Assignments Platform
+# First Step School Platform
 
 A comprehensive web application for creating, managing, and completing interactive educational assignments. Built with React, TypeScript, and Vite, featuring Supabase for authentication and data storage.
 
@@ -80,7 +80,7 @@ organ  1. **Matching Exercises** (`MatchingExercise.tsx`, `EnhancedMatchingExerc
     - User profile access
     - Organization switcher
     - Notification system
-  
+
   - **Footer** (`Footer.tsx`)
     - Site links
     - Legal information
@@ -115,7 +115,7 @@ organ  1. **Matching Exercises** (`MatchingExercise.tsx`, `EnhancedMatchingExerc
     - Completion percentages
     - Time tracking
     - Performance metrics
-  
+
   - **Celebration Overlay** (`CelebrationOverlay.tsx`)
     - Achievement animations
     - Success messages
@@ -139,7 +139,7 @@ organ  1. **Matching Exercises** (`MatchingExercise.tsx`, `EnhancedMatchingExerc
 
 - **Frontend**: React 18+ with TypeScript
 - **Build Tool**: Vite
-- **Styling**: 
+- **Styling**:
   - Tailwind CSS
   - Custom CSS modules
   - Responsive design system

@@ -285,7 +285,9 @@ export const createUserProgressService = (supabase: SupabaseClient) => ({
             time_spent: progress.timeSpent,
             attempts: existingProgress.attempts + 1,
             status: progress.status,
-            feedback: progress.feedback
+            feedback: progress.feedback,
+            current_question_index: progress.currentQuestionIndex,
+            questions_answered: progress.questionsAnswered
           })
           .eq('id', existingProgress.id)
           .select()
@@ -309,7 +311,9 @@ export const createUserProgressService = (supabase: SupabaseClient) => ({
             time_spent: progress.timeSpent,
             attempts: 1,
             status: progress.status || 'IN_PROGRESS',
-            feedback: progress.feedback
+            feedback: progress.feedback,
+            current_question_index: progress.currentQuestionIndex || 0,
+            questions_answered: progress.questionsAnswered || 0
           })
           .select()
           .single();

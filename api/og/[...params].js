@@ -107,7 +107,7 @@ export default async function handler(req, res) {
       `Take the interactive assignment "${assignment.title}" ${organization?.name ? `from ${organization.name}` : ''}. Complete exercises, get instant feedback, and earn your certificate!`;
 
     const image = organization?.logo_url || `${baseUrl}/og-default.png`;
-    const siteName = organization?.name || 'Interactive Assignments';
+    const siteName = organization?.name || 'First Step School';
 
     // Generate HTML with meta tags
     const html = `<!DOCTYPE html>

@@ -42,6 +42,7 @@ interface InteractiveAssignmentContextType {
   setCurrentAssignment: (assignment: InteractiveAssignment | null) => void;
   // User progress methods
   fetchUserSubmissions: () => Promise<InteractiveSubmission[]>;
+  refreshUserSubmissions: () => Promise<InteractiveSubmission[]>;
   fetchUserProgress: () => Promise<UserProgress[]>;
   updateUserProgress: (progress: Partial<UserProgress>) => Promise<UserProgress>;
   // Progress overlay methods
@@ -748,6 +749,13 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     try {
       const service = getService();
       await service.submitResponses(submissionId, responses, score);
+
+      // Invalidate user submissions cache after successful submission
+      if (userId && requestCache.current.userSubmissions[userId]) {
+        console.log('🔄 Invalidating user submissions cache after successful submission');
+        delete requestCache.current.userSubmissions[userId];
+      }
+
       // Don't show toast here - let the calling component handle notifications
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
@@ -907,6 +915,27 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     }
   }, [userId, supabase]);
 
+  // Refresh user submissions (force cache invalidation)
+  const refreshUserSubmissions = useCallback(async () => {
+    console.log('🔄 Refreshing user submissions (force cache invalidation)');
+
+    if (!userId) {
+      console.warn('refreshUserSubmissions called without a userId');
+      return [];
+    }
+
+    // Force invalidate cache
+    if (requestCache.current.userSubmissions[userId]) {
+      delete requestCache.current.userSubmissions[userId];
+    }
+
+    // Clear any pending requests
+    requestCache.current.pendingRequests.fetchUserSubmissions[userId] = false;
+
+    // Fetch fresh data
+    return await fetchUserSubmissions();
+  }, [userId, fetchUserSubmissions]);
+
   // Fetch user progress
   const fetchUserProgress = async (): Promise<UserProgress[]> => {
     setLoading(true);
@@ -991,6 +1020,7 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
     setCurrentAssignment,
     // User progress methods
     fetchUserSubmissions,
+    refreshUserSubmissions,
     fetchUserProgress,
     updateUserProgress,
     // Progress overlay methods

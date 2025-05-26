@@ -2,7 +2,7 @@
 
 ## 🔒 Security Enhancements Applied
 
-This document outlines the comprehensive security fixes and enhancements implemented to protect the Interactive Assignments application from various security vulnerabilities.
+This document outlines the comprehensive security fixes and enhancements implemented to protect the First Step School application from various security vulnerabilities.
 
 ## 🚨 Critical Vulnerabilities Fixed
 

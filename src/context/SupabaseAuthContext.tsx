@@ -33,6 +33,7 @@ interface SupabaseAuthContextType {
   joinOrganization: (organizationId: string) => Promise<void>; // Add joinOrganization function
   supabase: SupabaseClient | null;
   user: User | null;
+  anonymousUser: any | null; // Add anonymousUser property
   organizations: any[]; // Add organizations property
   currentOrganization: any | null; // Add currentOrganization property
   // Database service
@@ -583,6 +584,7 @@ export const SupabaseAuthProvider: React.FC<SupabaseAuthProviderProps> = ({ chil
     joinOrganization,
     supabase,
     user,
+    anonymousUser: null, // Default null for anonymousUser
     organizations: [], // Default empty array for organizations
     currentOrganization: null, // Default null for currentOrganization
     db: dbMethods

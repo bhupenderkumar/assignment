@@ -241,6 +241,13 @@ if (document.readyState === 'loading') {
 
 // Export functions
 export const playSound = (soundName: string, volume?: number) => {
+  // Check if celebration overlay is visible - if so, don't play any sounds
+  const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+  if (celebrationOverlay) {
+    console.log('🔇 Celebration overlay visible - blocking sound:', soundName);
+    return;
+  }
+
   soundManager.playSound(soundName, volume);
 };
 
@@ -250,6 +257,13 @@ export const speakText = (text: string, options?: {
   volume?: number;
   lang?: string;
 }) => {
+  // Check if celebration overlay is visible - if so, don't start TTS
+  const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+  if (celebrationOverlay) {
+    console.log('🔇 Celebration overlay visible - blocking TTS:', text.substring(0, 50));
+    return;
+  }
+
   ttsManager.speak(text, options);
 };
 

@@ -28,10 +28,37 @@ CREATE TABLE IF NOT EXISTS user_progress (
   attempts INTEGER NOT NULL DEFAULT 1,
   status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
   feedback TEXT,
+  -- Add fields for enhanced progress tracking
+  current_question_index INTEGER DEFAULT 0,
+  questions_answered INTEGER DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
 
   -- Add a unique constraint to prevent duplicate progress entries
   UNIQUE(user_id, assignment_id)
 );
+
+-- Add columns if they don't exist (for existing tables)
+ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS current_question_index INTEGER DEFAULT 0;
+ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS questions_answered INTEGER DEFAULT 0;
+ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+
+-- Create function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger to automatically update updated_at
+DROP TRIGGER IF EXISTS update_user_progress_updated_at ON user_progress;
+CREATE TRIGGER update_user_progress_updated_at
+    BEFORE UPDATE ON user_progress
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- Create index for faster queries
 CREATE INDEX IF NOT EXISTS idx_user_progress_user_id ON user_progress(user_id);
@@ -199,11 +226,10 @@ export const runMigrations = async (
         try {
           updateProgress(0, `Running ${migration.name} (attempt ${migration.attempts}/${maxRetries})`);
 
-          // Execute the SQL directly using Supabase's SQL API
-          const { error } = await supabase
-            .from('_migration_history')
-            .select('id')
-            .limit(1);
+          // Execute the SQL directly using Supabase's RPC function
+          const { error } = await supabase.rpc('exec_sql', {
+            sql_query: migration.sql
+          });
 
           if (error) {
             console.error(`Error running ${migration.name} migration (attempt ${migration.attempts}):`, error);

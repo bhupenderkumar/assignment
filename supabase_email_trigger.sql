@@ -19,7 +19,7 @@ VALUES (
 </head>
 <body>
   <h2>You''ve been invited to join {{ organization_name }}</h2>
-  <p>{{ inviter_name }} has invited you to join {{ organization_name }} on Interactive Assignments.</p>
+  <p>{{ inviter_name }} has invited you to join {{ organization_name }} on First Step School.</p>
   <p>Click the button below to accept the invitation:</p>
   <a href="{{ invitation_link }}" class="button">Accept Invitation</a>
   <p>Or copy and paste this link into your browser:</p>
@@ -32,7 +32,7 @@ VALUES (
 </html>',
   'You''ve been invited to join {{ organization_name }}
 
-{{ inviter_name }} has invited you to join {{ organization_name }} on Interactive Assignments.
+{{ inviter_name }} has invited you to join {{ organization_name }} on First Step School.
 
 Click the link below to accept the invitation:
 {{ invitation_link }}

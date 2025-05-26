@@ -33,7 +33,7 @@ const SignInPage: React.FC = () => {
                 style={{
                   backgroundImage: `linear-gradient(to right, ${config.primaryColor}, ${config.secondaryColor})`
                 }}>
-              Interactive Assignments
+              {config.companyName}
             </h1>
             <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
               Sign in to access your educational content

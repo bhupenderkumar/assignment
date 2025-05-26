@@ -10,33 +10,33 @@
       <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.3)"/>
     </filter>
   </defs>
-  
+
   <!-- Background -->
   <rect width="1200" height="630" fill="url(#bgGradient)"/>
-  
+
   <!-- Overlay -->
   <rect width="1200" height="630" fill="rgba(0,0,0,0.2)"/>
-  
+
   <!-- Decorative Elements -->
   <circle cx="1100" cy="100" r="100" fill="rgba(255,255,255,0.1)"/>
   <circle cx="100" cy="530" r="75" fill="rgba(255,255,255,0.1)"/>
   <circle cx="1050" cy="400" r="50" fill="rgba(255,255,255,0.1)"/>
-  
+
   <!-- Main Content -->
   <g transform="translate(600, 315)" text-anchor="middle" fill="white">
     <!-- Icon -->
     <text x="0" y="-120" font-size="80" font-family="Arial, sans-serif">🎓</text>
-    
+
     <!-- Title -->
     <text x="0" y="-40" font-size="72" font-weight="bold" font-family="Arial, sans-serif" filter="url(#shadow)">
-      Interactive Assignments
+      First Step School
     </text>
-    
+
     <!-- Subtitle -->
     <text x="0" y="10" font-size="36" font-weight="300" font-family="Arial, sans-serif" opacity="0.9">
       EXPLORE · LEARN · MASTER
     </text>
-    
+
     <!-- Description -->
     <text x="0" y="60" font-size="28" font-family="Arial, sans-serif" opacity="0.8">
       Take interactive educational assignments with multimedia content

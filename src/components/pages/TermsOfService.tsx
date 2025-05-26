@@ -1,15 +1,18 @@
 import React from 'react';
+import { useConfiguration } from '../../context/ConfigurationContext';
 
 const TermsOfService: React.FC = () => {
+  const { config } = useConfiguration();
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Terms of Service</h1>
-      
+
       <div className="space-y-8 text-gray-600">
         <section>
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">1. Acceptance of Terms</h2>
           <p className="mb-4">
-            By accessing or using Interactive Assignments, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform.
+            By accessing or using {config.companyName}, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our platform.
           </p>
         </section>
 
@@ -65,7 +68,7 @@ const TermsOfService: React.FC = () => {
         <section>
           <h2 className="text-2xl font-semibold text-gray-800 mb-4">6. Data Storage and Privacy</h2>
           <p className="mb-4">
-            Your use of the platform is also governed by our Privacy Policy. By using Interactive Assignments, you consent to the collection and use of information as detailed in our Privacy Policy.
+            Your use of the platform is also governed by our Privacy Policy. By using {config.companyName}, you consent to the collection and use of information as detailed in our Privacy Policy.
           </p>
         </section>
 

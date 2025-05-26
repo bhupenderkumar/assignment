@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import { useConfiguration } from '../../context/ConfigurationContext';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 
 interface AssignmentListProps {
@@ -15,6 +16,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
   const { assignments, loading, error, fetchAssignments } = useInteractiveAssignment();
   const { isReady: isDatabaseReady, executeWhenReady } = useDatabaseState();
   const { isAuthenticated } = useSupabaseAuth();
+  const { config } = useConfiguration();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
@@ -137,7 +139,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
   return (
     <div className="bg-white rounded-xl shadow-lg">
       <div className="p-6">
-        <h2 className="text-2xl font-bold mb-4">Interactive Assignments</h2>
+        <h2 className="text-2xl font-bold mb-4">{config.companyName} Assignments</h2>
 
         {/* Search and Filter */}
         <div className="flex flex-col md:flex-row gap-4 mb-6">
