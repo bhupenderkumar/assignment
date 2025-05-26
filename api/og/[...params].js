@@ -106,8 +106,24 @@ export default async function handler(req, res) {
     const description = assignment.description ||
       `Take the interactive assignment "${assignment.title}" ${organization?.name ? `from ${organization.name}` : ''}. Complete exercises, get instant feedback, and earn your certificate!`;
 
-    const image = organization?.logo_url || `${baseUrl}/og-default.png`;
     const siteName = organization?.name || 'First Step School';
+
+    // Enhanced meta data for better social sharing
+    const keywords = `interactive assignment, education, ${assignment.title}, ${organization?.name || 'First Step School'}, quiz, learning, certificate`;
+    const author = organization?.name || 'First Step School';
+    const publishedTime = assignment.created_at || new Date().toISOString();
+
+    // Generate dynamic OG image URL with assignment details
+    const ogImageParams = new URLSearchParams({
+      title: assignment.title,
+      organization: organization?.name || 'First Step School',
+      description: description.substring(0, 100) + '...',
+      ...(organization?.logo_url && { logo: organization.logo_url }),
+      ...(organization?.primary_color && { primaryColor: organization.primary_color }),
+      ...(organization?.secondary_color && { secondaryColor: organization.secondary_color })
+    });
+
+    const image = `${baseUrl}/api/og-image?${ogImageParams.toString()}`;
 
     // Generate HTML with meta tags
     const html = `<!DOCTYPE html>
@@ -119,6 +135,9 @@ export default async function handler(req, res) {
     <!-- Basic Meta Tags -->
     <title>${title}</title>
     <meta name="description" content="${description}">
+    <meta name="keywords" content="${keywords}">
+    <meta name="author" content="${author}">
+    <meta name="robots" content="index, follow">
 
     <!-- Open Graph Meta Tags for Facebook, WhatsApp, etc. -->
     <meta property="og:type" content="website">
@@ -130,6 +149,13 @@ export default async function handler(req, res) {
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="${assignment.title} - Interactive Assignment">
+    <meta property="og:locale" content="en_US">
+    <meta property="article:author" content="${author}">
+    <meta property="article:published_time" content="${publishedTime}">
+    <meta property="article:section" content="Education">
+    <meta property="article:tag" content="Interactive Assignment">
+    <meta property="article:tag" content="Education">
+    <meta property="article:tag" content="Quiz">
 
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
@@ -137,10 +163,17 @@ export default async function handler(req, res) {
     <meta name="twitter:description" content="${description}">
     <meta name="twitter:image" content="${image}">
     <meta name="twitter:image:alt" content="${assignment.title} - Interactive Assignment">
+    <meta name="twitter:creator" content="@FirstStepSchool">
+    <meta name="twitter:site" content="@FirstStepSchool">
+
+    <!-- WhatsApp specific optimizations -->
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:secure_url" content="${image}">
+
+    <!-- LinkedIn specific -->
+    <meta property="og:updated_time" content="${publishedTime}">
 
     <!-- Additional Meta Tags -->
-    <meta name="author" content="${siteName}">
-    <meta name="robots" content="index, follow">
     <link rel="canonical" href="${assignmentUrl}">
 
     <!-- Favicon -->

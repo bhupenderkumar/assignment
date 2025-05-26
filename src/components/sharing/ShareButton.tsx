@@ -67,16 +67,27 @@ const ShareButton: React.FC<ShareButtonProps> = ({
 
     switch (platform) {
       case 'whatsapp':
-        shareUrl = `https://wa.me/?text=${encodedTitle}%20${encodedUrl}`;
+        // Enhanced WhatsApp message with emojis and better formatting
+        const whatsappMessage = encodeURIComponent(`🎓 ${title}\n\n📚 ${description}\n\n✨ Take the assignment here: ${socialUrl}\n\n🏫 Powered by First Step School`);
+        shareUrl = `https://wa.me/?text=${whatsappMessage}`;
         break;
       case 'facebook':
-        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
+        // Facebook will automatically fetch OG data from the social URL
+        shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedDescription}`;
         break;
       case 'twitter':
-        shareUrl = `https://twitter.com/intent/tweet?text=${encodedTitle}&url=${encodedUrl}`;
+        // Twitter with hashtags and better formatting
+        const hashtags = 'InteractiveAssignment,Education,Learning,FirstStepSchool';
+        shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`🎓 ${title}\n\n${description}`)}&url=${encodedUrl}&hashtags=${hashtags}`;
         break;
       case 'linkedin':
-        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`;
+        // LinkedIn with title and summary
+        shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&title=${encodedTitle}&summary=${encodedDescription}`;
+        break;
+      case 'telegram':
+        // Add Telegram support
+        const telegramMessage = encodeURIComponent(`🎓 ${title}\n\n${description}`);
+        shareUrl = `https://t.me/share/url?url=${encodedUrl}&text=${telegramMessage}`;
         break;
       default:
         return;

@@ -234,7 +234,9 @@ const AllUserActivity: React.FC = () => {
       // Transform anonymous submissions to activities
       submissions?.forEach(submission => {
         const user = anonymousUsers[submission.user_id];
-        const assignment = submission.interactive_assignment;
+        const assignment = Array.isArray(submission.interactive_assignment)
+          ? submission.interactive_assignment[0]
+          : submission.interactive_assignment;
 
         activities.push({
           id: `anonymous-${submission.id}`,
@@ -253,7 +255,9 @@ const AllUserActivity: React.FC = () => {
           topic: assignment?.topic,
           difficultyLevel: assignment?.difficulty_level,
           estimatedTimeMinutes: assignment?.estimated_time_minutes,
-          organizationName: assignment?.organization?.name,
+          organizationName: Array.isArray(assignment?.organization)
+            ? assignment?.organization[0]?.name
+            : (assignment?.organization as any)?.name,
           organizationId: assignment?.organization_id,
           activityType: 'assignment_submission',
           activityDescription: `Submitted assignment: ${assignment?.title || 'Unknown'}`
@@ -338,7 +342,9 @@ const AllUserActivity: React.FC = () => {
         if (anonymousUserIds.has(submission.user_id)) return;
 
         const user = authenticatedUsers[submission.user_id];
-        const assignment = submission.interactive_assignment;
+        const assignment = Array.isArray(submission.interactive_assignment)
+          ? submission.interactive_assignment[0]
+          : submission.interactive_assignment;
 
         activities.push({
           id: `authenticated-${submission.id}`,
@@ -357,7 +363,9 @@ const AllUserActivity: React.FC = () => {
           topic: assignment?.topic,
           difficultyLevel: assignment?.difficulty_level,
           estimatedTimeMinutes: assignment?.estimated_time_minutes,
-          organizationName: assignment?.organization?.name,
+          organizationName: Array.isArray(assignment?.organization)
+            ? assignment?.organization[0]?.name
+            : (assignment?.organization as any)?.name,
           organizationId: assignment?.organization_id,
           activityType: 'assignment_submission',
           activityDescription: `Submitted assignment: ${assignment?.title || 'Unknown'}`
@@ -894,12 +902,19 @@ const AllUserActivity: React.FC = () => {
               </button>
             </div>
             <CertificateViewer
-              submissionId={selectedActivity.submissionId!}
-              userName={selectedActivity.userName}
+              submission={{
+                id: selectedActivity.submissionId!,
+                assignmentId: selectedActivity.assignmentId,
+                userId: selectedActivity.userId,
+                status: 'SUBMITTED' as const,
+                startedAt: new Date(selectedActivity.startedAt || ''),
+                submittedAt: selectedActivity.completedAt ? new Date(selectedActivity.completedAt) : undefined,
+                score: selectedActivity.score || 0
+              }}
+              onClose={() => setShowCertificate(false)}
               assignmentTitle={selectedActivity.assignmentName}
-              score={selectedActivity.score!}
-              completedAt={selectedActivity.completedAt!}
-              organizationName={selectedActivity.organizationName}
+              assignmentOrganizationId={selectedActivity.organizationId}
+              username={selectedActivity.userName}
             />
           </div>
         </div>
