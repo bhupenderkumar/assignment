@@ -27,6 +27,7 @@ const CertificateTemplate = ({
   onExport
 }: CertificateTemplateProps) => {
   const stageRef = useRef<any>(null);
+  const exportCalledRef = useRef(false); // Track if export has been called
   const { config } = useConfiguration();
   const { username, supabase } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();
@@ -221,18 +222,15 @@ const CertificateTemplate = ({
     }
   }, [assignmentOrganization, currentOrganization]);
 
-  // Export certificate as image
+  // Export certificate as image - optimized to prevent re-rendering loops
   useEffect(() => {
-    if (stageRef.current && onExport) {
+    if (stageRef.current && onExport && !exportCalledRef.current) {
+      exportCalledRef.current = true; // Mark as called to prevent multiple exports
+
       // Add a small delay to ensure the stage is fully rendered
       const timer = setTimeout(() => {
         try {
-          // Check if any external images are loaded that might cause CORS issues
-          const hasExternalImages = logoImage || signatureImage || sealImage;
-
-          if (hasExternalImages) {
-            console.log('Certificate contains images, attempting export...');
-          }
+          console.log('Attempting certificate export...');
 
           // Always export at full resolution regardless of screen size
           const dataUrl = stageRef.current.toDataURL({
@@ -247,56 +245,28 @@ const CertificateTemplate = ({
         } catch (error) {
           console.error('Error generating certificate image (likely CORS issue):', error);
 
-          // If export fails due to CORS, try without images
+          // If export fails, try a simpler approach without external images
           try {
-            console.log('Attempting to export certificate without external images...');
-
-            // Temporarily hide images and try again
-            const originalLogoImage = logoImage;
-            const originalSignatureImage = signatureImage;
-            const originalSealImage = sealImage;
-
-            setLogoImage(null);
-            setSignatureImage(null);
-            setSealImage(null);
-
-            // Wait a moment for the stage to update
-            setTimeout(() => {
-              try {
-                const dataUrl = stageRef.current.toDataURL({
-                  pixelRatio: 2,
-                  width: width,
-                  height: height,
-                  x: 0,
-                  y: 0
-                });
-                console.log('Certificate image generated successfully without external images');
-                onExport(dataUrl);
-
-                // Restore images for display
-                setLogoImage(originalLogoImage);
-                setSignatureImage(originalSignatureImage);
-                setSealImage(originalSealImage);
-              } catch (retryError) {
-                console.error('Failed to export certificate even without images:', retryError);
-                onExport('');
-
-                // Restore images for display
-                setLogoImage(originalLogoImage);
-                setSignatureImage(originalSignatureImage);
-                setSealImage(originalSealImage);
-              }
-            }, 100);
-          } catch (fallbackError) {
-            console.error('Fallback export also failed:', fallbackError);
-            onExport('');
+            console.log('Attempting simplified export...');
+            const dataUrl = stageRef.current.toDataURL({
+              pixelRatio: 1, // Lower resolution to avoid memory issues
+              width: width,
+              height: height,
+              x: 0,
+              y: 0
+            });
+            console.log('Certificate image generated with simplified approach');
+            onExport(dataUrl);
+          } catch (retryError) {
+            console.error('Simplified export also failed:', retryError);
+            onExport(''); // Return empty string to indicate failure
           }
         }
-      }, 1500); // Increased delay to ensure all elements are loaded
+      }, 2000); // Increased delay to ensure all elements are loaded
 
       return () => clearTimeout(timer);
     }
-  }, [stageRef, onExport, width, height, logoImage, signatureImage, sealImage]);
+  }, [stageRef, onExport, width, height]); // Removed image dependencies to prevent loops
 
   // Convert hex to RGB
   const hexToRgb = (hex: string) => {
@@ -384,35 +354,52 @@ const CertificateTemplate = ({
             </Group>
           )}
 
-          {/* Organization Name */}
-          <Text
-            x={width / 2}
-            y={logoImage ? 110 : 70}
-            text={assignmentOrganization?.name || currentOrganization?.name || "Interactive Learning"}
-            fontSize={24}
-            fontStyle="bold"
-            fill={config.secondaryColor}
-            align="center"
-            width={width}
-            offsetX={width / 2}
-            fontFamily="Arial, sans-serif"
-          />
+          {/* Organization Name with enhanced styling */}
+          <Group>
+            {/* Background highlight for organization name */}
+            <Rect
+              x={width / 2 - 120}
+              y={logoImage ? 95 : 55}
+              width={240}
+              height={35}
+              fill={rgba(config.secondaryColor, 0.1)}
+              cornerRadius={17}
+            />
 
-          {/* Certificate Header with shadow effect - Repositioned for better visibility */}
+            <Text
+              x={width / 2}
+              y={logoImage ? 110 : 70}
+              text={assignmentOrganization?.name || currentOrganization?.name || config.companyName}
+              fontSize={26}
+              fontStyle="bold"
+              fill={config.secondaryColor}
+              align="center"
+              width={width}
+              offsetX={width / 2}
+              fontFamily="Georgia, serif"
+              shadowColor={rgba(config.secondaryColor, 0.2)}
+              shadowBlur={3}
+              shadowOffset={{ x: 1, y: 1 }}
+              letterSpacing={1}
+            />
+          </Group>
+
+          {/* Certificate Header with enhanced styling */}
           <Text
             x={width / 2}
             y={logoImage ? 160 : 120}
             text="Certificate of Achievement"
-            fontSize={38}
+            fontSize={42}
             fontStyle="bold"
             fill={config.primaryColor}
             align="center"
             width={width}
             offsetX={width / 2}
-            shadowColor={rgba(config.primaryColor, 0.2)}
-            shadowBlur={5}
-            shadowOffset={{ x: 2, y: 2 }}
-            fontFamily="Arial, sans-serif"
+            shadowColor={rgba(config.primaryColor, 0.3)}
+            shadowBlur={8}
+            shadowOffset={{ x: 3, y: 3 }}
+            fontFamily="Georgia, serif"
+            letterSpacing={1}
           />
 
           {/* Achievement Type with decorative elements - Moved below the title with proper spacing */}
@@ -475,25 +462,33 @@ const CertificateTemplate = ({
             x={width / 2}
             y={currentOrganization?.logoUrl ? 295 : 265}
             text={studentName || 'Dedicated Learner'}
-            fontSize={30}
+            fontSize={34}
             fontStyle="bold"
             fill={config.secondaryColor}
             align="center"
             width={width}
             offsetX={width / 2}
-            fontFamily="Arial, sans-serif"
-            shadowColor={rgba(config.secondaryColor, 0.2)}
-            shadowBlur={3}
-            shadowOffset={{ x: 1, y: 1 }}
+            fontFamily="Georgia, serif"
+            shadowColor={rgba(config.secondaryColor, 0.3)}
+            shadowBlur={5}
+            shadowOffset={{ x: 2, y: 2 }}
+            letterSpacing={1.5}
           />
 
-          {/* Decorative underline for name */}
-          <Line
-            points={[width / 2 - 150, currentOrganization?.logoUrl ? 315 : 285, width / 2 + 150, currentOrganization?.logoUrl ? 315 : 285]}
-            stroke={rgba(config.secondaryColor, 0.3)}
-            strokeWidth={1}
-            dash={[1, 2]}
-          />
+          {/* Enhanced decorative underline for name */}
+          <Group>
+            <Line
+              points={[width / 2 - 180, currentOrganization?.logoUrl ? 320 : 290, width / 2 + 180, currentOrganization?.logoUrl ? 320 : 290]}
+              stroke={rgba(config.secondaryColor, 0.4)}
+              strokeWidth={2}
+              dash={[8, 4]}
+            />
+            <Line
+              points={[width / 2 - 180, currentOrganization?.logoUrl ? 322 : 292, width / 2 + 180, currentOrganization?.logoUrl ? 322 : 292]}
+              stroke={rgba(config.accentColor, 0.3)}
+              strokeWidth={1}
+            />
+          </Group>
 
           <Text
             x={width / 2}
@@ -509,17 +504,18 @@ const CertificateTemplate = ({
           <Text
             x={width / 2}
             y={currentOrganization?.logoUrl ? 385 : 355}
-            text={assignmentTitle || 'Interactive Assignment'}
-            fontSize={26}
+            text={assignmentTitle || 'Educational Assignment'}
+            fontSize={28}
             fontStyle="bold"
             fill={config.accentColor}
             align="center"
             width={width}
             offsetX={width / 2}
-            fontFamily="Arial, sans-serif"
-            shadowColor={rgba(config.accentColor, 0.2)}
-            shadowBlur={3}
-            shadowOffset={{ x: 1, y: 1 }}
+            fontFamily="Georgia, serif"
+            shadowColor={rgba(config.accentColor, 0.3)}
+            shadowBlur={4}
+            shadowOffset={{ x: 2, y: 2 }}
+            letterSpacing={0.5}
           />
 
           {/* Assignment details in a decorative box - Further adjusted position */}
@@ -589,36 +585,60 @@ const CertificateTemplate = ({
               />
             </Group>
 
-            {/* Score Circle with decorative elements */}
+            {/* Enhanced Score Circle with decorative elements */}
             <Group x={width / 2 + 80} y={490}>
-              {/* Outer decorative circle */}
+              {/* Outer decorative circle with gradient effect */}
+              <Circle
+                radius={50}
+                stroke={rgba(config.primaryColor, 0.2)}
+                strokeWidth={1}
+                dash={[4, 4]}
+              />
+
               <Circle
                 radius={45}
-                stroke={rgba(config.primaryColor, 0.3)}
+                stroke={rgba(config.accentColor, 0.4)}
                 strokeWidth={2}
-                dash={[2, 2]}
+                dash={[6, 3]}
               />
 
-              {/* Main score circle */}
+              {/* Main score circle with gradient */}
               <Circle
                 radius={40}
-                fill={submission.score && submission.score > 0 ? config.primaryColor : config.secondaryColor}
-                shadowColor="rgba(0,0,0,0.2)"
-                shadowBlur={10}
-                shadowOffset={{ x: 3, y: 3 }}
+                fillRadialGradientStartPoint={{ x: 0, y: 0 }}
+                fillRadialGradientEndPoint={{ x: 0, y: 0 }}
+                fillRadialGradientStartRadius={0}
+                fillRadialGradientEndRadius={40}
+                fillRadialGradientColorStops={[
+                  0, submission.score && submission.score > 0 ? config.primaryColor : config.secondaryColor,
+                  1, submission.score && submission.score > 0 ? rgba(config.primaryColor, 0.8) : rgba(config.secondaryColor, 0.8)
+                ]}
+                shadowColor="rgba(0,0,0,0.3)"
+                shadowBlur={12}
+                shadowOffset={{ x: 4, y: 4 }}
               />
 
-              {/* Centered percentage text */}
+              {/* Inner highlight circle */}
+              <Circle
+                radius={35}
+                stroke="rgba(255,255,255,0.3)"
+                strokeWidth={1}
+              />
+
+              {/* Centered percentage text with enhanced styling */}
               <Text
                 text={`${submission.score !== undefined && submission.score !== null ? submission.score : 0}%`}
-                fontSize={26}
+                fontSize={28}
                 fontStyle="bold"
                 fill="white"
                 align="center"
                 width={80}
                 offsetX={40}
-                offsetY={13}
-                fontFamily="Arial, sans-serif"
+                offsetY={14}
+                fontFamily="Georgia, serif"
+                shadowColor="rgba(0,0,0,0.5)"
+                shadowBlur={2}
+                shadowOffset={{ x: 1, y: 1 }}
               />
             </Group>
 
@@ -711,7 +731,7 @@ const CertificateTemplate = ({
                 {/* Text positioned below the signature */}
                 <Text
                   y={15}
-                  text={currentOrganization?.name || "Instructor Signature"}
+                  text={currentOrganization?.name || config.companyName}
                   fontSize={13}
                   fill="#555"
                   align="right"
@@ -735,7 +755,7 @@ const CertificateTemplate = ({
                 {/* Organization name */}
                 <Text
                   y={-15}
-                  text={currentOrganization?.name || "Organization"}
+                  text={currentOrganization?.name || config.companyName}
                   fontSize={14}
                   fontStyle="bold"
                   fill="#555"

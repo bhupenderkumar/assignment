@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useConfiguration } from '../../context/ConfigurationContext';
 
 const Footer: React.FC = () => {
   // Use React Router's navigation hook
   const navigate = useNavigate();
+  const { config } = useConfiguration();
 
   return (
     <footer className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white w-full mt-auto relative overflow-hidden">
@@ -15,7 +17,7 @@ const Footer: React.FC = () => {
           {/* Brand Section */}
           <div className="space-y-3">
             <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400">
-              Interactive Assignments
+              {config.companyName}
             </h3>
             <p className="text-gray-300 text-sm font-light leading-relaxed">
               Engaging educational platform for interactive learning experiences.
@@ -70,7 +72,7 @@ const Footer: React.FC = () => {
         {/* Bottom Section */}
         <div className="border-t border-gray-700/50 mt-6 pt-4 flex flex-col md:flex-row justify-between items-center relative">
           <p className="text-sm text-gray-400 text-center md:text-left mb-3 md:mb-0 font-light">
-            © {new Date().getFullYear()} Interactive Assignments. All rights reserved.
+            {config.footerText}
           </p>
 
           {/* Social Links */}

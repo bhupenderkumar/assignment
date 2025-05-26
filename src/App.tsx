@@ -32,7 +32,7 @@ function App() {
 
     // Log app initialization in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('🚀 Interactive Assignments App initialized with performance monitoring and security');
+      console.log('🚀 First Step School App initialized with performance monitoring and security');
     }
 
     return endTracking;

@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <h2 style="color: #4a5568;">You've been invited to join ${organizationName}</h2>
         <p style="color: #4a5568; font-size: 16px;">
-          ${inviterName || 'A team member'} has invited you to join ${organizationName} on Interactive Assignments.
+          ${inviterName || 'A team member'} has invited you to join ${organizationName} on First Step School.
         </p>
         <div style="margin: 30px 0;">
           <a href="${inviteLink}" style="background-color: #3182ce; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold;">

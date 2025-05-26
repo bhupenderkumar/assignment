@@ -1,13 +1,18 @@
 // src/components/assignments/CelebrationOverlay.tsx
 // Fixed deployment issue - ensuring latest version is deployed
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useConfiguration } from '../../context/ConfigurationContext';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import CertificateViewer from '../certificates/CertificateViewer';
-import { playSound, stopAllSounds, stopSpeaking } from '../../utils/soundUtils';
+import WhatsAppShare from '../certificates/WhatsAppShare';
+import CertificateTemplate from '../certificates/CertificateTemplate';
+import { stopAllSounds, stopSpeaking } from '../../utils/soundUtils';
+import { stopBackgroundMusic, stopAllSounds as stopAllSoundsLib } from '../../lib/utils/soundUtils';
+import { isWhatsAppSupported } from '../../utils/whatsappUtils';
+import toast from 'react-hot-toast';
 
 interface CelebrationOverlayProps {
   isVisible: boolean;
@@ -35,6 +40,9 @@ const CelebrationOverlay = ({
   const { anonymousUser } = useInteractiveAssignment();
   const { user } = useSupabaseAuth();
   const [showCertificate, setShowCertificate] = useState(false);
+  const [showWhatsAppShare, setShowWhatsAppShare] = useState(false);
+  const [certificateDataUrl, setCertificateDataUrl] = useState<string | null>(null);
+  const [isGeneratingCertificate, setIsGeneratingCertificate] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Create submission object for certificate
@@ -51,28 +59,87 @@ const CelebrationOverlay = ({
   // Stop all sounds and play celebration sound when visible
   useEffect(() => {
     if (isVisible) {
-      // Stop all existing sounds first
-      stopAllSounds();
-      stopSpeaking();
+      // Stop all existing sounds first - use both sound utilities to ensure everything stops
+      stopAllSounds(); // Stops TTS and HTML audio elements
+      stopAllSoundsLib(); // Stops audio manager and background music
+      stopBackgroundMusic(); // Explicitly stop background music
+      stopSpeaking(); // Stop any ongoing speech synthesis
 
-      // Then play celebration sound after a brief delay
-      const soundTimer = setTimeout(() => {
-        playSound('celebration', 0.7);
-      }, 100);
+      // Skip playing celebration sound - user doesn't want progress sounds
+      // const soundTimer = setTimeout(() => {
+      //   playSound('celebration', 0.7);
+      // }, 100);
 
       // Set loading timer to show loading state briefly
       const loadingTimer = setTimeout(() => {
         setIsLoading(false);
       }, 500);
 
+      // Auto-start certificate generation for WhatsApp sharing if submission exists and WhatsApp is supported
+      if (submissionId && isWhatsAppSupported() && !certificateDataUrl && !isGeneratingCertificate) {
+        console.log('🚀 Auto-starting certificate generation for WhatsApp sharing...');
+        const autoGenerateTimer = setTimeout(() => {
+          setIsGeneratingCertificate(true);
+        }, 1000); // Start after 1 second to let celebration load first
+
+        return () => {
+          clearTimeout(loadingTimer);
+          clearTimeout(autoGenerateTimer);
+        };
+      }
+
       return () => {
-        clearTimeout(soundTimer);
         clearTimeout(loadingTimer);
       };
     } else {
       setIsLoading(true);
     }
-  }, [isVisible]);
+  }, [isVisible, submissionId, certificateDataUrl, isGeneratingCertificate]);
+
+  // Handle certificate export for WhatsApp sharing
+  const handleCertificateExport = useCallback((dataUrl: string) => {
+    console.log('🎯 Certificate export callback received:', dataUrl ? 'Success' : 'Failed');
+
+    // Only process if we don't already have a certificate to prevent multiple calls
+    if (!certificateDataUrl) {
+      setCertificateDataUrl(dataUrl);
+      if (dataUrl) {
+        console.log('✅ Certificate image generated for WhatsApp sharing');
+      } else {
+        console.warn('❌ Failed to generate certificate image for WhatsApp sharing');
+        toast.error('Failed to generate certificate image');
+      }
+    } else {
+      console.log('🔄 Certificate already exists, ignoring duplicate export call');
+    }
+  }, [certificateDataUrl]);
+
+  // Auto-open WhatsApp share when certificate is ready
+  useEffect(() => {
+    console.log('🔍 Certificate generation state changed:', {
+      certificateDataUrl: !!certificateDataUrl,
+      isGeneratingCertificate,
+      isVisible,
+      submissionId: !!submissionId
+    });
+
+    if (certificateDataUrl && isGeneratingCertificate && isVisible && submissionId) {
+      console.log('🎉 Certificate ready! Auto-opening WhatsApp share...');
+      setIsGeneratingCertificate(false);
+
+      // Show success message
+      toast.success('Certificate ready! Opening WhatsApp share...');
+
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        setShowWhatsAppShare(true);
+      }, 500);
+    }
+  }, [certificateDataUrl, isGeneratingCertificate, isVisible, submissionId]);
+
+  const handleWhatsAppShareSuccess = () => {
+    toast.success('Certificate shared successfully!');
+  };
 
   // Get celebration message based on score
   const getCelebrationMessage = (score: number) => {
@@ -170,22 +237,24 @@ const CelebrationOverlay = ({
   };
 
   return (
-    <AnimatePresence>
-      {isVisible && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 p-4 pt-8 md:items-center md:pt-4 overflow-y-auto"
-        >
-          <Confetti />
-
+    <>
+      <AnimatePresence>
+        {isVisible && (
           <motion.div
-            initial={{ scale: 0.8, y: 50 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.8, y: 50 }}
-            className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative z-20 my-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-start justify-center z-50 p-4 pt-8 md:items-center md:pt-4 overflow-y-auto"
+            data-celebration-overlay="true"
           >
+            <Confetti />
+
+            <motion.div
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative z-20 my-4"
+            >
             {isLoading ? (
               // Loading state
               <div className="flex flex-col items-center justify-center py-8">
@@ -299,6 +368,19 @@ const CelebrationOverlay = ({
                 </motion.button>
               )}
 
+              {/* WhatsApp Auto-Share Status */}
+              {submissionId && isWhatsAppSupported() && isGeneratingCertificate && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.65 }}
+                  className="bg-green-100 border border-green-300 text-green-800 font-medium py-3 px-8 rounded-xl text-lg flex items-center justify-center space-x-2"
+                >
+                  <span className="animate-spin h-4 w-4 border-2 border-green-600 border-t-transparent rounded-full"></span>
+                  <span>Preparing WhatsApp share...</span>
+                </motion.div>
+              )}
+
               {/* Dashboard/Navigation Button */}
               {user && (
                 <motion.button
@@ -352,6 +434,7 @@ const CelebrationOverlay = ({
             {/* Certificate Viewer Modal */}
             {showCertificate && submissionForCertificate && (
               <CertificateViewer
+                key="certificate-viewer"
                 submission={submissionForCertificate}
                 onClose={() => setShowCertificate(false)}
                 assignmentTitle={assignmentTitle}
@@ -362,9 +445,37 @@ const CelebrationOverlay = ({
               </>
             )}
           </motion.div>
-        </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden Certificate Template for WhatsApp sharing - Outside main AnimatePresence */}
+      {isGeneratingCertificate && submissionForCertificate && !certificateDataUrl && (
+        <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', zIndex: -1 }}>
+          <CertificateTemplate
+            key={`whatsapp-cert-${submissionId}`}
+            submission={submissionForCertificate}
+            assignmentTitle={assignmentTitle}
+            assignmentOrganizationId={assignmentOrganizationId}
+            username={anonymousUser?.name}
+            width={800}
+            height={600}
+            onExport={handleCertificateExport}
+          />
+        </div>
       )}
-    </AnimatePresence>
+
+      {/* WhatsApp Share Modal - Outside main AnimatePresence */}
+      <WhatsAppShare
+        isOpen={showWhatsAppShare}
+        onClose={() => setShowWhatsAppShare(false)}
+        certificateDataUrl={certificateDataUrl || ''}
+        userName={anonymousUser?.name}
+        assignmentTitle={assignmentTitle}
+        score={score}
+        onShareSuccess={handleWhatsAppShareSuccess}
+      />
+    </>
   );
 };
 

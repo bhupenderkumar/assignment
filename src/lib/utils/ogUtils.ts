@@ -73,8 +73,8 @@ export const isSocialMediaCrawler = (userAgent: string): boolean => {
     'SlackBot',
     'DiscordBot'
   ];
-  
-  return crawlers.some(crawler => 
+
+  return crawlers.some(crawler =>
     userAgent.toLowerCase().includes(crawler.toLowerCase())
   );
 };
@@ -94,19 +94,19 @@ export const generateMetaTags = (
   id: string
 ) => {
   const baseUrl = 'https://interactive-assignment-one.vercel.app';
-  const url = type === 'assignment' 
+  const url = type === 'assignment'
     ? `${baseUrl}/play/assignment/${assignment.id}`
     : `${baseUrl}/play/share/${id}`;
 
-  const title = organization?.name 
+  const title = organization?.name
     ? `${organization.name} | ${assignment.title}`
     : `${assignment.title} | Interactive Assignment`;
 
-  const description = assignment.description || 
+  const description = assignment.description ||
     `Take the interactive assignment "${assignment.title}" ${organization?.name ? `from ${organization.name}` : ''}. Complete exercises, get instant feedback, and earn your certificate!`;
 
   const image = organization?.logo_url || `${baseUrl}/og-default.svg`;
-  const siteName = organization?.name || 'Interactive Assignments';
+  const siteName = organization?.name || 'First Step School';
 
   return {
     title,
@@ -114,7 +114,7 @@ export const generateMetaTags = (
     url,
     siteName,
     image,
-    imageAlt: `${assignment.title} - Interactive Assignment`,
+    imageAlt: `${assignment.title} - Educational Assignment`,
     type: 'website'
   };
 };

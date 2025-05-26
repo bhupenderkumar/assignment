@@ -791,7 +791,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                       </div>
                       <div className="relative flex justify-center text-sm">
                         <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                          {mode === 'signIn' ? 'New to Interactive Assignments?' : 'Already registered?'}
+                          {mode === 'signIn' ? 'New to First Step School?' : 'Already registered?'}
                         </span>
                       </div>
                     </div>

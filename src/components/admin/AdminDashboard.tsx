@@ -8,12 +8,15 @@ import AssignmentForm from './AssignmentForm';
 import AssignmentManagementList from './AssignmentManagementList';
 import ShareAssignmentModal from './ShareAssignmentModal';
 import AnonymousUserActivity from './AnonymousUserActivity';
+import UserProgressDashboard from './UserProgressDashboard';
+import DatabaseMigrationRunner from './DatabaseMigrationRunner';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<InteractiveAssignment | null>(null);
   const [sharingAssignment, setSharingAssignment] = useState<InteractiveAssignment | null>(null);
+  const [activeTab, setActiveTab] = useState<'assignments' | 'progress' | 'activity' | 'database'>('assignments');
   const {
     createAssignment,
     updateAssignment,
@@ -155,9 +158,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Assignment Management</h1>
-        {!isCreating && !editingAssignment && (
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        {!isCreating && !editingAssignment && activeTab === 'assignments' && (
           <button
             onClick={() => setIsCreating(true)}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center"
@@ -169,9 +172,33 @@ const AdminDashboard = () => {
           </button>
         )}
       </div>
-      
-      {/* Anonymous User Activity Section */}
-      <AnonymousUserActivity />
+
+      {/* Tab Navigation */}
+      {!isCreating && !editingAssignment && (
+        <div className="mb-8">
+          <nav className="flex space-x-8 border-b border-gray-200">
+            {[
+              { id: 'assignments', label: 'Assignments', icon: '📝' },
+              { id: 'progress', label: 'User Progress', icon: '📊' },
+              { id: 'activity', label: 'User Activity', icon: '👥' },
+              { id: 'database', label: 'Database', icon: '🗄️' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                  activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {isCreating ? (
@@ -228,17 +255,31 @@ const AdminDashboard = () => {
           </motion.div>
         ) : (
           <motion.div
-            key="assignment-list"
+            key={`tab-${activeTab}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
             className="mt-8"
           >
-            <AssignmentManagementList
-              onEdit={handleEditAssignment}
-              onShare={handleShareAssignment}
-            />
+            {activeTab === 'assignments' && (
+              <AssignmentManagementList
+                onEdit={handleEditAssignment}
+                onShare={handleShareAssignment}
+              />
+            )}
+
+            {activeTab === 'progress' && (
+              <UserProgressDashboard />
+            )}
+
+            {activeTab === 'activity' && (
+              <AnonymousUserActivity />
+            )}
+
+            {activeTab === 'database' && (
+              <DatabaseMigrationRunner />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

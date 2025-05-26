@@ -203,10 +203,20 @@ const SimpleAudioPlayer = forwardRef<SimpleAudioPlayerRef, SimpleAudioPlayerProp
               });
             };
 
-            // Listen for any user interaction
-            document.addEventListener('click', enableAutoplayOnInteraction, { once: true });
-            document.addEventListener('keydown', enableAutoplayOnInteraction, { once: true });
-            document.addEventListener('touchstart', enableAutoplayOnInteraction, { once: true });
+            // Listen for any user interaction, but check if assignment is completed first
+            const safeEnableAutoplayOnInteraction = (event: Event) => {
+              // Check if celebration overlay is showing (assignment completed)
+              const celebrationOverlay = document.querySelector('[data-celebration-overlay]');
+              if (celebrationOverlay) {
+                console.log('🔇 Assignment completed - not enabling audio autoplay');
+                return;
+              }
+              enableAutoplayOnInteraction();
+            };
+
+            document.addEventListener('click', safeEnableAutoplayOnInteraction, { once: true });
+            document.addEventListener('keydown', safeEnableAutoplayOnInteraction, { once: true });
+            document.addEventListener('touchstart', safeEnableAutoplayOnInteraction, { once: true });
 
             // Show immediate feedback
             setAutoPlayBlocked(true);

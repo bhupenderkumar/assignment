@@ -54,7 +54,7 @@ const LandingPage: React.FC = () => {
   // Features data
   const features = [
     {
-      title: "Interactive Assignments",
+      title: "Educational Assignments",
       description: "Create engaging custom assignments with multiple exercise types, real-time feedback, and advanced tracking features.",
       icon: <AssignmentIcon />,
       details: [
@@ -225,7 +225,7 @@ const LandingPage: React.FC = () => {
                   >
                     {features[selectedFeature].icon}
                   </div>
-                  <h3 
+                  <h3
                     className="text-2xl font-bold"
                     style={{ color: config.primaryColor }}
                   >
@@ -253,10 +253,10 @@ const LandingPage: React.FC = () => {
                     transition={{ delay: index * 0.1 }}
                     className="flex items-center gap-3 text-gray-700 dark:text-gray-300"
                   >
-                    <svg 
-                      className="w-5 h-5" 
-                      fill="none" 
-                      viewBox="0 0 24 24" 
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
                       stroke="currentColor"
                       style={{ color: config.accentColor }}
                     >
@@ -375,15 +375,15 @@ const LandingPage: React.FC = () => {
         <div
           className="absolute inset-0 opacity-10"
           style={{
-            backgroundImage: `linear-gradient(45deg, ${config.primaryColor} 25%, transparent 25%), 
-                            linear-gradient(-45deg, ${config.secondaryColor} 25%, transparent 25%), 
-                            linear-gradient(45deg, transparent 75%, ${config.primaryColor} 75%), 
+            backgroundImage: `linear-gradient(45deg, ${config.primaryColor} 25%, transparent 25%),
+                            linear-gradient(-45deg, ${config.secondaryColor} 25%, transparent 25%),
+                            linear-gradient(45deg, transparent 75%, ${config.primaryColor} 75%),
                             linear-gradient(-45deg, transparent 75%, ${config.secondaryColor} 75%)`,
             backgroundSize: '20px 20px',
             backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'
           }}
         ></div>
-        
+
         <div className="container mx-auto px-4 relative z-10">
           <motion.div
             className="text-center mb-16"

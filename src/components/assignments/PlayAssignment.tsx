@@ -9,7 +9,7 @@ import { createEnhancedInteractiveAssignmentService } from '../../lib/services/e
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
 import { checkAssignmentPaymentAccess } from '../pages/PaymentDemoPage';
 import ProgressDisplay from './ProgressDisplay';
-import { playSound, speakText, stopSpeaking, cleanTextForTTS, isTTSAvailable } from '../../utils/soundUtils';
+import { playSound, stopSpeaking, cleanTextForTTS, isTTSAvailable } from '../../utils/soundUtils';
 import CelebrationOverlay from './CelebrationOverlay';
 // Anonymous user registration moved to parent component
 import EnhancedMatchingExercise from '../exercises/EnhancedMatchingExercise';
@@ -22,6 +22,13 @@ import { scrollToQuestion } from '../../lib/utils/scrollUtils';
 import toast from 'react-hot-toast';
 import { InteractiveAssignment, InteractiveQuestion, InteractiveResponse } from '../../types/interactiveAssignment';
 import CertificateFloatingButton from '../certificates/CertificateFloatingButton';
+import ProgressOverlay from '../ui/ProgressOverlay';
+import { useProgressOverlay } from '../../hooks/useProgressOverlay';
+import UserProgressTracker from '../progress/UserProgressTracker';
+import SubmissionProgressTracker from '../progress/SubmissionProgressTracker';
+import { useUserProgress } from '../../hooks/useUserProgress';
+import SubmissionDiagnostic from '../debug/SubmissionDiagnostic';
+
 
 // Extend window interface for payment tracking
 declare global {
@@ -113,8 +120,18 @@ const PlayAssignment = ({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [isProcessingSubmission, setIsProcessingSubmission] = useState(false);
   // Registration is now handled by parent component
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  const [hasPlayedGreeting, setHasPlayedGreeting] = useState(false);
+  const [isTTSActive, setIsTTSActive] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+
+  // Use refs to track TTS state without causing re-renders
+  const ttsScheduledRef = useRef(false);
+  const currentQuestionTTSRef = useRef<string | null>(null);
+  const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const completedTTSQuestionsRef = useRef<Set<string>>(new Set());
   const [requiresPayment, setRequiresPayment] = useState(false);
   const [hasPaid, setHasPaid] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
@@ -122,6 +139,34 @@ const PlayAssignment = ({
   const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const audioPlayerRef = useRef<SimpleAudioPlayerRef>(null);
+
+  // Progress overlay for submission feedback
+  const {
+    isVisible: progressVisible,
+    progress,
+    status: progressStatus,
+    showProgress,
+    updateProgress,
+    hideProgress
+  } = useProgressOverlay();
+
+  // User progress tracking
+  const { completeJourney, saveProgress } = useUserProgress();
+
+  // Submission progress tracking
+  const [submissionSteps, setSubmissionSteps] = useState<Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'active' | 'completed' | 'error';
+  }>>([
+    { id: 'prepare', label: 'Preparing submission', status: 'pending' },
+    { id: 'validate', label: 'Validating responses', status: 'pending' },
+    { id: 'calculate', label: 'Calculating score', status: 'pending' },
+    { id: 'submit', label: 'Submitting to server', status: 'pending' },
+    { id: 'complete', label: 'Processing results', status: 'pending' },
+  ]);
+  const [showSubmissionTracker, setShowSubmissionTracker] = useState(false);
+  const [currentSubmissionStep, setCurrentSubmissionStep] = useState('');
 
   // Ref to prevent duplicate submissions
   const isSubmittingRef = useRef(false);
@@ -372,10 +417,24 @@ const PlayAssignment = ({
   // Effect to handle submission when isSubmitted changes
   useEffect(() => {
     // We need to define a local function here to avoid the circular dependency
-    const submitAssignment = () => {
-      if (!currentAssignment || !submissionId || isSubmittingRef.current) return;
+    const submitAssignment = async () => {
+      if (!currentAssignment || !submissionId) {
+        console.log('❌ Cannot submit: missing assignment or submissionId', {
+          hasAssignment: !!currentAssignment,
+          hasSubmissionId: !!submissionId
+        });
+        return;
+      }
 
+      // Double-check to prevent duplicate submissions
+      if (isSubmittingRef.current) {
+        console.log('⚠️ Submission already in progress, skipping...');
+        return;
+      }
+
+      console.log('🚀 Starting assignment submission process...');
       isSubmittingRef.current = true;
+      setIsProcessingSubmission(true);
 
       // Make sure we have the current question's response before calculating score
       const ensureCurrentQuestionResponse = () => {
@@ -399,36 +458,105 @@ const PlayAssignment = ({
         return responses;
       };
 
-      // Get final responses including current question if needed
-      const finalResponses = ensureCurrentQuestionResponse();
+      try {
+        // Update submission tracker - validate step
+        setCurrentSubmissionStep('validate');
+        setSubmissionSteps(prev => prev.map(step => ({
+          ...step,
+          status: step.id === 'prepare' ? 'completed' :
+                  step.id === 'validate' ? 'active' : step.status
+        })));
 
-      // Calculate overall score
-      const totalQuestions = currentAssignment.questions?.length || 0;
-      const correctResponses = Object.values(finalResponses).filter(r => r.isCorrect);
-      const calculatedScore = totalQuestions > 0
-        ? Math.round((correctResponses.length / totalQuestions) * 100)
-        : 0;
+        // Update progress for data preparation
+        updateProgress(35, 'Preparing response data...');
 
-      setScore(calculatedScore);
+        // Get final responses including current question if needed
+        const finalResponses = ensureCurrentQuestionResponse();
 
-      // Submit responses to server
-      const responseArray = Object.values(finalResponses);
+        // Update submission tracker - calculate step
+        setCurrentSubmissionStep('calculate');
+        setSubmissionSteps(prev => prev.map(step => ({
+          ...step,
+          status: step.id === 'validate' ? 'completed' :
+                  step.id === 'calculate' ? 'active' : step.status
+        })));
 
-      // Pass the calculated score to the submitResponses function
-      submitResponses(submissionId, responseArray, calculatedScore)
-        .then(() => {
-          // Reset loading state
-          setIsSubmitting(false);
+        // Update progress for score calculation
+        updateProgress(45, 'Calculating your score...');
 
-          // Show single success notification
-          toast.success('Assignment completed successfully!', {
-            duration: 3000,
-            icon: '🎉'
-          });
+        // Calculate overall score
+        const totalQuestions = currentAssignment.questions?.length || 0;
+        const correctResponses = Object.values(finalResponses).filter(r => r.isCorrect);
+        const calculatedScore = totalQuestions > 0
+          ? Math.round((correctResponses.length / totalQuestions) * 100)
+          : 0;
 
-          // Show celebration overlay with a slight delay to ensure UI updates
+        setScore(calculatedScore);
+
+        // Submit responses to server
+        const responseArray = Object.values(finalResponses);
+
+        // Update submission tracker - submit step
+        setCurrentSubmissionStep('submit');
+        setSubmissionSteps(prev => prev.map(step => ({
+          ...step,
+          status: step.id === 'calculate' ? 'completed' :
+                  step.id === 'submit' ? 'active' : step.status
+        })));
+
+        // Update progress before submission
+        updateProgress(55, 'Submitting your responses to server...');
+
+        console.log(`Submitting ${responseArray.length} responses with score: ${calculatedScore}%`);
+
+        // Pass the calculated score to the submitResponses function
+        await submitResponses(submissionId, responseArray, calculatedScore);
+
+        // Update submission tracker - complete step
+        setCurrentSubmissionStep('complete');
+        setSubmissionSteps(prev => prev.map(step => ({
+          ...step,
+          status: step.id === 'submit' ? 'completed' :
+                  step.id === 'complete' ? 'active' : step.status
+        })));
+
+        // Update progress to completion
+        updateProgress(90, 'Processing results...');
+
+        // Reset loading state
+        setIsSubmitting(false);
+        setIsProcessingSubmission(false);
+
+        // Show single success notification
+        toast.success('Assignment completed successfully!', {
+          duration: 3000,
+          icon: '🎉'
+        });
+
+        // Complete progress and hide overlay
+        setTimeout(() => {
+          updateProgress(100, 'Completed successfully!');
+
+          // Complete user journey tracking
+          completeJourney(calculatedScore);
+
+          // Save final progress
+          saveProgress();
+
           setTimeout(() => {
+            // Mark all steps as completed
+            setSubmissionSteps(prev => prev.map(step => ({
+              ...step,
+              status: 'completed'
+            })));
+
+            hideProgress();
             setShowCelebration(true);
+
+            // Hide submission tracker after a delay
+            setTimeout(() => {
+              setShowSubmissionTracker(false);
+            }, 2000);
 
             // Stop background music when assignment is completed
             stopBackgroundMusic();
@@ -437,25 +565,52 @@ const PlayAssignment = ({
             if (onAssignmentComplete) {
               onAssignmentComplete();
             }
-          }, 300);
-        })
-        .catch(error => {
-          console.error('Error submitting responses:', error);
+          }, 1000);
+        }, 300);
 
-          // Reset loading state
-          setIsSubmitting(false);
+        console.log('Assignment submission completed successfully!');
 
-          toast.error('Failed to submit assignment. Please try again.', {
-            duration: 4000
-          });
-          // Allow retry if submission fails
-          setIsSubmitted(false);
-          isSubmittingRef.current = false;
+      } catch (error) {
+        console.error('Error submitting responses:', error);
+
+        // Mark current step as error
+        setSubmissionSteps(prev => prev.map(step => ({
+          ...step,
+          status: step.id === currentSubmissionStep ? 'error' : step.status,
+          error: step.id === currentSubmissionStep ? (error instanceof Error ? error.message : 'Unknown error') : undefined
+        })));
+
+        // Reset loading state
+        setIsSubmitting(false);
+        setIsProcessingSubmission(false);
+        hideProgress();
+
+        // Show user-friendly error message
+        const errorMessage = error instanceof Error ? error.message : 'Failed to submit assignment. Please try again.';
+        toast.error(errorMessage, {
+          duration: 4000
         });
+
+        // Hide submission tracker after error
+        setTimeout(() => {
+          setShowSubmissionTracker(false);
+        }, 3000);
+
+        // Allow retry if submission fails
+        setIsSubmitted(false);
+        isSubmittingRef.current = false;
+      }
     };
 
     if (isSubmitted && currentAssignment && submissionId) {
+      console.log('✅ Submission effect triggered - calling submitAssignment');
       submitAssignment();
+    } else if (isSubmitted) {
+      console.log('❌ Submission effect triggered but missing requirements:', {
+        isSubmitted,
+        hasAssignment: !!currentAssignment,
+        hasSubmissionId: !!submissionId
+      });
     }
   }, [isSubmitted, currentAssignment, submissionId, currentQuestionIndex, responses, submitResponses, onAssignmentComplete]);
 
@@ -532,11 +687,29 @@ const PlayAssignment = ({
     };
   }, []);
 
+  // Function to enable TTS after user interaction
+  const enableTTS = useCallback(() => {
+    if (!ttsEnabled && 'speechSynthesis' in window) {
+      try {
+        // Test TTS with a silent utterance to enable it
+        const testUtterance = new SpeechSynthesisUtterance('');
+        testUtterance.volume = 0;
+        speechSynthesis.speak(testUtterance);
+        setTtsEnabled(true);
+        console.log('🎤 TTS enabled after user interaction');
+      } catch (error) {
+        console.warn('🎤 Failed to enable TTS:', error);
+      }
+    }
+  }, [ttsEnabled, setTtsEnabled]);
+
   // Add user interaction handler to enable audio playback
   useEffect(() => {
     const handleUserInteraction = () => {
       if (!hasUserInteracted) {
         setHasUserInteracted(true);
+        // Enable TTS after user interaction
+        enableTTS();
         // Try to play audio instructions if available and autoplay was blocked
         if (currentAssignment?.audioInstructions && audioPlayerRef.current) {
           // This will be handled by the AudioPlayer component
@@ -544,17 +717,384 @@ const PlayAssignment = ({
       }
     };
 
-    // Add event listeners for user interaction
+    // Global click handler to stop sounds if assignment is completed or user clicks randomly
+    const handleGlobalClick = (event: MouseEvent) => {
+      // Check if assignment is completed (celebration is showing)
+      if (showCelebration) {
+        console.log('🔇 Assignment completed - stopping all sounds on click');
+        stopAllSounds();
+        stopSpeaking();
+        return;
+      }
+
+      // Check if current question is completed and user is clicking outside of navigation buttons
+      const target = event.target as HTMLElement;
+      const isNavigationButton = target.closest('button[data-navigation]') ||
+                                 target.closest('.navigation-button') ||
+                                 target.closest('[data-testid="next-button"]') ||
+                                 target.closest('[data-testid="finish-button"]');
+
+      if (isCurrentQuestionCompleted() && !isNavigationButton) {
+        console.log('🔇 Question completed - stopping sounds on non-navigation click');
+        stopAllSounds();
+        stopSpeaking();
+        return;
+      }
+
+      // If user is clicking randomly during active exercise, stop sounds to avoid distractions
+      const isExerciseElement = target.closest('.exercise-container') ||
+                               target.closest('[data-exercise]') ||
+                               target.closest('.question-container');
+
+      if (!isExerciseElement) {
+        console.log('🔇 Click outside exercise area - stopping sounds');
+        stopAllSounds();
+        stopSpeaking();
+      }
+    };
+
+    // Add event listeners for user interaction and global click handling
     document.addEventListener('click', handleUserInteraction);
     document.addEventListener('touchstart', handleUserInteraction);
+    document.addEventListener('click', handleGlobalClick);
     document.addEventListener('keydown', handleUserInteraction);
 
     return () => {
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('click', handleGlobalClick);
       document.removeEventListener('keydown', handleUserInteraction);
     };
-  }, [hasUserInteracted, currentAssignment?.audioInstructions]);
+  }, [hasUserInteracted, currentAssignment?.audioInstructions, showCelebration, responses, currentQuestionIndex]);
+
+  // Add beforeunload warning when submission is in progress
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isProcessingSubmission || isSubmitting || showSubmissionTracker) {
+        const message = "I am submitting your result now. Please wait and don't close the page!";
+        event.preventDefault();
+        event.returnValue = message; // For older browsers
+        return message;
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Stop TTS when tab loses focus
+        if (speechSynthesis.speaking) {
+          console.log('🎤 Tab hidden - stopping TTS');
+          speechSynthesis.cancel();
+          setIsTTSActive(false);
+        }
+
+        // Show a toast notification when user switches tabs during submission
+        if (isProcessingSubmission || isSubmitting || showSubmissionTracker) {
+          toast("Please don't switch tabs! I am submitting your result now.", {
+            duration: 5000,
+            icon: '⚠️'
+          });
+        }
+      }
+    };
+
+    // Add event listeners
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isProcessingSubmission, isSubmitting, showSubmissionTracker]);
+
+  // Effect to ensure voices are loaded for TTS
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      // Load voices if not already loaded
+      const loadVoices = () => {
+        const voices = speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          console.log('🎤 Available TTS voices:', voices.map(v => `${v.name} (${v.lang})`));
+        }
+      };
+
+      // Load voices immediately if available
+      loadVoices();
+
+      // Also listen for the voiceschanged event (some browsers load voices asynchronously)
+      speechSynthesis.addEventListener('voiceschanged', loadVoices);
+
+      return () => {
+        speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+      };
+    }
+  }, []);
+
+  // Reset greeting flag when assignment changes
+  useEffect(() => {
+    if (currentAssignment?.id) {
+      setHasPlayedGreeting(false);
+      ttsScheduledRef.current = false;
+      currentQuestionTTSRef.current = null;
+      completedTTSQuestionsRef.current.clear();
+      if (ttsTimeoutRef.current) {
+        clearTimeout(ttsTimeoutRef.current);
+        ttsTimeoutRef.current = null;
+      }
+      console.log('🎤 Reset greeting and TTS flags for new assignment:', currentAssignment.id);
+    }
+  }, [currentAssignment?.id]);
+
+  // Helper function to get time-based salutation
+  const getTimeBasedSalutation = useCallback(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) {
+      return 'Good morning';
+    } else if (hour < 17) {
+      return 'Good afternoon';
+    } else {
+      return 'Good evening';
+    }
+  }, []);
+
+  // Helper function to get user's name with fallback
+  const getUserName = useCallback(() => {
+    const name = anonymousUser?.name || user?.user_metadata?.full_name || user?.email?.split('@')[0];
+    return name || 'there';
+  }, [anonymousUser, user]);
+
+  // Helper function to configure female voice preference
+  const configureFemaleVoice = useCallback(() => {
+    if (!('speechSynthesis' in window)) return null;
+
+    const voices = speechSynthesis.getVoices();
+
+    // Look for female voices in order of preference (more comprehensive patterns)
+    const femaleVoicePatterns = [
+      /female/i,
+      /woman/i,
+      /girl/i,
+      /samantha/i,
+      /susan/i,
+      /victoria/i,
+      /karen/i,
+      /moira/i,
+      /tessa/i,
+      /veena/i,
+      /fiona/i,
+      /zira/i,
+      /hazel/i,
+      /serena/i,
+      /allison/i,
+      /ava/i,
+      /nicky/i,
+      /paulina/i,
+      /amelie/i,
+      /anna/i,
+      /carmit/i,
+      /damayanti/i,
+      /ellen/i,
+      /ioana/i,
+      /joana/i,
+      /kanya/i,
+      /kyoko/i,
+      /laura/i,
+      /lekha/i,
+      /mariska/i,
+      /mei-jia/i,
+      /melina/i,
+      /milena/i,
+      /nora/i,
+      /paulina/i,
+      /rishi/i,
+      /sara/i,
+      /satu/i,
+      /sin-ji/i,
+      /tessa/i,
+      /yuna/i,
+      /zosia/i
+    ];
+
+    // Explicitly exclude known male voices
+    const maleVoicePatterns = [
+      /male/i,
+      /man/i,
+      /boy/i,
+      /alex/i,
+      /daniel/i,
+      /tom/i,
+      /david/i,
+      /mark/i,
+      /james/i,
+      /jorge/i,
+      /diego/i,
+      /carlos/i,
+      /felipe/i,
+      /ivan/i,
+      /yuki/i,
+      /otoya/i,
+      /stefanos/i,
+      /cosimo/i,
+      /luca/i,
+      /reed/i,
+      /nathan/i
+    ];
+
+    // First, try to find explicitly female voices
+    for (const pattern of femaleVoicePatterns) {
+      const femaleVoice = voices.find(voice => pattern.test(voice.name));
+      if (femaleVoice) {
+        console.log('🎤 Found female voice:', femaleVoice.name);
+        return femaleVoice;
+      }
+    }
+
+    // Fallback: look for any voice that doesn't match male patterns
+    const nonMaleVoice = voices.find(voice =>
+      !maleVoicePatterns.some(pattern => pattern.test(voice.name))
+    );
+
+    if (nonMaleVoice) {
+      console.log('🎤 Using non-male voice:', nonMaleVoice.name);
+      return nonMaleVoice;
+    }
+
+    console.log('🎤 No female voice found, using default voice');
+    return voices[0] || null;
+  }, []);
+
+  // Enhanced speak function with female voice preference and interruption handling
+  const speakWithFemaleVoice = useCallback((text: string, options: {
+    rate?: number;
+    pitch?: number;
+    volume?: number;
+    lang?: string;
+  } = {}) => {
+    if (!('speechSynthesis' in window)) {
+      console.warn('Text-to-speech not supported in this browser');
+      return Promise.resolve();
+    }
+
+    // Check if TTS has been enabled by user interaction
+    if (!ttsEnabled) {
+      console.log('🎤 TTS not enabled yet - user interaction required');
+      return Promise.resolve();
+    }
+
+    // Check if sound is enabled
+    const soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+    if (!soundEnabled) {
+      console.log('🎤 TTS disabled by user settings');
+      return Promise.resolve();
+    }
+
+    // Check if tab is visible - don't play TTS when tab is not in focus
+    if (document.visibilityState === 'hidden') {
+      console.log('🎤 Tab not visible - skipping TTS');
+      return Promise.resolve();
+    }
+
+    // Check if celebration overlay is visible - don't start TTS during celebration
+    const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+    if (celebrationOverlay) {
+      console.log('🎤 Celebration overlay visible - skipping TTS');
+      return Promise.resolve();
+    }
+
+    // Prevent multiple simultaneous TTS calls
+    if (isTTSActive) {
+      console.log('🎤 TTS already active - skipping new request');
+      return Promise.resolve();
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      setIsTTSActive(true);
+
+      // Stop any ongoing speech with a longer delay to prevent interruption
+      if (speechSynthesis.speaking) {
+        console.log('🎤 Stopping existing speech before starting new one');
+        speechSynthesis.cancel();
+        // Wait longer for the cancellation to complete
+        setTimeout(() => {
+          startSpeech();
+        }, 500); // Increased delay for better reliability
+      } else {
+        // Even when no speech is active, add a small delay to ensure stability
+        setTimeout(() => {
+          startSpeech();
+        }, 100);
+      }
+
+      function startSpeech() {
+        const utterance = new SpeechSynthesisUtterance(text);
+
+        // Configure voice preferences
+        const femaleVoice = configureFemaleVoice();
+        if (femaleVoice) {
+          utterance.voice = femaleVoice;
+          console.log('🎤 Using voice:', femaleVoice.name);
+        } else {
+          console.log('🎤 Using default voice');
+        }
+
+        // Configure speech parameters
+        utterance.volume = Math.min(1, Math.max(0, options.volume || 0.8));
+        utterance.rate = options.rate || 0.85; // Slightly slower for better comprehension
+        utterance.pitch = options.pitch || 1.1; // Slightly higher pitch for friendliness
+        utterance.lang = options.lang || 'en-US';
+
+        // Add event listeners
+        utterance.onstart = () => {
+          console.log('🎤 TTS started:', text.substring(0, 50) + '...');
+        };
+
+        utterance.onend = () => {
+          console.log('🎤 TTS completed successfully');
+          setIsTTSActive(false);
+          resolve();
+        };
+
+        utterance.onerror = (event) => {
+          console.error('🎤 TTS error:', event.error);
+          setIsTTSActive(false);
+          if (event.error === 'interrupted') {
+            console.log('🎤 TTS was interrupted - this is normal if user navigated or another sound started');
+            resolve(); // Don't treat interruption as an error
+          } else {
+            reject(new Error(`TTS error: ${event.error}`));
+          }
+        };
+
+        utterance.onpause = () => {
+          console.log('🎤 TTS paused');
+        };
+
+        utterance.onresume = () => {
+          console.log('🎤 TTS resumed');
+        };
+
+        // Speak the utterance
+        try {
+          speechSynthesis.speak(utterance);
+        } catch (error) {
+          console.error('🎤 Error starting TTS:', error);
+          setIsTTSActive(false);
+          reject(error);
+        }
+      }
+    });
+  }, [configureFemaleVoice, ttsEnabled]);
+
+  // Generate personalized greeting
+  const generatePersonalizedGreeting = useCallback(() => {
+    const userName = getUserName();
+    const salutation = getTimeBasedSalutation();
+
+    const greeting = `Hi ${userName}, ${salutation}! I hope you are enjoying your summer holiday. Let's begin this test.`;
+
+    console.log('🎤 Generated personalized greeting:', greeting);
+    return greeting;
+  }, [getUserName, getTimeBasedSalutation]);
 
   // Handle response update - memoized to prevent unnecessary re-renders
   const handleResponseUpdate = useCallback((questionId: string, responseData: any, isCorrect: boolean) => {
@@ -594,32 +1134,93 @@ const PlayAssignment = ({
 
   // Manual submit handler for the "Finish" button
   const handleManualSubmit = () => {
+    // Prevent duplicate submissions
+    if (isSubmittingRef.current || isSubmitting) {
+      console.log('⚠️ Submission already in progress, ignoring duplicate request');
+      return;
+    }
+
+    console.log('🎯 Finish button clicked - starting submission process');
+
     // Stop all sounds immediately when finish is clicked
     stopAllSounds();
     stopSpeaking(); // Also stop any text-to-speech
 
-    // Set loading state
+    // Set loading state with enhanced feedback
     setIsSubmitting(true);
+    // Don't set isSubmittingRef.current here - let the effect handle it
+
+    // Show enhanced submission tracker
+    setShowSubmissionTracker(true);
+    setCurrentSubmissionStep('prepare');
+    setSubmissionSteps(prev => prev.map(step =>
+      step.id === 'prepare' ? { ...step, status: 'active' } : step
+    ));
+
+    // Show progress overlay for submission with more detailed steps
+    showProgress('Preparing submission...');
+    updateProgress(5, 'Stopping audio and preparing data...');
 
     // Scroll to top of page for better UX
     setTimeout(() => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      updateProgress(15, 'Organizing your responses...');
     }, 100);
 
-    // Play completion sound after stopping others
+    // Update progress without playing completion sound
     setTimeout(() => {
-      playSound('completion');
+      updateProgress(25, 'Validating your answers...');
     }, 200);
 
     // Just set isSubmitted to true, and the effect will handle the actual submission
-    setIsSubmitted(true);
+    setTimeout(() => {
+      console.log('🚀 Setting isSubmitted to true to trigger submission effect');
+      setIsSubmitted(true);
+    }, 500);
   };
 
-  // Text-to-speech for questions
-  const speakQuestion = useCallback((question: InteractiveQuestion) => {
+  // Enhanced text-to-speech for questions with personalized greeting
+  const speakQuestion = useCallback(async (question: InteractiveQuestion, isFirstQuestion: boolean = false) => {
     if (!question) return;
 
+    // Prevent duplicate calls for the same question
+    if (isTTSActive) {
+      console.log('🎤 TTS already active - skipping duplicate speakQuestion call');
+      return;
+    }
+
+    // Check if tab is visible - don't start TTS when tab is not in focus
+    if (document.visibilityState === 'hidden') {
+      console.log('🎤 Tab not visible - skipping TTS in speakQuestion');
+      return;
+    }
+
+    // Ensure any existing speech is stopped first
+    if (speechSynthesis.speaking) {
+      console.log('🎤 Cancelling existing speech in speakQuestion');
+      speechSynthesis.cancel();
+      // Wait for cancellation to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+
     let textToSpeak = '';
+
+    // Add personalized greeting for the first question only
+    if (isFirstQuestion && !hasPlayedGreeting) {
+      const greeting = generatePersonalizedGreeting();
+      textToSpeak += greeting;
+
+      // Add a natural pause between greeting and question
+      if (question.questionText) {
+        textToSpeak += ' Now, let me ask you the first question. ';
+      }
+
+      setHasPlayedGreeting(true);
+      console.log('🎤 Including personalized greeting with first question');
+      console.log('🎤 Full text to speak:', textToSpeak.substring(0, 100) + '...');
+    } else if (isFirstQuestion && hasPlayedGreeting) {
+      console.log('🎤 First question but greeting already played');
+    }
 
     // Add question text if available
     if (question.questionText) {
@@ -642,25 +1243,156 @@ const PlayAssignment = ({
     }
 
     if (textToSpeak.trim()) {
-      speakText(textToSpeak, { rate: 0.9, volume: 0.8 });
-    }
-  }, []);
+      try {
+        console.log('🎤 Starting TTS with text length:', textToSpeak.length);
 
-  // Effect to speak question when it changes (only if no audio instructions)
+        // Use enhanced female voice for the greeting and question as one continuous speech
+        await speakWithFemaleVoice(textToSpeak, {
+          rate: isFirstQuestion ? 0.8 : 0.85, // Slightly slower for greeting
+          volume: 0.8,
+          pitch: 1.1
+        });
+
+        console.log('🎤 TTS completed successfully for', isFirstQuestion ? 'first question with greeting' : 'question');
+      } catch (error) {
+        // Handle TTS errors gracefully
+        const errorMessage = error instanceof Error ? error.message : 'Unknown TTS error';
+        console.log('🎤 TTS failed, but continuing with assignment:', errorMessage);
+      }
+    }
+  }, [hasPlayedGreeting, generatePersonalizedGreeting, speakWithFemaleVoice]);
+
+  // Create a stable ref for the speakQuestion function
+  const speakQuestionRef = useRef(speakQuestion);
+  speakQuestionRef.current = speakQuestion;
+
+  // TTS scheduling function that doesn't cause re-renders - made more stable
+  const scheduleTTSForQuestion = useCallback((questionId: string, questionIndex: number) => {
+    console.log(`🎤 scheduleTTSForQuestion called for question ${questionIndex} (${questionId})`);
+
+    // Check if TTS has already been completed for this question
+    if (completedTTSQuestionsRef.current.has(questionId)) {
+      console.log('🎤 TTS already completed for this question - skipping');
+      return;
+    }
+
+    // Clear any existing timeout
+    if (ttsTimeoutRef.current) {
+      clearTimeout(ttsTimeoutRef.current);
+      ttsTimeoutRef.current = null;
+    }
+
+    // Check if we've already scheduled TTS for this question
+    if (currentQuestionTTSRef.current === questionId || ttsScheduledRef.current) {
+      console.log('🎤 TTS already scheduled for this question - skipping duplicate');
+      return;
+    }
+
+    const currentQuestion = currentAssignment?.questions?.[questionIndex];
+    if (!currentQuestion) {
+      console.log('🎤 No current question found');
+      return;
+    }
+
+    console.log('🎤 TTS Conditions check:', {
+      hasAudioInstructions: !!currentQuestion.audioInstructions,
+      isTTSAvailable: isTTSAvailable(),
+      isTTSActive,
+      ttsEnabled,
+      tabVisible: document.visibilityState === 'visible'
+    });
+
+    // Check all conditions
+    if (
+      !currentQuestion.audioInstructions &&
+      isTTSAvailable() &&
+      !isTTSActive &&
+      ttsEnabled &&
+      document.visibilityState === 'visible'
+    ) {
+      // Mark as scheduled
+      ttsScheduledRef.current = true;
+      currentQuestionTTSRef.current = questionId;
+
+      const isFirstQuestion = questionIndex === 0;
+      const delay = isFirstQuestion ? 4000 : 2000;
+
+      console.log(`🎤 Scheduling TTS for ${isFirstQuestion ? 'first question with greeting' : 'question'} in ${delay}ms`);
+
+      ttsTimeoutRef.current = setTimeout(async () => {
+        // Double-check conditions before starting TTS
+        if (!isTTSActive && ttsEnabled && ttsScheduledRef.current && currentQuestionTTSRef.current === questionId && document.visibilityState === 'visible') {
+          try {
+            console.log('🎤 Starting scheduled TTS...');
+            await speakQuestionRef.current(currentQuestion, isFirstQuestion);
+            console.log('🎤 Scheduled TTS completed successfully');
+            // Mark this question as completed
+            completedTTSQuestionsRef.current.add(questionId);
+          } catch (error) {
+            console.log('🎤 TTS effect error handled:', error);
+          } finally {
+            // Reset scheduled flags after completion or error
+            ttsScheduledRef.current = false;
+            currentQuestionTTSRef.current = null;
+            ttsTimeoutRef.current = null;
+          }
+        } else {
+          console.log('🎤 TTS conditions changed before timer fired - resetting schedule');
+          console.log('🎤 Conditions at timer fire:', {
+            isTTSActive,
+            ttsEnabled,
+            ttsScheduled: ttsScheduledRef.current,
+            currentQuestionTTS: currentQuestionTTSRef.current,
+            expectedQuestionId: questionId,
+            tabVisible: document.visibilityState === 'visible'
+          });
+          ttsScheduledRef.current = false;
+          currentQuestionTTSRef.current = null;
+          ttsTimeoutRef.current = null;
+        }
+      }, delay);
+    } else if (currentQuestion && !currentQuestion.audioInstructions && !ttsEnabled) {
+      console.log('🎤 TTS not enabled yet - waiting for user interaction');
+    } else {
+      console.log('🎤 TTS conditions not met - not scheduling');
+    }
+  }, [currentAssignment?.questions, isTTSActive, ttsEnabled]);
+
+  // Create a stable ref for the scheduling function
+  const scheduleTTSRef = useRef(scheduleTTSForQuestion);
+  scheduleTTSRef.current = scheduleTTSForQuestion;
+
+  // Effect to trigger TTS when question changes - simplified and stable
   useEffect(() => {
     const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
-    if (currentQuestion && !currentQuestion.audioInstructions && isTTSAvailable()) {
-      // Delay TTS to allow page to settle
-      const timer = setTimeout(() => {
-        speakQuestion(currentQuestion);
-      }, 1000);
+    if (currentQuestion) {
+      // Use a small delay to ensure the component has fully rendered
+      const scheduleTimer = setTimeout(() => {
+        scheduleTTSRef.current(currentQuestion.id, currentQuestionIndex);
+      }, 100);
 
       return () => {
-        clearTimeout(timer);
-        stopSpeaking();
+        clearTimeout(scheduleTimer);
       };
     }
-  }, [currentQuestionIndex, currentAssignment?.questions, speakQuestion]);
+  }, [currentQuestionIndex, currentAssignment?.questions]);
+
+  // Cleanup effect for component unmount
+  useEffect(() => {
+    return () => {
+      if (ttsTimeoutRef.current) {
+        clearTimeout(ttsTimeoutRef.current);
+        ttsTimeoutRef.current = null;
+      }
+      ttsScheduledRef.current = false;
+      currentQuestionTTSRef.current = null;
+      if (speechSynthesis.speaking) {
+        speechSynthesis.cancel();
+        setIsTTSActive(false);
+      }
+      stopSpeaking();
+    };
+  }, []);
 
   // Render current question - memoized to prevent unnecessary re-renders
   const renderQuestion = useCallback((question: InteractiveQuestion) => {
@@ -1017,71 +1749,107 @@ const PlayAssignment = ({
       }}
     >
       {/* Assignment Header */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-        {/* User Info Banner for Anonymous Users */}
+      <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl shadow-xl p-4 md:p-6 mb-6 border border-indigo-100">
+        {/* User Info Banner for Anonymous Users - Enhanced */}
         {anonymousUser && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">
-                  Welcome, {anonymousUser.name}!
-                </h3>
-                <div className="mt-1 text-sm text-blue-600">
-                  <p>You're taking this quiz as a guest. Your results will be saved and can be viewed by the instructor.</p>
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 mb-6 shadow-sm">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 mt-1">
+                <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <svg className="h-5 w-5 text-emerald-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+                  </svg>
                 </div>
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-bold text-emerald-800 mb-1">
+                  Welcome, {anonymousUser.name}! 👋
+                </h3>
+                <p className="text-sm text-emerald-700 leading-relaxed">
+                  You're taking this quiz as a guest. Your results will be saved and can be viewed by the instructor.
+                </p>
               </div>
             </div>
           </div>
         )}
 
-        <h1 className="text-3xl font-bold mb-2">
-          {assignmentOrganization?.name ? (
-            <>
-              <span className="text-blue-600">{assignmentOrganization.name}</span>
-              <span className="text-gray-400 mx-2">|</span>
-              <span>{currentAssignment?.title}</span>
-            </>
-          ) : (
-            currentAssignment?.title
-          )}
-        </h1>
-        <p className="text-gray-600 mb-4">{currentAssignment?.description}</p>
+        {/* Enhanced Header with Mobile-First Design */}
+        <div className="text-center md:text-left mb-6">
+          <h1 className="text-2xl md:text-4xl font-bold mb-3 leading-tight">
+            {assignmentOrganization?.name ? (
+              <div className="space-y-2">
+                <div className="text-indigo-600 text-lg md:text-2xl font-semibold">
+                  {assignmentOrganization.name}
+                </div>
+                <div className="text-gray-800 text-xl md:text-3xl">
+                  {currentAssignment?.title}
+                </div>
+              </div>
+            ) : (
+              <span className="text-gray-800">{currentAssignment?.title}</span>
+            )}
+          </h1>
 
-        {/* Quiz Information */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-4">
-          <h3 className="text-lg font-semibold mb-2 text-gray-800">Quiz Information</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center">
-              <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="text-gray-700">
-                <strong>{currentAssignment?.questions?.length || 0}</strong> Questions
-              </span>
-            </div>
-            {currentAssignment?.estimatedTimeMinutes && (
-              <div className="flex items-center">
-                <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          {currentAssignment?.description && (
+            <p className="text-gray-600 text-base md:text-lg leading-relaxed max-w-3xl mx-auto md:mx-0">
+              {currentAssignment.description}
+            </p>
+          )}
+        </div>
+
+        {/* Enhanced Quiz Information - Mobile Optimized */}
+        <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-4 md:p-5 mb-6 border border-gray-200">
+          <h3 className="text-lg md:text-xl font-bold mb-4 text-gray-800 text-center md:text-left">
+            📋 Quiz Information
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Questions Count */}
+            <div className="flex items-center justify-center md:justify-start space-x-3 p-3 bg-white rounded-lg shadow-sm">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg className="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span className="text-gray-700">
-                  <strong>{currentAssignment?.estimatedTimeMinutes}</strong> minutes
-                </span>
+              </div>
+              <div>
+                <div className="text-xl font-bold text-gray-800">
+                  {currentAssignment?.questions?.length || 0}
+                </div>
+                <div className="text-sm text-gray-600">Questions</div>
+              </div>
+            </div>
+
+            {/* Estimated Time */}
+            {currentAssignment?.estimatedTimeMinutes && (
+              <div className="flex items-center justify-center md:justify-start space-x-3 p-3 bg-white rounded-lg shadow-sm">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-gray-800">
+                    {currentAssignment.estimatedTimeMinutes}
+                  </div>
+                  <div className="text-sm text-gray-600">Minutes</div>
+                </div>
               </div>
             )}
+
+            {/* Difficulty Level */}
             {currentAssignment?.difficultyLevel && (
-              <div className="flex items-center">
-                <svg className="h-4 w-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <span className="text-gray-700">
-                  <strong>{currentAssignment?.difficultyLevel}</strong> Level
-                </span>
+              <div className="flex items-center justify-center md:justify-start space-x-3 p-3 bg-white rounded-lg shadow-sm">
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                  <svg className="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-gray-800">
+                    {currentAssignment.difficultyLevel}
+                  </div>
+                  <div className="text-sm text-gray-600">Level</div>
+                </div>
               </div>
             )}
           </div>
@@ -1165,6 +1933,22 @@ const PlayAssignment = ({
         />
       )}
 
+      {/* TTS Enablement Notice */}
+      {!ttsEnabled && currentQuestionIndex === 0 && !audioInstructions && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-center"
+        >
+          <div className="flex items-center justify-center space-x-2 text-blue-700">
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.816L4.846 14H2a1 1 0 01-1-1V7a1 1 0 011-1h2.846l3.537-2.816a1 1 0 011.617.816zM16 10a3 3 0 01-3 3v2a5 5 0 005-5 5 5 0 00-5-5v2a3 3 0 013 3z" clipRule="evenodd" />
+            </svg>
+            <span className="font-medium">Click anywhere to enable voice instructions</span>
+          </div>
+        </motion.div>
+      )}
+
       {/* Current Question */}
       {currentQuestion ? (
         <motion.div
@@ -1196,6 +1980,8 @@ const PlayAssignment = ({
       {/* Navigation Buttons */}
       <div className="flex justify-between mt-6">
         <button
+          data-navigation="true"
+          data-testid="previous-button"
           onClick={() => {
             if (currentQuestionIndex > 0) {
               setCurrentQuestionIndex(prev => prev - 1);
@@ -1216,6 +2002,8 @@ const PlayAssignment = ({
         </button>
 
         <button
+          data-navigation="true"
+          data-testid={currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1 ? "next-button" : "finish-button"}
           onClick={() => {
             // Check if current question is completed before allowing navigation
             if (!isCurrentQuestionCompleted()) {
@@ -1233,6 +2021,7 @@ const PlayAssignment = ({
               // Scroll to question container for better UX
               setTimeout(() => scrollToQuestion(), 100);
             } else {
+              console.log('🎯 Finish button clicked - calling handleManualSubmit');
               handleManualSubmit();
             }
           }}
@@ -1245,15 +2034,22 @@ const PlayAssignment = ({
               : 'bg-blue-500 text-white hover:bg-blue-600'
           }`}
         >
-          {/* Show loader when submitting */}
+          {/* Enhanced loader with better animation when submitting */}
           {isSubmitting && (
-            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+            <div className="flex items-center space-x-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+              <div className="flex space-x-1">
+                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
           )}
-          <span>
+          <span className={isSubmitting ? 'ml-2' : ''}>
             {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
               ? 'Next'
               : isSubmitting
-              ? 'Submitting...'
+              ? 'Processing...'
               : 'Finish'
             }
           </span>
@@ -1279,7 +2075,8 @@ const PlayAssignment = ({
         <button
           onClick={() => {
             playSound('click');
-            speakQuestion(currentQuestion);
+            const isFirstQuestion = currentQuestionIndex === 0;
+            speakQuestion(currentQuestion, isFirstQuestion);
           }}
           className="fixed bottom-6 left-6 bg-green-500 hover:bg-green-600 text-white rounded-full p-3 shadow-lg z-50"
           aria-label="Read Question Aloud"
@@ -1337,6 +2134,43 @@ const PlayAssignment = ({
 
       {/* Certificate Floating Button for Anonymous Users */}
       <CertificateFloatingButton />
+
+      {/* Progress Overlay for Submission Feedback */}
+      <ProgressOverlay
+        isVisible={progressVisible}
+        progress={progress}
+        status={progressStatus}
+      />
+
+      {/* User Progress Tracker */}
+      {currentAssignment && currentAssignment.questions && (
+        <UserProgressTracker
+          assignment={currentAssignment}
+          currentQuestionIndex={currentQuestionIndex}
+          currentQuestion={currentAssignment.questions[currentQuestionIndex]}
+          showMiniDashboard={true}
+        />
+      )}
+
+      {/* Enhanced Submission Progress Tracker */}
+      <SubmissionProgressTracker
+        isVisible={showSubmissionTracker}
+        currentStep={currentSubmissionStep}
+        steps={submissionSteps}
+        showPerformanceMetrics={true}
+        onComplete={() => {
+          console.log('Submission tracking completed');
+        }}
+        onError={(error) => {
+          console.error('Submission tracking error:', error);
+        }}
+      />
+
+      {/* Submission Diagnostic - Only show when debug=true in URL */}
+      {window.location.search.includes('debug=true') && (
+        <SubmissionDiagnostic />
+      )}
+
     </div>
   );
 };

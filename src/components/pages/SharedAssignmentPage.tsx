@@ -67,8 +67,8 @@ const SharedAssignmentPage = () => {
           {assignmentOrganization?.name
             ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
             : currentAssignment?.title
-            ? `${currentAssignment.title} | Interactive Assignment`
-            : 'Interactive Assignment'
+            ? `${currentAssignment.title} | Educational Assignment`
+            : 'Educational Assignment'
           }
         </title>
         {assignmentOrganization?.logo_url && (

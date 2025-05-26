@@ -14,7 +14,7 @@ const soundMap: Record<SoundType, string> = {
   clapping: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Applause
   'very-good': 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Placeholder - will use TTS
   'better-luck': 'https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3', // Placeholder - will use TTS
-  background: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3', // Gentle background music
+  background: 'https://assets.mixkit.co/active_storage/sfx/2022/2022-preview.mp3', // Gentle background music
 };
 
 // Cache for audio elements
@@ -33,6 +33,13 @@ let isBackgroundMusicPlaying = false;
  * @param volume Optional volume (0-1)
  */
 const playTTS = (text: string, volume = 0.7) => {
+  // Check if celebration overlay is visible - if so, don't start TTS
+  const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+  if (celebrationOverlay) {
+    console.log('🔇 Celebration overlay visible - blocking TTS:', text.substring(0, 50));
+    return;
+  }
+
   // Check if TTS is supported
   if (!('speechSynthesis' in window)) return;
 
@@ -69,6 +76,13 @@ const playTTS = (text: string, volume = 0.7) => {
  * @param volume Optional volume (0-1)
  */
 export const playEnhancedFeedback = (type: 'correct' | 'incorrect', volume = 0.7) => {
+  // Check if celebration overlay is visible - if so, don't play feedback
+  const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+  if (celebrationOverlay) {
+    console.log('🔇 Celebration overlay visible - blocking enhanced feedback:', type);
+    return;
+  }
+
   if (type === 'correct') {
     // Play "Very good!" followed by clapping
     playTTS('Very good!', volume);
@@ -114,6 +128,13 @@ const initializeAudio = () => {
  * @param volume Optional volume (0-1)
  */
 export const playSound = (type: SoundType, volume = 0.5) => {
+  // Check if celebration overlay is visible - if so, don't play any sounds
+  const celebrationOverlay = document.querySelector('[data-celebration-overlay="true"]');
+  if (celebrationOverlay) {
+    console.log('🔇 Celebration overlay visible - blocking sound:', type);
+    return;
+  }
+
   // Initialize audio on first call
   initializeAudio();
 
@@ -205,17 +226,17 @@ export const startBackgroundMusic = (volume = 0.2) => {
   if (isBackgroundMusicPlaying && backgroundMusic) return;
 
   try {
-    if (!backgroundMusic) {
-      backgroundMusic = new Audio(soundMap.background);
-      backgroundMusic.loop = true;
-      backgroundMusic.preload = 'auto';
+    // if (!backgroundMusic) {
+    //   backgroundMusic = new Audio(soundMap.background);
+    //   backgroundMusic.loop = true;
+    //   backgroundMusic.preload = 'auto';
 
-      // Register with audio manager
-      audioManager.register('background-music', backgroundMusic, 'background', AUDIO_PRIORITIES.BACKGROUND);
-    }
+    //   // Register with audio manager
+    //   audioManager.register('background-music', backgroundMusic, 'background', AUDIO_PRIORITIES.BACKGROUND);
+    // }
 
-    backgroundMusic.volume = Math.min(1, Math.max(0, volume));
-    backgroundMusic.currentTime = 0;
+    // backgroundMusic.volume = Math.min(1, Math.max(0, volume));
+    // backgroundMusic.currentTime = 0;
 
     audioManager.play('background-music').then((success) => {
       if (success) {

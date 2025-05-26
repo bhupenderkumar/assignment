@@ -26,7 +26,7 @@ export interface AppConfiguration {
 
 // Default configuration
 const defaultConfiguration: AppConfiguration = {
-  companyName: 'Interactive Assignments',
+  companyName: 'First Step School',
   companyTagline: 'EXPLORE · LEARN · MASTER',
   companyLogo: 'star', // Default icon key (we'll use a switch statement to render the right icon)
 
@@ -55,7 +55,7 @@ const defaultConfiguration: AppConfiguration = {
       ]
     }
   ],
-  footerText: `© ${new Date().getFullYear()} Interactive Assignments. All rights reserved.`
+  footerText: `© ${new Date().getFullYear()} First Step School. All rights reserved.`
 };
 
 // Create the context

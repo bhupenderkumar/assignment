@@ -205,6 +205,15 @@ export interface UserProgress {
   attempts: number;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED';
   feedback?: string;
+  // Enhanced tracking fields
+  currentQuestionIndex?: number;
+  questionsAnswered?: number;
+  milestones?: {
+    started: Date;
+    firstQuestionAnswered?: Date;
+    halfwayComplete?: Date;
+    completed?: Date;
+  };
 }
 
 // Rating and review interface

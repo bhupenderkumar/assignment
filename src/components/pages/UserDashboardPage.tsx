@@ -23,7 +23,7 @@ const UserDashboardPage = ({
   const [loading, setLoading] = useState(true);
   const [initialLoadAttempted, setInitialLoadAttempted] = useState(false);
   const { isAuthenticated, userId, username } = useSupabaseAuth();
-  const { fetchUserSubmissions } = useInteractiveAssignment();
+  const { fetchUserSubmissions, refreshUserSubmissions } = useInteractiveAssignment();
   const { config } = useConfiguration();
   const navigate = useNavigate();
 
@@ -187,6 +187,24 @@ const UserDashboardPage = ({
   // Use the most reliable source of data for display
   const displayedActivities = completedActivities.length > 0 ? completedActivities : submissionsRef.current;
 
+  // Manual refresh function
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      console.log('🔄 Manual refresh triggered');
+      const freshSubmissions = await refreshUserSubmissions();
+      const processedSubmissions = processSubmissions(freshSubmissions);
+      setCompletedActivities(processedSubmissions);
+      submissionsRef.current = freshSubmissions;
+      toast.success('Activities refreshed successfully!');
+    } catch (error) {
+      console.error('Error refreshing activities:', error);
+      toast.error('Failed to refresh activities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
       <motion.div
@@ -204,15 +222,35 @@ const UserDashboardPage = ({
         )}
 
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: config.primaryColor }}>
-            {certificatesMode ? 'My Certificates' : 'My Learning Journey'}
-          </h1>
-          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mb-4">
-            {certificatesMode
-              ? `View and download certificates for your completed assignments.`
-              : `Welcome back, ${username || 'Learner'}! Here's a summary of your completed activities.`
-            }
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2" style={{ color: config.primaryColor }}>
+                {certificatesMode ? 'My Certificates' : 'My Learning Journey'}
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+                {certificatesMode
+                  ? `View and download certificates for your completed assignments.`
+                  : `Welcome back, ${username || 'Learner'}! Here's a summary of your completed activities.`
+                }
+              </p>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-3 py-2 rounded-lg text-sm transition-colors"
+              title="Refresh activities"
+            >
+              <svg
+                className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
+          </div>
 
           {/* Stats Summary - Responsive grid for mobile */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-8">

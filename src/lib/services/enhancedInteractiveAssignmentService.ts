@@ -500,8 +500,15 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
     return data.id;
   },
 
-  // Submit responses
+  // Submit responses with optimized performance and error handling
   async submitResponses(submissionId: string, responses: Partial<InteractiveResponse>[], score?: number): Promise<void> {
+    if (!submissionId || !responses || responses.length === 0) {
+      throw new Error('Invalid submission data provided');
+    }
+
+    console.log(`🚀 Starting optimized batch submission for ${responses.length} responses`);
+    const startTime = performance.now();
+
     const formattedResponses = responses.map(response => ({
       submission_id: submissionId,
       question_id: response.questionId,
@@ -509,43 +516,87 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
       is_correct: response.isCorrect,
     }));
 
-    await executeCustomQuery(
-      async (client) => {
-        return await client
-          .from('interactive_response')
-          .insert(formattedResponses);
-      },
-      user
-    );
+    try {
+      // Use a single transaction for better performance and data consistency
+      await executeCustomQuery(
+        async (client) => {
+          // Start a transaction-like operation by batching all operations
+          const responseInsertPromise = client
+            .from('interactive_response')
+            .insert(formattedResponses);
 
-    // Update submission status and score
-    const updateData: any = {
-      status: 'SUBMITTED',
-      submitted_at: new Date().toISOString(),
-    };
+          // Prepare submission update data
+          const updateData: any = {
+            status: 'SUBMITTED',
+            submitted_at: new Date().toISOString(),
+          };
 
-    // Add score to update data if provided, or calculate it from responses
-    if (score !== undefined) {
-      updateData.score = score;
-      console.log('Updating submission with provided score:', score);
-    } else {
-      // Calculate score from responses if not provided
-      const totalResponses = responses.length;
-      const correctResponses = responses.filter(r => r.isCorrect === true).length;
-      const calculatedScore = totalResponses > 0 ? Math.round((correctResponses / totalResponses) * 100) : 0;
-      updateData.score = calculatedScore;
-      console.log('Calculated score from responses:', calculatedScore, 'correct:', correctResponses, 'total:', totalResponses);
+          // Add score to update data if provided, or calculate it from responses
+          if (score !== undefined) {
+            updateData.score = score;
+            console.log('📊 Using provided score:', score);
+          } else {
+            // Calculate score from responses if not provided
+            const totalResponses = responses.length;
+            const correctResponses = responses.filter(r => r.isCorrect === true).length;
+            const calculatedScore = totalResponses > 0 ? Math.round((correctResponses / totalResponses) * 100) : 0;
+            updateData.score = calculatedScore;
+            console.log('📊 Calculated score:', calculatedScore, 'correct:', correctResponses, 'total:', totalResponses);
+          }
+
+          const submissionUpdatePromise = client
+            .from('interactive_submission')
+            .update(updateData)
+            .eq('id', submissionId);
+
+          // Execute both operations in parallel for better performance
+          const [responseResult, submissionResult] = await Promise.all([
+            responseInsertPromise,
+            submissionUpdatePromise
+          ]);
+
+          // Check for errors in either operation
+          if (responseResult.error) {
+            console.error('❌ Error inserting responses:', responseResult.error);
+            throw responseResult.error;
+          }
+
+          if (submissionResult.error) {
+            console.error('❌ Error updating submission:', submissionResult.error);
+            throw submissionResult.error;
+          }
+
+          // Return the expected format for executeCustomQuery
+          return {
+            data: { responseResult, submissionResult },
+            error: null
+          };
+        },
+        user
+      );
+
+      const endTime = performance.now();
+      console.log(`✅ Batch submission completed successfully in ${(endTime - startTime).toFixed(2)}ms`);
+
+    } catch (error) {
+      const endTime = performance.now();
+      console.error(`❌ Batch submission failed after ${(endTime - startTime).toFixed(2)}ms:`, error);
+
+      // Provide more specific error messages based on the error type
+      if (error instanceof Error) {
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          throw new Error('Network connection issue. Please check your internet connection and try again.');
+        } else if (error.message.includes('timeout')) {
+          throw new Error('Request timed out. Please try again.');
+        } else if (error.message.includes('duplicate') || error.message.includes('unique')) {
+          throw new Error('This submission has already been processed.');
+        } else {
+          throw new Error(`Submission failed: ${error.message}`);
+        }
+      } else {
+        throw new Error('Failed to submit responses. Please check your connection and try again.');
+      }
     }
-
-    await executeCustomQuery(
-      async (client) => {
-        return await client
-          .from('interactive_submission')
-          .update(updateData)
-          .eq('id', submissionId);
-      },
-      user
-    );
   },
 
   // Register anonymous user
