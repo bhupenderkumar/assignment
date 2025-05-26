@@ -24,7 +24,7 @@ The WhatsApp sharing feature allows users to share their assignment certificates
    - Editable message before sharing
 
 4. **Fixed Recipient**
-   - Pre-configured to send to: +91 9717267473
+   - Pre-configured to send to: +91 9311872001
    - Automatic phone number formatting
 
 5. **User Experience**
@@ -119,7 +119,7 @@ shareCertificateOnWhatsApp(options) // Handles the complete sharing flow
 ### Default Settings
 ```typescript
 // Fixed recipient number
-const WHATSAPP_RECIPIENT = '+91 9717267473';
+const WHATSAPP_RECIPIENT = '+91 9311872001';
 
 // Default message template
 const DEFAULT_MESSAGE = "Hooray! I have completed the exam. Thanks! Here is my certificate.";

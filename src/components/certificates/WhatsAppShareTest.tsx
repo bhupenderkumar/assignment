@@ -13,7 +13,7 @@ const WhatsAppShareTest: React.FC = () => {
   const platform = detectPlatform();
   const isSupported = isWhatsAppSupported();
   
-  const testPhoneNumber = '+91 9717267473';
+  const testPhoneNumber = '+91 9311872001';
   const testMessage = getDefaultCertificateMessage('John Doe', 'Math Quiz', 85);
   const testURL = createWhatsAppURL(testPhoneNumber, testMessage);
 
