@@ -5,7 +5,7 @@
   "framework": "vite",
   "functions": {
     "api/og-image.js": {
-      "runtime": "@edge"
+      "runtime": "edge@latest"
     },
     "api/og/[...params].js": {
       "runtime": "nodejs18.x"
