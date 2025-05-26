@@ -8,6 +8,7 @@ import { useInteractiveAssignment } from '../../context/InteractiveAssignmentCon
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
+import { generateMetaTags, getSocialShareUrl } from '../../lib/utils/ogUtils';
 
 import toast from 'react-hot-toast';
 
@@ -257,10 +258,19 @@ const PlayAssignmentPage = () => {
     );
   }
 
+  // Generate comprehensive meta tags for social sharing
+  const metaTags = currentAssignment && assignmentId ?
+    generateMetaTags(currentAssignment, assignmentOrganization, 'assignment', assignmentId) : null;
+
+  const socialShareUrl = assignmentId ? getSocialShareUrl('assignment', assignmentId) : '';
+  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const currentUrl = `${baseUrl}/play/assignment/${assignmentId}`;
+
   return (
     <>
-      {/* Dynamic page title based on organization */}
+      {/* Comprehensive SEO and Social Media Meta Tags */}
       <Helmet>
+        {/* Basic Meta Tags */}
         <title>
           {assignmentOrganization?.name
             ? `${assignmentOrganization.name} | ${currentAssignment?.title || 'Assignment'}`
@@ -269,6 +279,43 @@ const PlayAssignmentPage = () => {
             : 'Interactive Assignment'
           }
         </title>
+
+        {currentAssignment && (
+          <>
+            <meta name="description" content={
+              currentAssignment.description ||
+              `Take the interactive assignment "${currentAssignment.title}" ${assignmentOrganization?.name ? `from ${assignmentOrganization.name}` : ''}. Complete exercises, get instant feedback, and earn your certificate!`
+            } />
+
+            {/* Open Graph Meta Tags for Facebook, WhatsApp, etc. */}
+            <meta property="og:type" content="website" />
+            <meta property="og:title" content={metaTags?.title || currentAssignment.title} />
+            <meta property="og:description" content={metaTags?.description || currentAssignment.description} />
+            <meta property="og:url" content={currentUrl} />
+            <meta property="og:site_name" content={assignmentOrganization?.name || 'First Step School'} />
+            <meta property="og:image" content={assignmentOrganization?.logo_url || `${baseUrl}/og-default.png`} />
+            <meta property="og:image:width" content="1200" />
+            <meta property="og:image:height" content="630" />
+            <meta property="og:image:alt" content={`${currentAssignment.title} - Interactive Assignment`} />
+
+            {/* Twitter Card Meta Tags */}
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content={metaTags?.title || currentAssignment.title} />
+            <meta name="twitter:description" content={metaTags?.description || currentAssignment.description} />
+            <meta name="twitter:image" content={assignmentOrganization?.logo_url || `${baseUrl}/og-default.png`} />
+            <meta name="twitter:image:alt" content={`${currentAssignment.title} - Interactive Assignment`} />
+
+            {/* Additional Meta Tags for Better SEO */}
+            <meta name="author" content={assignmentOrganization?.name || 'First Step School'} />
+            <meta name="robots" content="index, follow" />
+            <link rel="canonical" href={currentUrl} />
+
+            {/* WhatsApp specific meta tags */}
+            <meta property="og:locale" content="en_US" />
+            <meta property="article:author" content={assignmentOrganization?.name || 'First Step School'} />
+          </>
+        )}
+
         {assignmentOrganization?.logo_url && (
           <link rel="icon" type="image/png" href={assignmentOrganization.logo_url} />
         )}

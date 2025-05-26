@@ -108,20 +108,21 @@
         <div class="test-section">
             <h3>📋 Quick Tests</h3>
             <p>Click these buttons to test common scenarios:</p>
-            
+
             <button onclick="testAssignment()">Test Assignment OG</button>
             <button onclick="testShare()">Test Shareable Link OG</button>
             <button onclick="testDefault()">Test Default Page</button>
+            <button onclick="testDynamicImage()">Test Dynamic Image</button>
         </div>
 
         <div class="test-section">
             <h3>🔗 Custom URL Test</h3>
             <p>Enter any URL to test its Open Graph tags:</p>
-            
-            <input 
-                type="text" 
-                id="customUrl" 
-                class="url-input" 
+
+            <input
+                type="text"
+                id="customUrl"
+                class="url-input"
                 placeholder="https://interactive-assignment-one.vercel.app/og/assignment/your-id"
             >
             <br>
@@ -141,11 +142,11 @@
             try {
                 const response = await fetch(url);
                 const html = await response.text();
-                
+
                 // Parse meta tags
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
-                
+
                 const metaTags = {};
                 const metaElements = doc.querySelectorAll('meta');
                 metaElements.forEach(meta => {
@@ -157,10 +158,10 @@
                 });
 
                 const title = doc.querySelector('title')?.textContent || 'No title found';
-                
+
                 // Display results
                 displayResults(label, url, title, metaTags, html);
-                
+
             } catch (error) {
                 resultsDiv.innerHTML = `<div class="result error">Error testing ${label}:\n${error.message}</div>`;
             }
@@ -168,7 +169,7 @@
 
         function displayResults(label, url, title, metaTags, html) {
             const resultsDiv = document.getElementById('results');
-            
+
             // Create preview card
             const ogTitle = metaTags['og:title'] || title;
             const ogDescription = metaTags['og:description'] || 'No description';
@@ -195,10 +196,10 @@
             resultsDiv.innerHTML = `
                 <div class="result success">
                     ✅ Successfully tested ${label}
-                    
+
                     <h4>📱 Preview (How it looks on social media):</h4>
                     ${previewCard}
-                    
+
                     <h4>🏷️ Meta Tags Found:</h4>
                     <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px;">
                         Title: ${title}
@@ -209,9 +210,29 @@
         }
 
         function testAssignment() {
-            // Use a sample assignment ID - replace with a real one
-            const url = `${baseUrl}/og/assignment/sample-assignment-id`;
+            // Use the real assignment ID from the user's request
+            const url = `${baseUrl}/og/assignment/1bf8e6da-9060-495e-965c-b611ed697cc4`;
             testUrl(url, 'Assignment Open Graph');
+        }
+
+        function testDynamicImage() {
+            // Test the dynamic OG image generation
+            const imageUrl = `${baseUrl}/api/og-image?title=Sample Assignment&organization=First Step School&description=This is a test assignment&primaryColor=%2310b981&secondaryColor=%238b5cf6`;
+
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <div class="result success">
+                    ✅ Dynamic OG Image Test
+
+                    <h4>🖼️ Generated Image:</h4>
+                    <img src="${imageUrl}" alt="Generated OG Image" style="max-width: 100%; border: 1px solid #ddd; border-radius: 8px; margin: 10px 0;">
+
+                    <h4>🔗 Image URL:</h4>
+                    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 11px; word-break: break-all;">
+                        ${imageUrl}
+                    </div>
+                </div>
+            `;
         }
 
         function testShare() {
