@@ -273,7 +273,7 @@ export const isBackgroundMusicActive = (): boolean => {
  */
 export const setBackgroundMusicVolume = (volume: number) => {
   if (backgroundMusic) {
-    backgroundMusic.volume = Math.min(1, Math.max(0, volume));
+    // backgroundMusic.volume = Math.min(1, Math.max(0, volume));
   }
 };
 

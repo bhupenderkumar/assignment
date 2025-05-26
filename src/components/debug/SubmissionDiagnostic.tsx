@@ -148,7 +148,7 @@ const SubmissionDiagnostic: React.FC = () => {
 
       // Step 5: Test service method
       try {
-        const serviceSubmissions = await fetchUserSubmissions(user.id);
+        const serviceSubmissions = await fetchUserSubmissions();
         addResult({
           step: 'Service Method Test',
           status: 'success',

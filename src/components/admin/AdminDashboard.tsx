@@ -16,7 +16,7 @@ const AdminDashboard = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<InteractiveAssignment | null>(null);
   const [sharingAssignment, setSharingAssignment] = useState<InteractiveAssignment | null>(null);
-  const [activeTab, setActiveTab] = useState<'assignments' | 'progress' | 'activity' | 'database'>('assignments');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'progress' | 'activity' | 'all-activity' | 'database'>('assignments');
   const {
     createAssignment,
     updateAssignment,
@@ -180,7 +180,8 @@ const AdminDashboard = () => {
             {[
               { id: 'assignments', label: 'Assignments', icon: '📝' },
               { id: 'progress', label: 'User Progress', icon: '📊' },
-              { id: 'activity', label: 'User Activity', icon: '👥' },
+              { id: 'activity', label: 'Anonymous Activity', icon: '👤' },
+              { id: 'all-activity', label: 'All User Activity', icon: '👥' },
               { id: 'database', label: 'Database', icon: '🗄️' },
             ].map((tab) => (
               <button
