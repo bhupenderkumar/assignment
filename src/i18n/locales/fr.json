@@ -1,0 +1,142 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "update": "Mettre à jour",
+    "submit": "Soumettre",
+    "close": "Fermer",
+    "back": "Retour",
+    "next": "Suivant",
+    "previous": "Précédent",
+    "finish": "Terminer",
+    "continue": "Continuer",
+    "confirm": "Confirmer",
+    "yes": "Oui",
+    "no": "Non",
+    "ok": "OK",
+    "search": "Rechercher",
+    "filter": "Filtrer",
+    "sort": "Trier",
+    "view": "Voir",
+    "download": "Télécharger",
+    "upload": "Téléverser",
+    "share": "Partager",
+    "home": "Accueil",
+    "dashboard": "Tableau de bord",
+    "settings": "Paramètres",
+    "profile": "Profil",
+    "help": "Aide",
+    "logout": "Déconnexion",
+    "login": "Connexion",
+    "signup": "S'inscrire",
+    "email": "Email",
+    "password": "Mot de passe",
+    "name": "Nom",
+    "title": "Titre",
+    "description": "Description",
+    "score": "Score",
+    "progress": "Progrès",
+    "completed": "Terminé",
+    "language": "Langue",
+    "languages": "Langues"
+  },
+  "navigation": {
+    "home": "Accueil",
+    "dashboard": "Tableau de bord",
+    "assignments": "Devoirs",
+    "gallery": "Galerie de Devoirs",
+    "progress": "Progrès",
+    "certificates": "Certificats",
+    "admin": "Admin",
+    "settings": "Paramètres",
+    "help": "Centre d'aide"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "signOut": "Se déconnecter",
+    "email": "Email",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "forgotPassword": "Mot de passe oublié ?",
+    "enterEmail": "Entrez votre email",
+    "enterPassword": "Entrez votre mot de passe",
+    "passwordRequirements": "Le mot de passe doit contenir au moins 8 caractères",
+    "welcomeBack": "Bon retour",
+    "signInSuccess": "Connexion réussie",
+    "signOutSuccess": "Déconnexion réussie"
+  },
+  "assignments": {
+    "title": "Devoirs",
+    "create": "Créer un devoir",
+    "edit": "Modifier le devoir",
+    "play": "Faire le devoir",
+    "share": "Partager le devoir",
+    "assignmentTitle": "Titre du devoir",
+    "instructions": "Instructions",
+    "questions": "Questions",
+    "timeLimit": "Limite de temps",
+    "score": "Score",
+    "startAssignment": "Commencer le devoir",
+    "finishAssignment": "Terminer le devoir",
+    "assignmentCompleted": "Devoir terminé",
+    "noAssignments": "Aucun devoir trouvé",
+    "loadingAssignments": "Chargement des devoirs..."
+  },
+  "exercises": {
+    "multipleChoice": "Choix multiple",
+    "matching": "Correspondance",
+    "completion": "Compléter les blancs",
+    "question": "Question",
+    "answer": "Réponse",
+    "selectAnswer": "Sélectionnez une réponse",
+    "nextQuestion": "Question suivante",
+    "previousQuestion": "Question précédente",
+    "correct": "Correct !",
+    "incorrect": "Incorrect",
+    "tryAgain": "Réessayez",
+    "excellent": "Excellent !",
+    "perfect": "Parfait !",
+    "great": "Formidable !"
+  },
+  "toast": {
+    "success": {
+      "saved": "Enregistré avec succès !",
+      "updated": "Mis à jour avec succès !",
+      "created": "Créé avec succès !",
+      "certificateShared": "Certificat partagé avec succès !",
+      "assignmentCompleted": "Devoir terminé !"
+    },
+    "error": {
+      "general": "Quelque chose s'est mal passé. Veuillez réessayer.",
+      "network": "Erreur réseau. Vérifiez votre connexion.",
+      "unauthorized": "Vous n'êtes pas autorisé à effectuer cette action.",
+      "saveFailed": "Échec de l'enregistrement. Veuillez réessayer."
+    },
+    "info": {
+      "loading": "Chargement...",
+      "saving": "Enregistrement...",
+      "uploading": "Téléversement..."
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "Ce champ est requis",
+      "email": "Veuillez entrer une adresse email valide",
+      "password": "Le mot de passe doit contenir au moins 8 caractères",
+      "confirmPassword": "Les mots de passe ne correspondent pas"
+    },
+    "placeholders": {
+      "enterText": "Entrez le texte...",
+      "enterEmail": "Entrez votre email",
+      "enterPassword": "Entrez votre mot de passe",
+      "searchPlaceholder": "Rechercher..."
+    }
+  }
+}

@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { useSupabaseAuth } from './SupabaseAuthContext';
 import { useDatabaseState } from './DatabaseStateContext';
 import useProgressOverlay from '../hooks/useProgressOverlay';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import ProgressOverlay from '../components/ui/ProgressOverlay';
 
 // Define the context type
@@ -59,6 +60,7 @@ interface RequestCache {
   assignments: {
     data: InteractiveAssignment[];
     timestamp: number;
+    userId: string; // Track which user this data belongs to
   } | null;
   assignmentsById: {
     [id: string]: {
@@ -72,6 +74,7 @@ interface RequestCache {
       timestamp: number;
     };
   };
+  lastFetchedUserId: string | null; // Track the last user we fetched assignments for
   pendingRequests: {
     fetchAssignments: boolean;
     fetchAssignmentById: { [id: string]: boolean };
@@ -92,11 +95,26 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
   const { supabase, userId, isSupabaseLoading, user, currentOrganization } = useSupabaseAuth();
   const { isReady: isDatabaseReady, state: dbState } = useDatabaseState();
 
+  // Use page visibility to prevent API calls when page is not visible
+  const { shouldPauseApiCalls } = usePageVisibility({
+    onHidden: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 InteractiveAssignmentContext: Page hidden, pausing API calls');
+      }
+    },
+    onVisible: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ InteractiveAssignmentContext: Page visible, resuming API calls');
+      }
+    }
+  });
+
   // Request cache to prevent duplicate requests
   const requestCache = useRef<RequestCache>({
     assignments: null,
     assignmentsById: {},
     userSubmissions: {},
+    lastFetchedUserId: null,
     pendingRequests: {
       fetchAssignments: false,
       fetchAssignmentById: {},
@@ -135,24 +153,50 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
 
   // Fetch all assignments
   const fetchAssignments = useCallback(async () => {
-    console.log('fetchAssignments called');
-
-    // Allow fetching assignments even if user is not authenticated (for gallery)
-    if (!userId) {
-      console.log('User not authenticated, but still fetching published assignments for gallery');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('fetchAssignments called for user:', userId || 'anonymous');
     }
 
-    // Check if there's a pending request already
-    if (requestCache.current.pendingRequests.fetchAssignments) {
-      console.log('Assignments fetch already in progress, waiting for it to complete');
+    // Don't make API calls if page is not visible
+    if (shouldPauseApiCalls) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('InteractiveAssignmentContext: Page not visible, skipping fetch');
+      }
       return assignments;
     }
 
-    // Check if we have cached data that's still valid
+    // Get current user ID (authenticated user or 'anonymous' for gallery)
+    const currentUserId = userId || 'anonymous';
+
+    // Check if there's a pending request already
+    if (requestCache.current.pendingRequests.fetchAssignments) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Assignments fetch already in progress, waiting for it to complete');
+      }
+      return assignments;
+    }
+
+    // Check if we have cached data that's still valid for this user
     const cachedData = requestCache.current.assignments;
-    if (cachedData && (Date.now() - cachedData.timestamp < CACHE_EXPIRATION)) {
-      console.log('Using cached assignments data');
+    const hasValidCache = cachedData &&
+      cachedData.userId === currentUserId &&
+      (Date.now() - cachedData.timestamp < CACHE_EXPIRATION);
+
+    // Also check if we've already fetched for this user recently
+    const alreadyFetchedForUser = requestCache.current.lastFetchedUserId === currentUserId;
+
+    if (hasValidCache) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Using cached assignments data for user:', currentUserId);
+      }
       return cachedData.data;
+    }
+
+    if (alreadyFetchedForUser && assignments.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Already fetched assignments for user, using current state:', currentUserId);
+      }
+      return assignments;
     }
 
     // Mark that we're starting a request
@@ -254,11 +298,15 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       console.log('Assignments fetched successfully:', data.length, 'assignments');
       updateProgress(90, `Successfully loaded ${data.length} assignments`);
 
-      // Update the cache
+      // Update the cache with user ID
       requestCache.current.assignments = {
         data,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        userId: currentUserId
       };
+
+      // Mark that we've fetched for this user
+      requestCache.current.lastFetchedUserId = currentUserId;
 
       setAssignments(data);
       // Clear any previous errors if successful
@@ -313,7 +361,7 @@ export const InteractiveAssignmentProvider = ({ children }: { children: ReactNod
       requestCache.current.pendingRequests.fetchAssignments = false;
       console.log('Finished fetching assignments');
     }
-  }, [getService, isSupabaseLoading, supabase, showProgress, updateProgress, hideProgress, assignments, isDatabaseReady, dbState, userId]);
+  }, [getService, isSupabaseLoading, supabase, showProgress, updateProgress, hideProgress, isDatabaseReady, dbState, userId, shouldPauseApiCalls]);
 
   // Fetch assignment by ID
   const fetchAssignmentById = useCallback(async (id: string) => {

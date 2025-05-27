@@ -5,6 +5,7 @@ import AssignmentQuestions from './AssignmentQuestions';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import AudioRecorder from '../common/AudioRecorder';
 import { sanitizeInput, validateAssignmentContent } from '../../lib/utils/securityUtils';
+import { useTranslations } from '../../hooks/useTranslations';
 
 interface AssignmentFormProps {
   initialData?: InteractiveAssignment;
@@ -14,6 +15,7 @@ interface AssignmentFormProps {
 
 const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps) => {
   const { fetchAssignmentById, currentAssignment: contextAssignment } = useInteractiveAssignment();
+  const { commonTranslate, assignmentTranslate, validationTranslate, getPlaceholder } = useTranslations();
 
   // Use the initialData or the currentAssignment from context if they match
   const effectiveInitialData = initialData?.id && contextAssignment?.id === initialData.id
@@ -24,6 +26,14 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
 
   // Initialize form data from the effective initial data
   const [formData, setFormData] = useState<Partial<InteractiveAssignment>>(() => {
+    // 🔍 DEBUG: Log initial data for payment fields
+    console.log('🔄 Initializing form data with payment fields:', {
+      effectiveInitialDataRequiresPayment: effectiveInitialData?.requiresPayment,
+      effectiveInitialDataPaymentAmount: effectiveInitialData?.paymentAmount,
+      hasInitialData: !!effectiveInitialData,
+      initialDataId: effectiveInitialData?.id
+    });
+
     // If we're editing, include the ID in the form data
     const baseData = {
       title: effectiveInitialData?.title || '',
@@ -36,11 +46,17 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
       hasAudioFeedback: effectiveInitialData?.hasAudioFeedback ?? false,
       hasCelebration: effectiveInitialData?.hasCelebration ?? true,
       requiresHelp: effectiveInitialData?.requiresHelp ?? false,
-      requiresPayment: effectiveInitialData?.requiresPayment ?? false,
-      paymentAmount: effectiveInitialData?.paymentAmount || 0.5,
+      requiresPayment: effectiveInitialData?.requiresPayment === true, // Explicit boolean check
+      paymentAmount: effectiveInitialData?.paymentAmount ?? 0.5,
       ageGroup: effectiveInitialData?.ageGroup || '',
       audioInstructions: effectiveInitialData?.audioInstructions || '',
     };
+
+    // 🔍 DEBUG: Log final base data payment fields
+    console.log('🔄 Final base data payment fields:', {
+      requiresPayment: baseData.requiresPayment,
+      paymentAmount: baseData.paymentAmount
+    });
 
     // If effectiveInitialData has an ID, include it
     if (effectiveInitialData?.id) {
@@ -65,6 +81,13 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
         if (refreshedAssignment) {
           console.log('Refreshed assignment data:', refreshedAssignment);
           console.log('Questions count:', refreshedAssignment.questions?.length || 0);
+
+          // 🔍 DEBUG: Log payment fields from refreshed assignment
+          console.log('🔄 Refreshed assignment payment fields:', {
+            requiresPayment: refreshedAssignment.requiresPayment,
+            paymentAmount: refreshedAssignment.paymentAmount
+          });
+
           setCurrentAssignment(refreshedAssignment);
 
           // Update form data with refreshed assignment data
@@ -80,11 +103,17 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
             hasAudioFeedback: refreshedAssignment.hasAudioFeedback ?? false,
             hasCelebration: refreshedAssignment.hasCelebration ?? true,
             requiresHelp: refreshedAssignment.requiresHelp ?? false,
-            requiresPayment: refreshedAssignment.requiresPayment ?? false,
-            paymentAmount: refreshedAssignment.paymentAmount || 0.5,
+            requiresPayment: refreshedAssignment.requiresPayment === true, // Explicit boolean check
+            paymentAmount: refreshedAssignment.paymentAmount ?? 0.5,
             ageGroup: refreshedAssignment.ageGroup || '',
             audioInstructions: refreshedAssignment.audioInstructions || '',
           }));
+
+          // 🔍 DEBUG: Log form data after update
+          console.log('🔄 Form data after refresh update:', {
+            requiresPayment: refreshedAssignment.requiresPayment ?? false,
+            paymentAmount: refreshedAssignment.paymentAmount || 0.5
+          });
         } else {
           console.error('Failed to refresh assignment data - no data returned');
         }
@@ -106,6 +135,13 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
   useEffect(() => {
     if (contextAssignment && initialData?.id === contextAssignment.id) {
       console.log('Context assignment updated, updating form data:', contextAssignment.title);
+
+      // 🔍 DEBUG: Log payment fields from context assignment
+      console.log('🔄 Context assignment payment fields:', {
+        requiresPayment: contextAssignment.requiresPayment,
+        paymentAmount: contextAssignment.paymentAmount
+      });
+
       setCurrentAssignment(contextAssignment);
 
       // Update form data with context assignment data
@@ -121,11 +157,17 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
         hasAudioFeedback: contextAssignment.hasAudioFeedback ?? false,
         hasCelebration: contextAssignment.hasCelebration ?? true,
         requiresHelp: contextAssignment.requiresHelp ?? false,
-        requiresPayment: contextAssignment.requiresPayment ?? false,
-        paymentAmount: contextAssignment.paymentAmount || 0.5,
+        requiresPayment: contextAssignment.requiresPayment === true, // Explicit boolean check
+        paymentAmount: contextAssignment.paymentAmount ?? 0.5,
         ageGroup: contextAssignment.ageGroup || '',
         audioInstructions: contextAssignment.audioInstructions || '',
       }));
+
+      // 🔍 DEBUG: Log form data after context update
+      console.log('🔄 Form data after context update:', {
+        requiresPayment: contextAssignment.requiresPayment ?? false,
+        paymentAmount: contextAssignment.paymentAmount || 0.5
+      });
     }
   }, [contextAssignment, initialData?.id]);
 
@@ -154,24 +196,24 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
 
     // SECURITY: Validate and sanitize title
     if (!formData.title?.trim()) {
-      newErrors.title = 'Title is required';
+      newErrors.title = validationTranslate('required');
     } else if (formData.title.length > 200) {
-      newErrors.title = 'Title must be less than 200 characters';
+      newErrors.title = validationTranslate('maxLength', 'Title must be less than 200 characters');
     }
 
     // SECURITY: Validate and sanitize description
     if (!formData.description?.trim()) {
-      newErrors.description = 'Description is required';
+      newErrors.description = validationTranslate('required');
     } else if (formData.description.length > 2000) {
-      newErrors.description = 'Description must be less than 2000 characters';
+      newErrors.description = validationTranslate('maxLength', 'Description must be less than 2000 characters');
     }
 
     if (!formData.type) {
-      newErrors.type = 'Type is required';
+      newErrors.type = validationTranslate('required');
     }
 
     if (!formData.status) {
-      newErrors.status = 'Status is required';
+      newErrors.status = validationTranslate('required');
     }
 
     // SECURITY: Validate assignment content if it exists
@@ -199,6 +241,14 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
         audioInstructions: sanitizeInput(formData.audioInstructions || '')
       };
 
+      // 🔍 DEBUG: Log payment fields before submission
+      console.log('💰 Payment fields in form submission:', {
+        requiresPayment: sanitizedData.requiresPayment,
+        paymentAmount: sanitizedData.paymentAmount,
+        formDataRequiresPayment: formData.requiresPayment,
+        formDataPaymentAmount: formData.paymentAmount
+      });
+
       onSubmit(sanitizedData);
     }
   };
@@ -206,14 +256,22 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
   // If we're editing an existing assignment, we can show the questions section
   const showQuestions = initialData?.id !== undefined;
 
+  // 🔍 DEBUG: Log current form data state on every render
+  console.log('🔄 Current form data state (render):', {
+    requiresPayment: formData.requiresPayment,
+    paymentAmount: formData.paymentAmount,
+    hasInitialData: !!initialData,
+    initialDataId: initialData?.id
+  });
+
   return (
-    <div className="space-y-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="space-y-6 md:space-y-8">
+      <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* Title */}
-          <div className="col-span-2">
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              Title <span className="text-red-500">*</span>
+          <div className="md:col-span-2">
+            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
+              {commonTranslate('title')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -221,38 +279,40 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
               name="title"
               value={formData.title}
               onChange={handleChange}
-              className={`w-full px-4 py-2 rounded-lg border ${errors.title ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50`}
+              placeholder={getPlaceholder('enterAssignmentTitle')}
+              className={`w-full px-4 py-3 md:py-2 rounded-lg border ${errors.title ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm`}
             />
             {errors.title && <p className="mt-1 text-sm text-red-500">{errors.title}</p>}
           </div>
 
         {/* Description */}
-        <div className="col-span-2">
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-            Description <span className="text-red-500">*</span>
+        <div className="md:col-span-2">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
+            {commonTranslate('description')} <span className="text-red-500">*</span>
           </label>
           <textarea
             id="description"
             name="description"
             value={formData.description}
             onChange={handleChange}
-            rows={3}
-            className={`w-full px-4 py-2 rounded-lg border ${errors.description ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50`}
+            rows={4}
+            placeholder={getPlaceholder('enterAssignmentDescription')}
+            className={`w-full px-4 py-3 md:py-2 rounded-lg border ${errors.description ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm resize-none`}
           />
           {errors.description && <p className="mt-1 text-sm text-red-500">{errors.description}</p>}
         </div>
 
         {/* Type */}
         <div>
-          <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
-            Type <span className="text-red-500">*</span>
+          <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-2">
+            {commonTranslate('type')} <span className="text-red-500">*</span>
           </label>
           <select
             id="type"
             name="type"
             value={formData.type}
             onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${errors.type ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50`}
+            className={`w-full px-4 py-3 md:py-2 rounded-lg border ${errors.type ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm`}
           >
             <option value="MULTIPLE_CHOICE">Multiple Choice</option>
             <option value="MATCHING">Matching</option>
@@ -264,15 +324,15 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
 
         {/* Status */}
         <div>
-          <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-            Status <span className="text-red-500">*</span>
+          <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+            {commonTranslate('status')} <span className="text-red-500">*</span>
           </label>
           <select
             id="status"
             name="status"
             value={formData.status}
             onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${errors.status ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50`}
+            className={`w-full px-4 py-3 md:py-2 rounded-lg border ${errors.status ? 'border-red-500' : 'border-gray-300'} focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm`}
           >
             <option value="DRAFT">Draft</option>
             <option value="PUBLISHED">Published</option>
@@ -283,8 +343,8 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
 
         {/* Due Date */}
         <div>
-          <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
-            Due Date
+          <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-2">
+            {assignmentTranslate('dueDate')}
           </label>
           <input
             type="date"
@@ -292,43 +352,43 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
             name="dueDate"
             value={formData.dueDate ? formData.dueDate.toISOString().split('T')[0] : ''}
             onChange={handleDateChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            className="w-full px-4 py-3 md:py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm"
           />
         </div>
 
         {/* Difficulty Level */}
         <div>
-          <label htmlFor="difficultyLevel" className="block text-sm font-medium text-gray-700 mb-1">
-            Difficulty Level
+          <label htmlFor="difficultyLevel" className="block text-sm font-medium text-gray-700 mb-2">
+            {assignmentTranslate('difficultyLevel')}
           </label>
           <select
             id="difficultyLevel"
             name="difficultyLevel"
             value={formData.difficultyLevel}
             onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            className="w-full px-4 py-3 md:py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm"
           >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
+            <option value="beginner">{assignmentTranslate('beginner')}</option>
+            <option value="intermediate">{assignmentTranslate('intermediate')}</option>
+            <option value="advanced">{assignmentTranslate('advanced')}</option>
           </select>
         </div>
 
         {/* Audio Instructions */}
-        <div className="col-span-2">
+        <div className="md:col-span-2">
           <AudioRecorder
             initialAudioUrl={formData.audioInstructions}
             onAudioChange={(audioUrl) => {
               setFormData(prev => ({ ...prev, audioInstructions: audioUrl || '' }));
             }}
-            label="Audio Instructions (Optional)"
+            label={assignmentTranslate('audioInstructionsOptional')}
           />
         </div>
 
         {/* Estimated Time */}
         <div>
-          <label htmlFor="estimatedTimeMinutes" className="block text-sm font-medium text-gray-700 mb-1">
-            Estimated Time (minutes)
+          <label htmlFor="estimatedTimeMinutes" className="block text-sm font-medium text-gray-700 mb-2">
+            {assignmentTranslate('estimatedTime')}
           </label>
           <input
             type="number"
@@ -337,14 +397,14 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
             value={formData.estimatedTimeMinutes}
             onChange={handleChange}
             min="1"
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            className="w-full px-4 py-3 md:py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm"
           />
         </div>
 
         {/* Age Group */}
         <div>
-          <label htmlFor="ageGroup" className="block text-sm font-medium text-gray-700 mb-1">
-            Age Group
+          <label htmlFor="ageGroup" className="block text-sm font-medium text-gray-700 mb-2">
+            {assignmentTranslate('ageGroup')}
           </label>
           <input
             type="text"
@@ -352,89 +412,73 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
             name="ageGroup"
             value={formData.ageGroup}
             onChange={handleChange}
-            placeholder="e.g., 7-10 years"
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-          />
-        </div>
-
-        {/* Audio Instructions */}
-        <div className="col-span-2">
-          <label htmlFor="audioInstructions" className="block text-sm font-medium text-gray-700 mb-1">
-            Audio Instructions URL
-          </label>
-          <input
-            type="text"
-            id="audioInstructions"
-            name="audioInstructions"
-            value={formData.audioInstructions}
-            onChange={handleChange}
-            placeholder="https://example.com/audio.mp3"
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            placeholder={getPlaceholder('enterAgeGroup')}
+            className="w-full px-4 py-3 md:py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm"
           />
         </div>
 
         {/* Checkboxes */}
-        <div className="col-span-2 space-y-3">
-          <div className="flex items-center">
+        <div className="md:col-span-2 space-y-4">
+          <div className="flex items-start">
             <input
               type="checkbox"
               id="hasAudioFeedback"
               name="hasAudioFeedback"
               checked={formData.hasAudioFeedback}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
             />
-            <label htmlFor="hasAudioFeedback" className="ml-2 block text-sm text-gray-700">
-              Has Audio Feedback
+            <label htmlFor="hasAudioFeedback" className="ml-3 block text-sm text-gray-700">
+              {assignmentTranslate('hasAudioFeedback')}
             </label>
           </div>
 
-          <div className="flex items-center">
+          <div className="flex items-start">
             <input
               type="checkbox"
               id="hasCelebration"
               name="hasCelebration"
               checked={formData.hasCelebration}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
             />
-            <label htmlFor="hasCelebration" className="ml-2 block text-sm text-gray-700">
-              Show Celebration on Completion
+            <label htmlFor="hasCelebration" className="ml-3 block text-sm text-gray-700">
+              {assignmentTranslate('hasCelebration')}
             </label>
           </div>
 
-          <div className="flex items-center">
+          <div className="flex items-start">
             <input
               type="checkbox"
               id="requiresHelp"
               name="requiresHelp"
               checked={formData.requiresHelp}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
             />
-            <label htmlFor="requiresHelp" className="ml-2 block text-sm text-gray-700">
-              Requires Help/Assistance
+            <label htmlFor="requiresHelp" className="ml-3 block text-sm text-gray-700">
+              {assignmentTranslate('requiresHelp')}
             </label>
           </div>
-          
-          <div className="flex items-center">
+
+          <div className="flex items-start">
             <input
               type="checkbox"
               id="requiresPayment"
               name="requiresPayment"
               checked={formData.requiresPayment}
               onChange={handleChange}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
             />
-            <label htmlFor="requiresPayment" className="ml-2 block text-sm text-gray-700">
-              Requires Payment (Premium Assignment)
+            <label htmlFor="requiresPayment" className="ml-3 block text-sm text-gray-700">
+              {assignmentTranslate('requiresPayment')}
             </label>
           </div>
-          
+
           {formData.requiresPayment && (
-            <div className="pl-6 pt-1">
-              <label htmlFor="paymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Amount (SOL)
+            <div className="pl-8 pt-2">
+              <label htmlFor="paymentAmount" className="block text-sm font-medium text-gray-700 mb-2">
+                {assignmentTranslate('paymentAmount')}
               </label>
               <input
                 type="number"
@@ -444,26 +488,27 @@ const AssignmentForm = ({ initialData, onSubmit, onCancel }: AssignmentFormProps
                 onChange={handleChange}
                 min="0.1"
                 step="0.1"
-                className="w-32 px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                className="w-full max-w-xs px-4 py-3 md:py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-base md:text-sm"
               />
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex justify-end space-x-3 pt-4">
+      {/* Action Buttons - Mobile Optimized */}
+      <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-6 border-t border-gray-200">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="w-full sm:w-auto px-6 py-3 md:py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-medium text-base md:text-sm"
         >
-          Cancel
+          {commonTranslate('cancel')}
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="w-full sm:w-auto px-6 py-3 md:py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 text-base md:text-sm"
         >
-          {initialData ? 'Update Assignment' : 'Create Assignment'}
+          {initialData ? assignmentTranslate('updateAssignment') : assignmentTranslate('createAssignment')}
         </button>
       </div>
       </form>

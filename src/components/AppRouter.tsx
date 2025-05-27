@@ -11,20 +11,23 @@ import TermsOfService from './pages/TermsOfService';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { InteractiveAssignmentProvider } from '../context/InteractiveAssignmentContext';
 import { OrganizationProvider } from '../context/OrganizationContext';
+import { useScrollToTopOnRouteChange } from '../hooks/useScrollToTopOnRouteChange';
 import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
 
-// Lazy load heavy components for better performance
+// Import PlayAssignmentPage directly to fix dynamic import issue
+import PlayAssignmentPage from './pages/PlayAssignmentPage';
+
+// Lazy load other heavy components for better performance
 const SharedAssignmentPage = React.lazy(() => import('./pages/SharedAssignmentPage'));
-const PlayAssignmentPage = React.lazy(() => import('./pages/PlayAssignmentPage'));
 const AdminDashboard = React.lazy(() => import('./admin/AdminDashboard'));
 const UserDashboardPage = React.lazy(() => import('./pages/UserDashboardPage'));
 const DashboardPage = React.lazy(() => import('./pages/DashboardPage'));
 const AssignmentGalleryPage = React.lazy(() => import('./pages/AssignmentGalleryPage'));
-const PaymentDemoPage = React.lazy(() => import('./pages/PaymentDemoPage'));
+const PaymentPage = React.lazy(() => import('./pages/PaymentPage'));
 const OrganizationManagementPage = React.lazy(() => import('../pages/OrganizationManagementPage'));
 const OrganizationSettingsPage = React.lazy(() => import('../pages/OrganizationSettingsPage'));
-const AnonymousUserActivity = React.lazy(() => import('./admin/AnonymousUserActivity'));
+const EnhancedAnonymousUserActivity = React.lazy(() => import('./admin/EnhancedAnonymousUserActivity'));
 const OrganizationRequestsPage = React.lazy(() => import('../pages/OrganizationRequestsPage'));
 const JoinOrganizationPage = React.lazy(() => import('../pages/JoinOrganizationPage'));
 const SettingsPage = React.lazy(() => import('../pages/settings'));
@@ -91,6 +94,21 @@ const LandingRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const AppRouter = () => {
+  // Enable smooth scroll to top on route changes with custom configuration
+  useScrollToTopOnRouteChange({
+    duration: 800, // Smooth 800ms animation
+    offset: 0, // Scroll to the very top
+    delay: 150, // Small delay to ensure content is rendered
+    enabled: true, // Enable the feature
+    easing: 'easeInOut', // Smooth easing for a pleasant effect
+    excludeRoutes: [
+      // Don't auto-scroll on assignment play pages to preserve user position
+      '/play/assignment/*',
+      '/play/share/*'
+    ],
+    pathnameOnly: true // Only trigger on pathname changes, not search params
+  });
+
   return (
     <Routes>
       {/* Public routes - Landing page redirects to dashboard if authenticated */}
@@ -105,9 +123,7 @@ const AppRouter = () => {
       } />
       <Route path="/play/assignment/:assignmentId" element={
         <Layout>
-          <Suspense fallback={<RouteLoadingSpinner message="Loading assignment..." />}>
-            <PlayAssignmentPage />
-          </Suspense>
+          <PlayAssignmentPage />
         </Layout>
       } />
       <Route path="/gallery" element={
@@ -199,6 +215,18 @@ const AppRouter = () => {
             </Layout>
           </ProtectedRoute>
         }
+      />
+
+      {/* Alternative route for @manageassignment */}
+      <Route
+        path="/@manageassignment"
+        element={<Navigate to="/manage-assignments" replace />}
+      />
+
+      {/* Alternative route for manageassignment */}
+      <Route
+        path="/manageassignment"
+        element={<Navigate to="/manage-assignments" replace />}
       />
 
       {/* Edit assignment route */}
@@ -319,16 +347,26 @@ const AppRouter = () => {
         }
       />
 
-      {/* Payment Demo route */}
+      {/* Payment route */}
       <Route
-        path="/payment-demo"
+        path="/payment"
         element={
           <ProtectedRoute>
             <Layout>
-              <PaymentDemoPage />
+              <OrganizationProvider>
+                <Suspense fallback={<RouteLoadingSpinner message="Loading payment..." />}>
+                  <PaymentPage />
+                </Suspense>
+              </OrganizationProvider>
             </Layout>
           </ProtectedRoute>
         }
+      />
+
+      {/* Legacy payment-demo route - redirect to new payment route */}
+      <Route
+        path="/payment-demo"
+        element={<Navigate to="/payment" replace />}
       />
 
       {/* Debug routes - only in development */}
@@ -354,7 +392,9 @@ const AppRouter = () => {
           <ProtectedRoute>
             <Layout>
               <OrganizationProvider>
-                <AnonymousUserActivity />
+                <Suspense fallback={<RouteLoadingSpinner message="Loading anonymous users..." />}>
+                  <EnhancedAnonymousUserActivity />
+                </Suspense>
               </OrganizationProvider>
             </Layout>
           </ProtectedRoute>

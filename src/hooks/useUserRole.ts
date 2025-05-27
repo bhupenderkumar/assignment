@@ -1,5 +1,5 @@
 // src/hooks/useUserRole.ts
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSupabaseAuth } from '../context/SupabaseAuthContext';
 import { useOrganization } from '../context/OrganizationContext';
 import { OrganizationRole } from '../types/organization';
@@ -13,10 +13,20 @@ export const useUserRole = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const { user, supabase, isAuthenticated } = useSupabaseAuth();
   const { currentOrganization } = useOrganization();
-  
+
+  // Cache to prevent duplicate API calls
+  const cacheRef = useRef<{
+    [key: string]: {
+      role: OrganizationRole | null;
+      timestamp: number;
+    };
+  }>({});
+
+  const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes
+
   useEffect(() => {
     const fetchUserRole = async () => {
       if (!isAuthenticated || !user || !currentOrganization || !supabase) {
@@ -26,10 +36,30 @@ export const useUserRole = () => {
         setIsLoading(false);
         return;
       }
-      
+
+      // Create cache key
+      const cacheKey = `${user.id}-${currentOrganization.id}`;
+
+      // Check cache first
+      const cached = cacheRef.current[cacheKey];
+      if (cached && (Date.now() - cached.timestamp < CACHE_EXPIRATION)) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('useUserRole: Using cached role for', cacheKey);
+        }
+        setRole(cached.role);
+        setIsAdmin(cached.role === 'admin' || cached.role === 'owner');
+        setIsOwner(cached.role === 'owner');
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
-        
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('useUserRole: Fetching role for', cacheKey);
+        }
+
         // Get the user's role in the current organization
         const { data, error } = await supabase
           .from('user_organization')
@@ -37,7 +67,7 @@ export const useUserRole = () => {
           .eq('user_id', user.id)
           .eq('organization_id', currentOrganization.id)
           .single();
-        
+
         if (error) {
           console.error('Error fetching user role:', error);
           setRole(null);
@@ -45,13 +75,26 @@ export const useUserRole = () => {
           setIsOwner(false);
           return;
         }
-        
+
         if (data) {
           const userRole = data.role as OrganizationRole;
+
+          // Cache the result
+          cacheRef.current[cacheKey] = {
+            role: userRole,
+            timestamp: Date.now()
+          };
+
           setRole(userRole);
           setIsAdmin(userRole === 'admin' || userRole === 'owner');
           setIsOwner(userRole === 'owner');
         } else {
+          // Cache null result too
+          cacheRef.current[cacheKey] = {
+            role: null,
+            timestamp: Date.now()
+          };
+
           setRole(null);
           setIsAdmin(false);
           setIsOwner(false);
@@ -65,9 +108,11 @@ export const useUserRole = () => {
         setIsLoading(false);
       }
     };
-    
-    fetchUserRole();
-  }, [isAuthenticated, user, currentOrganization, supabase]);
-  
+
+    // Add a small delay to prevent rapid successive calls
+    const timeoutId = setTimeout(fetchUserRole, 50);
+    return () => clearTimeout(timeoutId);
+  }, [isAuthenticated, user?.id, currentOrganization?.id, supabase]);
+
   return { role, isAdmin, isOwner, isLoading };
 };

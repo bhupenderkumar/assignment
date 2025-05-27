@@ -12,6 +12,7 @@ import OrganizationLookup from './OrganizationLookup';
 import UserJoinRequests from '../organization/UserJoinRequests';
 import { Organization, OrganizationInput } from '../../types/organization';
 import { useOrganization } from '../../context/OrganizationContext';
+import { useTranslations } from '../../hooks/useTranslations';
 import toast from 'react-hot-toast';
 
 interface SupabaseAuthProps {
@@ -40,6 +41,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
   const { config } = useConfiguration();
   const { isAuthenticated, isLoading, signIn, signUp, organizations, user } = useSupabaseAuth();
   const { createOrganization } = useOrganization();
+  const { commonTranslate, authTranslate, validationTranslate } = useTranslations();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -402,7 +404,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
         localStorage.setItem('selectedOrganizationForJoin', JSON.stringify(selectedOrganization));
 
         // Show a message to the user
-        toast.success('Please provide a reason to join the organization');
+        toast.success(authTranslate('provideReasonToJoin', 'Please provide a reason to join the organization'));
 
         // Set sign-in success to trigger the useEffect
         setSignInSuccess(true);
@@ -620,7 +622,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                       onClick={handleBackToOrgLookup}
                       className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                     >
-                      Change organization
+                      {authTranslate('changeOrganization', 'Change organization')}
                     </button>
                   </div>
                 </div>
@@ -642,18 +644,18 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                     </svg>
                   </div>
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                    {mode === 'signIn' ? 'Sign In' : 'Create Account'}
+                    {mode === 'signIn' ? authTranslate('signIn') : authTranslate('createAccount', 'Create Account')}
                   </h1>
                   <p className="mt-2 text-gray-600 dark:text-gray-300">
                     {mode === 'signIn'
                       ? selectedOrganization
-                        ? `Welcome back to ${selectedOrganization.name}`
-                        : 'Welcome back! Sign in to your account'
-                      : 'Create a new account to get started'}
+                        ? `${authTranslate('welcomeBackTo', 'Welcome back to')} ${selectedOrganization.name}`
+                        : authTranslate('welcomeBackSignIn', 'Welcome back! Sign in to your account')
+                      : authTranslate('createNewAccount', 'Create a new account to get started')}
                   </p>
                   {mode === 'signIn' && !selectedOrganization && (
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      You've skipped organization selection. You'll be able to select or create an organization after signing in.
+                      {authTranslate('skippedOrgSelection', "You've skipped organization selection. You'll be able to select or create an organization after signing in.")}
                     </p>
                   )}
                 </div>
@@ -671,7 +673,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                   {mode === 'signUp' && (
                     <div className="mb-5">
                       <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Full Name
+                        {authTranslate('fullName', 'Full Name')}
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -685,7 +687,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white shadow-sm"
-                          placeholder="Enter your name"
+                          placeholder={authTranslate('enterFullName', 'Enter your full name')}
                           autoFocus
                         />
                       </div>
@@ -694,7 +696,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
 
                   <div className="mb-5">
                     <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Email Address
+                      {authTranslate('emailAddress', 'Email Address')}
                     </label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -709,7 +711,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white shadow-sm"
-                        placeholder="Enter your email"
+                        placeholder={authTranslate('enterEmail', 'Enter your email')}
                         autoFocus={mode === 'signIn'}
                       />
                     </div>
@@ -718,11 +720,11 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                   <div className="mb-6">
                     <div className="flex justify-between items-center mb-2">
                       <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Password
+                        {authTranslate('password', 'Password')}
                       </label>
                       {mode === 'signIn' && (
                         <Link to="/forgot-password" className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-                          Forgot password?
+                          {authTranslate('forgotPassword', 'Forgot password?')}
                         </Link>
                       )}
                     </div>
@@ -739,12 +741,12 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent dark:bg-gray-700 dark:text-white shadow-sm"
-                        placeholder={mode === 'signIn' ? "Enter your password" : "Create a password"}
+                        placeholder={mode === 'signIn' ? authTranslate('enterPassword', 'Enter your password') : authTranslate('createPassword', 'Create a password')}
                       />
                     </div>
                     {mode === 'signUp' && (
                       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        Password should be at least 8 characters long
+                        {authTranslate('passwordRequirement', 'Password should be at least 8 characters long')}
                       </p>
                     )}
                   </div>
@@ -765,21 +767,21 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
-                        Processing...
+                        {authTranslate('processing', 'Processing...')}
                       </>
                     ) : mode === 'signIn' ? (
                       <>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                         </svg>
-                        Sign In
+                        {authTranslate('signIn')}
                       </>
                     ) : (
                       <>
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                         </svg>
-                        Create Account
+                        {authTranslate('createAccount', 'Create Account')}
                       </>
                     )}
                   </button>
@@ -815,7 +817,7 @@ const SupabaseAuth: React.FC<SupabaseAuthProps> = ({ mode }) => {
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                           </svg>
-                          Sign in to your account
+                          {authTranslate('signInToAccount', 'Sign in to your account')}
                         </Link>
                       )}
                     </div>

@@ -15,15 +15,25 @@ const ProgressDisplay = ({
   score,
   timeSpent
 }: ProgressDisplayProps) => {
-  // Debug logging to track the "0 by 0" issue
+  // Debug logging to track the "0 by 0" issue - only in development and throttled
   useEffect(() => {
-    console.log('🔍 ProgressDisplay Debug:', {
-      currentQuestion,
-      totalQuestions,
-      score,
-      timeSpent,
-      isValidData: currentQuestion > 0 && totalQuestions > 0
-    });
+    if (process.env.NODE_ENV === 'development') {
+      // Throttle logging to prevent spam
+      const now = Date.now();
+      const lastLogKey = 'lastProgressDisplayLog';
+      const lastLog = (window as any)[lastLogKey] || 0;
+
+      if (now - lastLog > 3000) { // Log at most every 3 seconds
+        console.log('🔍 ProgressDisplay Debug:', {
+          currentQuestion,
+          totalQuestions,
+          score,
+          timeSpent,
+          isValidData: currentQuestion > 0 && totalQuestions > 0
+        });
+        (window as any)[lastLogKey] = now;
+      }
+    }
   }, [currentQuestion, totalQuestions, score, timeSpent]);
 
   // Validate and sanitize input values
@@ -46,8 +56,8 @@ const ProgressDisplay = ({
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Show warning if invalid data is detected
-  if (currentQuestion <= 0 || totalQuestions <= 0) {
+  // Show warning if invalid data is detected - only in development
+  if (process.env.NODE_ENV === 'development' && (currentQuestion <= 0 || totalQuestions <= 0)) {
     console.warn('⚠️ ProgressDisplay: Invalid data detected', {
       currentQuestion,
       totalQuestions

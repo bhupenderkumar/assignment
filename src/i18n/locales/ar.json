@@ -1,0 +1,80 @@
+{
+  "common": {
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "submit": "إرسال",
+    "close": "إغلاق",
+    "back": "رجوع",
+    "next": "التالي",
+    "finish": "إنهاء",
+    "yes": "نعم",
+    "no": "لا",
+    "home": "الرئيسية",
+    "dashboard": "لوحة التحكم",
+    "settings": "الإعدادات",
+    "help": "المساعدة",
+    "logout": "تسجيل الخروج",
+    "login": "تسجيل الدخول",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "name": "الاسم",
+    "title": "العنوان",
+    "score": "النتيجة",
+    "progress": "التقدم",
+    "completed": "مكتمل",
+    "language": "اللغة"
+  },
+  "navigation": {
+    "home": "الرئيسية",
+    "dashboard": "لوحة التحكم",
+    "assignments": "المهام",
+    "gallery": "معرض المهام",
+    "certificates": "الشهادات",
+    "settings": "الإعدادات",
+    "help": "مركز المساعدة"
+  },
+  "auth": {
+    "signIn": "تسجيل الدخول",
+    "signUp": "إنشاء حساب",
+    "signOut": "تسجيل الخروج",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "enterEmail": "أدخل بريدك الإلكتروني",
+    "enterPassword": "أدخل كلمة المرور",
+    "welcomeBack": "مرحباً بعودتك"
+  },
+  "assignments": {
+    "title": "المهام",
+    "create": "إنشاء مهمة",
+    "play": "بدء المهمة",
+    "assignmentCompleted": "تم إكمال المهمة"
+  },
+  "exercises": {
+    "question": "سؤال",
+    "answer": "إجابة",
+    "correct": "صحيح!",
+    "incorrect": "خطأ",
+    "excellent": "ممتاز!"
+  },
+  "toast": {
+    "success": {
+      "saved": "تم الحفظ بنجاح!",
+      "assignmentCompleted": "تم إكمال المهمة!"
+    },
+    "error": {
+      "general": "حدث خطأ. يرجى المحاولة مرة أخرى."
+    }
+  },
+  "forms": {
+    "validation": {
+      "required": "هذا الحقل مطلوب",
+      "email": "يرجى إدخال عنوان بريد إلكتروني صحيح"
+    }
+  }
+}

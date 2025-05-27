@@ -32,7 +32,11 @@ interface ProgressMetrics {
   completionRate: number;
 }
 
-const UserProgressDashboard: React.FC = () => {
+interface UserProgressDashboardProps {
+  shouldLoad?: boolean;
+}
+
+const UserProgressDashboard: React.FC<UserProgressDashboardProps> = ({ shouldLoad = true }) => {
   const { supabase, user } = useSupabaseAuth();
   const { fetchUserProgress } = useInteractiveAssignment();
   const [progressData, setProgressData] = useState<UserProgressData[]>([]);
@@ -42,6 +46,7 @@ const UserProgressDashboard: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const exportDropdownRef = useRef<HTMLDivElement>(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Memoized metrics calculation for performance
   const metrics = useMemo((): ProgressMetrics => {
@@ -81,8 +86,17 @@ const UserProgressDashboard: React.FC = () => {
   }, [progressData]);
 
   useEffect(() => {
-    fetchProgressData();
-  }, [selectedTimeRange, selectedOrganization]);
+    // Only load data if shouldLoad is true and we haven't initialized yet
+    if (shouldLoad && !hasInitialized) {
+      console.log('UserProgressDashboard: Loading data for the first time');
+      fetchProgressData();
+      setHasInitialized(true);
+    } else if (shouldLoad && hasInitialized) {
+      // If already initialized, only refetch when filters change
+      console.log('UserProgressDashboard: Refetching due to filter changes');
+      fetchProgressData();
+    }
+  }, [selectedTimeRange, selectedOrganization, shouldLoad, hasInitialized]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

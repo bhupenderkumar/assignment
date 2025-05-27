@@ -32,7 +32,7 @@ export const OrganizationJoinRequestProvider: React.FC<{ children: React.ReactNo
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  
+
   // Use a ref to track if we've already fetched data
   const dataFetchedRef = useRef<boolean>(false);
 
@@ -46,9 +46,9 @@ export const OrganizationJoinRequestProvider: React.FC<{ children: React.ReactNo
     // Skip if we've already fetched data and it's not a forced refresh
     // and the cache hasn't expired
     if (
-      dataFetchedRef.current && 
-      !force && 
-      lastRefreshed && 
+      dataFetchedRef.current &&
+      !force &&
+      lastRefreshed &&
       (new Date().getTime() - lastRefreshed.getTime() < CACHE_EXPIRATION)
     ) {
       console.log('Using cached join requests data');
@@ -61,11 +61,11 @@ export const OrganizationJoinRequestProvider: React.FC<{ children: React.ReactNo
     try {
       const joinRequestService = createOrganizationJoinRequestService(user);
       const requests = await joinRequestService.getUserJoinRequests();
-      
+
       setUserJoinRequests(requests);
       setLastRefreshed(new Date());
       dataFetchedRef.current = true;
-      
+
       console.log('Fetched user join requests:', requests.length);
     } catch (err) {
       console.error('Error fetching join requests:', err);
@@ -77,8 +77,11 @@ export const OrganizationJoinRequestProvider: React.FC<{ children: React.ReactNo
 
   // Fetch data when the component mounts or when the user changes
   useEffect(() => {
-    fetchUserJoinRequests();
-  }, [fetchUserJoinRequests, user?.id]);
+    // Only fetch if we have a user and haven't fetched yet
+    if (user?.id && !dataFetchedRef.current) {
+      fetchUserJoinRequests();
+    }
+  }, [user?.id]); // Removed fetchUserJoinRequests from dependencies
 
   // Function to manually refresh the data
   const refreshUserJoinRequests = useCallback(async () => {

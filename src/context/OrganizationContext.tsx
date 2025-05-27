@@ -5,6 +5,7 @@ import { createOrganizationService } from '../lib/services/organizationService';
 import { useSupabaseAuth } from './SupabaseAuthContext';
 import { useConfiguration } from './ConfigurationContext';
 import { useDatabaseState } from './DatabaseStateContext';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import toast from 'react-hot-toast';
 
 // Interface for organization cache
@@ -12,8 +13,10 @@ interface OrganizationCache {
   organizations: {
     data: Organization[];
     timestamp: number;
+    userId: string; // Track which user this data belongs to
   } | null;
   currentOrganizationId: string | null;
+  lastFetchedUserId: string | null; // Track the last user we fetched for
   pendingRequests: {
     fetchOrganizations: boolean;
   };
@@ -60,10 +63,25 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
   const { updateConfig } = useConfiguration();
   const { isReady: isDatabaseReady, executeWhenReady } = useDatabaseState();
 
+  // Use page visibility to prevent API calls when page is not visible
+  const { shouldPauseApiCalls } = usePageVisibility({
+    onHidden: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 OrganizationContext: Page hidden, pausing API calls');
+      }
+    },
+    onVisible: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ OrganizationContext: Page visible, resuming API calls');
+      }
+    }
+  });
+
   // Request cache to prevent duplicate requests
   const requestCache = useRef<OrganizationCache>({
     organizations: null,
     currentOrganizationId: null,
+    lastFetchedUserId: null,
     pendingRequests: {
       fetchOrganizations: false
     }
@@ -96,21 +114,59 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
 
   // Fetch organizations on mount and when user changes
   useEffect(() => {
-    console.log('OrganizationContext: Auth/DB state changed:', { isAuthenticated, userId: user?.id, isDatabaseReady });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('OrganizationContext: Auth/DB state changed:', {
+        isAuthenticated,
+        userId: user?.id,
+        isDatabaseReady,
+        lastFetchedUserId: requestCache.current.lastFetchedUserId
+      });
+    }
 
-    if (isAuthenticated && isDatabaseReady) {
-      // Use a small delay to prevent multiple rapid calls during initialization
-      const timer = setTimeout(() => {
-        console.log('OrganizationContext: Triggering fetchOrganizations after auth/DB ready');
-        fetchOrganizations();
-      }, 100);
+    if (isAuthenticated && isDatabaseReady && user?.id) {
+      // Check if we already have data for this specific user
+      const cache = requestCache.current.organizations;
+      const hasValidCache = cache &&
+        cache.userId === user.id &&
+        (Date.now() - cache.timestamp < CACHE_EXPIRATION);
 
-      return () => clearTimeout(timer);
-    } else {
-      console.log('OrganizationContext: Not authenticated or DB not ready, clearing state');
+      // Also check if we've already fetched for this user recently
+      const alreadyFetchedForUser = requestCache.current.lastFetchedUserId === user.id;
+
+      if (hasValidCache) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('OrganizationContext: Using valid cache for user:', user.id);
+        }
+        // Use cached data
+        setOrganizations(cache.data);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!alreadyFetchedForUser) {
+        // Only fetch if we haven't fetched for this user yet
+        const timer = setTimeout(() => {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('OrganizationContext: Triggering fetchOrganizations for new user:', user.id);
+          }
+          fetchOrganizations();
+        }, 100);
+
+        return () => clearTimeout(timer);
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('OrganizationContext: Already fetched for user, skipping:', user.id);
+        }
+      }
+    } else if (!isAuthenticated) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Not authenticated, clearing state');
+      }
       setOrganizations([]);
       setCurrentOrganization(null);
       setIsLoading(false);
+      // Clear the last fetched user when logging out
+      requestCache.current.lastFetchedUserId = null;
     }
   }, [isAuthenticated, user?.id, isDatabaseReady]);
 
@@ -123,28 +179,59 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       localStorage.setItem('currentOrganizationId', currentOrganization.id);
       requestCache.current.currentOrganizationId = currentOrganization.id;
 
-      // Update app configuration with organization branding
+      // Update app configuration with comprehensive organization branding
       updateConfig({
         companyName: currentOrganization.name,
         companyLogo: currentOrganization.logoUrl || 'star',
         primaryColor: currentOrganization.primaryColor || '#0891b2',
         secondaryColor: currentOrganization.secondaryColor || '#7e22ce',
-        companyTagline: currentOrganization.headerText || 'EXPLORE · LEARN · MASTER'
+        companyTagline: currentOrganization.headerText || 'EXPLORE · LEARN · MASTER',
+        // Update footer text with organization name
+        footerText: `© ${new Date().getFullYear()} ${currentOrganization.name}. All rights reserved.`
+      });
+    } else {
+      // If no organization is selected, reset to app defaults
+      console.log('OrganizationContext: No organization selected, resetting to defaults');
+
+      // Import app defaults from ConfigurationContext
+      import('../context/ConfigurationContext').then(({ appDefaults }) => {
+        updateConfig({
+          companyName: appDefaults.defaultOrganizationName,
+          companyLogo: appDefaults.defaultOrganizationLogo,
+          primaryColor: appDefaults.defaultPrimaryColor,
+          secondaryColor: appDefaults.defaultSecondaryColor,
+          companyTagline: appDefaults.defaultOrganizationTagline,
+          footerText: `© ${new Date().getFullYear()} ${appDefaults.defaultOrganizationName}. All rights reserved.`
+        });
+      }).catch(error => {
+        console.error('Failed to load app defaults:', error);
       });
     }
     // updateConfig is memoized in ConfigurationContext to prevent infinite loops
-  }, [currentOrganization, updateConfig]);
+  }, [currentOrganization?.id, currentOrganization?.name, currentOrganization?.logoUrl, currentOrganization?.primaryColor, currentOrganization?.secondaryColor, currentOrganization?.headerText, updateConfig]);
 
-  // Fetch organizations with improved caching
-  const fetchOrganizations = async () => {
-    if (!isAuthenticated || !isDatabaseReady) {
-      console.log('OrganizationContext: Not authenticated or database not ready, skipping fetch');
+  // Memoize the fetchOrganizations function to prevent unnecessary re-creation
+  const fetchOrganizations = useCallback(async () => {
+    if (!isAuthenticated || !isDatabaseReady || !user?.id) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Not authenticated, database not ready, or no user ID, skipping fetch');
+      }
+      return;
+    }
+
+    // Don't make API calls if page is not visible
+    if (shouldPauseApiCalls) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Page not visible, skipping fetch');
+      }
       return;
     }
 
     // Check if there's already a pending request
     if (requestCache.current.pendingRequests.fetchOrganizations) {
-      console.log('OrganizationContext: Fetch organizations request already in progress, skipping');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Fetch organizations request already in progress, skipping');
+      }
       return;
     }
 
@@ -152,17 +239,12 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     const cache = requestCache.current.organizations;
     const now = Date.now();
 
-    // Use cached data if available and not expired
-    if (cache && (now - cache.timestamp < CACHE_EXPIRATION)) {
-      console.log('OrganizationContext: Using cached organizations data from', new Date(cache.timestamp).toLocaleTimeString());
-
-      // Only update state if the data has changed
-      if (JSON.stringify(organizations) !== JSON.stringify(cache.data)) {
-        console.log('OrganizationContext: Updating state with cached data');
-        setOrganizations(cache.data);
-      } else {
-        console.log('OrganizationContext: Cached data matches current state, no update needed');
+    // Use cached data if available, not expired, and for the same user
+    if (cache && cache.userId === user.id && (now - cache.timestamp < CACHE_EXPIRATION)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Using cached organizations data for user', user.id, 'from', new Date(cache.timestamp).toLocaleTimeString());
       }
+      setOrganizations(cache.data);
 
       // Set current organization from cache if needed
       if (cache.data.length > 0 && !currentOrganization) {
@@ -187,8 +269,9 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
     requestCache.current.pendingRequests.fetchOrganizations = true;
     console.log('OrganizationContext: Starting new organizations fetch');
 
-    // Only set loading state if we don't have any data yet
-    if (organizations.length === 0) {
+    // Only set loading state if we don't have any cached data
+    const currentData = requestCache.current.organizations?.data || [];
+    if (currentData.length === 0) {
       setIsLoading(true);
     }
 
@@ -199,19 +282,21 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       const data = await executeWhenReady(() => organizationService().getOrganizations());
       console.log('OrganizationContext: Fetched', data.length, 'organizations');
 
-      // Update cache with timestamp
+      // Update cache with timestamp and user ID
       requestCache.current.organizations = {
         data,
-        timestamp: now
+        timestamp: now,
+        userId: user.id
       };
 
-      // Only update state if the data has changed
-      if (JSON.stringify(organizations) !== JSON.stringify(data)) {
-        console.log('OrganizationContext: Updating state with new data');
-        setOrganizations(data);
-      } else {
-        console.log('OrganizationContext: New data matches current state, no update needed');
+      // Mark that we've fetched for this user
+      requestCache.current.lastFetchedUserId = user.id;
+
+      // Always update state with fresh data from API
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Updating state with fresh API data');
       }
+      setOrganizations(data);
 
       // Set current organization if not already set
       if (data.length > 0 && !currentOrganization) {
@@ -242,9 +327,11 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       setIsLoading(false);
       // Clear pending request flag
       requestCache.current.pendingRequests.fetchOrganizations = false;
-      console.log('OrganizationContext: Completed organizations fetch');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationContext: Completed organizations fetch');
+      }
     }
-  };
+  }, [isAuthenticated, isDatabaseReady, executeWhenReady]);
 
   // Create organization
   const createOrganization = async (organization: OrganizationInput) => {
@@ -266,13 +353,15 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       setOrganizations(updatedOrgs);
 
       // Update cache
-      if (requestCache.current.organizations) {
+      if (requestCache.current.organizations && user?.id) {
         requestCache.current.organizations.data = updatedOrgs;
         requestCache.current.organizations.timestamp = Date.now();
-      } else {
+        requestCache.current.organizations.userId = user.id;
+      } else if (user?.id) {
         requestCache.current.organizations = {
           data: updatedOrgs,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          userId: user.id
         };
       }
 
@@ -315,9 +404,10 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
       setOrganizations(updatedOrgs);
 
       // Update cache
-      if (requestCache.current.organizations) {
+      if (requestCache.current.organizations && user?.id) {
         requestCache.current.organizations.data = updatedOrgs;
         requestCache.current.organizations.timestamp = Date.now();
+        requestCache.current.organizations.userId = user.id;
       }
 
       // Update current organization if it's the one being updated
@@ -358,9 +448,10 @@ export const OrganizationProvider: React.FC<OrganizationProviderProps> = ({ chil
         setOrganizations(updatedOrganizations);
 
         // Update cache
-        if (requestCache.current.organizations) {
+        if (requestCache.current.organizations && user?.id) {
           requestCache.current.organizations.data = updatedOrganizations;
           requestCache.current.organizations.timestamp = Date.now();
+          requestCache.current.organizations.userId = user.id;
         }
 
         // If current organization is deleted, set to first available or null

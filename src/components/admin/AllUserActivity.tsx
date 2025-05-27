@@ -1,7 +1,8 @@
 // src/components/admin/AllUserActivity.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useUserRole } from '../../hooks/useUserRole';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 import toast from 'react-hot-toast';
 import CertificateViewer from '../certificates/CertificateViewer';
 
@@ -43,7 +44,11 @@ interface ActivityFilters {
   searchTerm: string;
 }
 
-const AllUserActivity: React.FC = () => {
+interface AllUserActivityProps {
+  shouldLoad?: boolean;
+}
+
+const AllUserActivity: React.FC<AllUserActivityProps> = ({ shouldLoad = true }) => {
   const { supabase, user } = useSupabaseAuth();
   const { isAdmin } = useUserRole();
   const [activities, setActivities] = useState<UserActivityData[]>([]);
@@ -59,18 +64,77 @@ const AllUserActivity: React.FC = () => {
   });
   const [organizations, setOrganizations] = useState<Array<{id: string, name: string}>>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Ref to track previous filters to prevent unnecessary re-renders
+  const prevFiltersRef = useRef<ActivityFilters>(filters);
+
+  // Cache for activities data to prevent repeated API calls
+  const activitiesCache = useRef<{
+    data: UserActivityData[];
+    timestamp: number;
+    filters: ActivityFilters;
+  } | null>(null);
+
+  // Cache expiration time (2 minutes for activity data)
+  const CACHE_EXPIRATION = 2 * 60 * 1000;
+
+  // Use page visibility to prevent API calls when page is not visible
+  const { shouldPauseApiCalls } = usePageVisibility({
+    onHidden: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 AllUserActivity: Page hidden, pausing API calls');
+      }
+    },
+    onVisible: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ AllUserActivity: Page visible, resuming API calls');
+      }
+    }
+  });
 
   useEffect(() => {
     if (!isAdmin) {
       toast.error('Access denied. Admin privileges required.');
       return;
     }
-    fetchActivities();
-    fetchOrganizations();
-  }, [isAdmin, filters]);
+
+    // Don't make API calls if page is not visible
+    if (shouldPauseApiCalls) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Page not visible, skipping fetch');
+      }
+      return;
+    }
+
+    // Only load data if shouldLoad is true and we haven't initialized yet
+    if (shouldLoad && !hasInitialized) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Loading data for the first time');
+      }
+      fetchActivities();
+      fetchOrganizations();
+      setHasInitialized(true);
+    } else if (shouldLoad && hasInitialized && JSON.stringify(filters) !== JSON.stringify(prevFiltersRef.current)) {
+      // If already initialized, only refetch when filters actually change
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Refetching due to filter changes');
+      }
+      fetchActivities();
+      prevFiltersRef.current = filters;
+    }
+  }, [isAdmin, shouldLoad, hasInitialized, shouldPauseApiCalls]); // Added shouldPauseApiCalls to dependencies
 
   const fetchOrganizations = async () => {
     if (!supabase) return;
+
+    // Don't make API calls if page is not visible
+    if (shouldPauseApiCalls) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Page not visible, skipping fetchOrganizations');
+      }
+      return;
+    }
 
     try {
       const { data: orgs, error } = await supabase
@@ -92,22 +156,45 @@ const AllUserActivity: React.FC = () => {
   const fetchActivities = async () => {
     if (!supabase || !user) return;
 
+    // Don't make API calls if page is not visible
+    if (shouldPauseApiCalls) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Page not visible, skipping fetchActivities');
+      }
+      return;
+    }
+
+    // Check if we have cached data that's still valid
+    const cache = activitiesCache.current;
+    const now = Date.now();
+
+    if (cache &&
+        (now - cache.timestamp < CACHE_EXPIRATION) &&
+        JSON.stringify(cache.filters) === JSON.stringify(filters)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('AllUserActivity: Using cached data');
+      }
+      setActivities(cache.data);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const activities: UserActivityData[] = [];
 
       // Calculate date filter
       let dateFilter = '';
-      const now = new Date();
+      const nowDate = new Date();
       switch (filters.timeRange) {
         case '24h':
-          dateFilter = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+          dateFilter = new Date(nowDate.getTime() - 24 * 60 * 60 * 1000).toISOString();
           break;
         case '7d':
-          dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          dateFilter = new Date(nowDate.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
           break;
         case '30d':
-          dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          dateFilter = new Date(nowDate.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
           break;
         default:
           dateFilter = '';
@@ -163,6 +250,13 @@ const AllUserActivity: React.FC = () => {
         new Date(b.startedAt || b.completedAt || '').getTime() -
         new Date(a.startedAt || a.completedAt || '').getTime()
       );
+
+      // Update cache with new data
+      activitiesCache.current = {
+        data: filteredActivities,
+        timestamp: now,
+        filters: { ...filters }
+      };
 
       setActivities(filteredActivities);
     } catch (error) {

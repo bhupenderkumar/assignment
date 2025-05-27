@@ -7,7 +7,12 @@ import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useDatabaseState } from '../../context/DatabaseStateContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
-import { checkAssignmentPaymentAccess } from '../pages/PaymentDemoPage';
+import { paymentService } from '../../lib/services/paymentService';
+
+// Add paymentService to window for debugging
+if (typeof window !== 'undefined') {
+  (window as any).paymentService = paymentService;
+}
 import ProgressDisplay from './ProgressDisplay';
 import { playSound, stopSpeaking, cleanTextForTTS, isTTSAvailable } from '../../utils/soundUtils';
 import CelebrationOverlay from './CelebrationOverlay';
@@ -28,6 +33,9 @@ import UserProgressTracker from '../progress/UserProgressTracker';
 import SubmissionProgressTracker from '../progress/SubmissionProgressTracker';
 import { useUserProgress } from '../../hooks/useUserProgress';
 import SubmissionDiagnostic from '../debug/SubmissionDiagnostic';
+// Mobile-first components
+import { useTranslations } from '../../hooks/useTranslations';
+import { useConfiguration } from '../../context/ConfigurationContext';
 
 
 // Extend window interface for payment tracking
@@ -54,10 +62,61 @@ const PlayAssignment = ({
   const { anonymousUser, createSubmission, submitResponses } = useInteractiveAssignment();
   const { user, isSupabaseLoading, supabase } = useSupabaseAuth();
   const navigate = useNavigate();
+  const { config } = useConfiguration();
+  const { commonTranslate } = useTranslations();
 
+  // All state declarations must come first before any hooks
+  const [isMobile, setIsMobile] = useState(false);
   const [currentAssignment, setCurrentAssignment] = useState<InteractiveAssignment | null>(assignment || null);
   const [audioInstructions, setAudioInstructions] = useState<string | null>(null);
   const [audioInstructionsLoaded, setAudioInstructionsLoaded] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [responses, setResponses] = useState<Record<string, InteractiveResponse>>({});
+  const [score, setScore] = useState<number | null>(null);
+  const [timeSpent, setTimeSpent] = useState(0);
+  const [timerInterval, setTimerInterval] = useState<number | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [isProcessingSubmission, setIsProcessingSubmission] = useState(false);
+  const [showAudioPlayer, setShowAudioPlayer] = useState(false);
+  const [hasPlayedGreeting, setHasPlayedGreeting] = useState(false);
+  const [isTTSActive, setIsTTSActive] = useState(false);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [requiresPayment, setRequiresPayment] = useState(false);
+  const [hasPaid, setHasPaid] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [submissionSteps, setSubmissionSteps] = useState<Array<{
+    id: string;
+    label: string;
+    status: 'pending' | 'active' | 'completed' | 'error';
+  }>>([
+    { id: 'prepare', label: 'Preparing submission', status: 'pending' },
+    { id: 'validate', label: 'Validating responses', status: 'pending' },
+    { id: 'calculate', label: 'Calculating score', status: 'pending' },
+    { id: 'submit', label: 'Submitting to server', status: 'pending' },
+    { id: 'complete', label: 'Processing results', status: 'pending' },
+  ]);
+  const [showSubmissionTracker, setShowSubmissionTracker] = useState(false);
+  const [currentSubmissionStep, setCurrentSubmissionStep] = useState('');
+
+  // Mobile detection effect
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Debug effect to track currentAssignment changes
   useEffect(() => {
@@ -108,36 +167,25 @@ const PlayAssignment = ({
 
     fetchAudioInstructions();
   }, [currentAssignment?.id, supabase, audioInstructionsLoaded]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [responses, setResponses] = useState<Record<string, InteractiveResponse>>({});
-  const [score, setScore] = useState<number | null>(null);
-  const [timeSpent, setTimeSpent] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<number | null>(null);
-  const [submissionId, setSubmissionId] = useState<string | null>(null);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [isProcessingSubmission, setIsProcessingSubmission] = useState(false);
-  // Registration is now handled by parent component
-  const [showAudioPlayer, setShowAudioPlayer] = useState(false);
-  const [hasPlayedGreeting, setHasPlayedGreeting] = useState(false);
-  const [isTTSActive, setIsTTSActive] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
+
+  // Handle speak question event from mobile navigation - moved to top with other hooks
+  useEffect(() => {
+    const handleSpeakQuestion = () => {
+      // Dispatch a custom event that will be handled later when speakQuestion is available
+      window.dispatchEvent(new CustomEvent('triggerSpeakQuestion', {
+        detail: { currentQuestionIndex }
+      }));
+    };
+
+    window.addEventListener('speakQuestion', handleSpeakQuestion);
+    return () => window.removeEventListener('speakQuestion', handleSpeakQuestion);
+  }, [currentQuestionIndex]);
 
   // Use refs to track TTS state without causing re-renders
   const ttsScheduledRef = useRef(false);
   const currentQuestionTTSRef = useRef<string | null>(null);
   const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const completedTTSQuestionsRef = useRef<Set<string>>(new Set());
-  const [requiresPayment, setRequiresPayment] = useState(false);
-  const [hasPaid, setHasPaid] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState<number | undefined>(undefined);
-  const [checkingPayment, setCheckingPayment] = useState(false);
-  const [assignmentOrganization, setAssignmentOrganization] = useState<any>(null);
-  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const audioPlayerRef = useRef<SimpleAudioPlayerRef>(null);
 
   // Progress overlay for submission feedback
@@ -152,21 +200,6 @@ const PlayAssignment = ({
 
   // User progress tracking
   const { completeJourney, saveProgress } = useUserProgress();
-
-  // Submission progress tracking
-  const [submissionSteps, setSubmissionSteps] = useState<Array<{
-    id: string;
-    label: string;
-    status: 'pending' | 'active' | 'completed' | 'error';
-  }>>([
-    { id: 'prepare', label: 'Preparing submission', status: 'pending' },
-    { id: 'validate', label: 'Validating responses', status: 'pending' },
-    { id: 'calculate', label: 'Calculating score', status: 'pending' },
-    { id: 'submit', label: 'Submitting to server', status: 'pending' },
-    { id: 'complete', label: 'Processing results', status: 'pending' },
-  ]);
-  const [showSubmissionTracker, setShowSubmissionTracker] = useState(false);
-  const [currentSubmissionStep, setCurrentSubmissionStep] = useState('');
 
   // Ref to prevent duplicate submissions
   const isSubmittingRef = useRef(false);
@@ -368,26 +401,42 @@ const PlayAssignment = ({
 
   // We're moving the user registration check to the parent component
 
-  // Check if assignment requires payment
+  // Check if assignment requires payment - using useRef to prevent multiple calls
+  const paymentCheckRef = useRef<string | null>(null);
+
   useEffect(() => {
-    // Added isSubmitted to prevent repeated calls after assignment is submitted
-    if (!currentAssignment?.id || !user?.id || checkingPayment || isSubmitted) return;
+    // Only run payment check once per assignment/user combination
+    if (!currentAssignment?.id || !user?.id || checkingPayment || isSubmitted) {
+      return;
+    }
 
-    // Use a ref to track if we've already checked payment for this assignment/user combo
     const paymentCheckKey = `${currentAssignment.id}-${user.id}`;
-    if (window._checkedPayments && window._checkedPayments[paymentCheckKey]) {
-      return; // Don't check again if we've already checked for this combination
+
+    // If we've already checked this combination, don't check again
+    if (paymentCheckRef.current === paymentCheckKey) {
+      return;
     }
 
-    // Initialize the global tracker if it doesn't exist
-    if (!window._checkedPayments) {
-      window._checkedPayments = {};
-    }
+    console.log('💳 Starting payment check for assignment:', currentAssignment.id);
 
     const checkPayment = async () => {
       setCheckingPayment(true);
+      paymentCheckRef.current = paymentCheckKey; // Mark as checked
+
       try {
-        const paymentStatus = await checkAssignmentPaymentAccess(currentAssignment.id, user.id);
+        const paymentStatus = await paymentService.getAssignmentPaymentStatus(currentAssignment.id, user.id);
+        console.log('💳 Payment status received:', paymentStatus);
+
+        // Additional logging for debugging payment issues
+        console.log('💳 Payment check details:', {
+          assignmentId: currentAssignment.id,
+          assignmentTitle: currentAssignment.title,
+          requiresPayment: paymentStatus.requiresPayment,
+          hasPaid: paymentStatus.hasPaid,
+          paymentAmount: paymentStatus.paymentAmount,
+          shouldRedirect: paymentStatus.requiresPayment && !paymentStatus.hasPaid
+        });
+
         setRequiresPayment(paymentStatus.requiresPayment);
         setHasPaid(paymentStatus.hasPaid);
         setPaymentAmount(paymentStatus.paymentAmount);
@@ -399,10 +448,27 @@ const PlayAssignment = ({
 
         // If payment is required but not paid, redirect to payment page
         if (paymentStatus.requiresPayment && !paymentStatus.hasPaid) {
-          toast.error('This assignment requires payment', { duration: 4000 });
-          setTimeout(() => {
-            navigate(`/payment-demo?assignmentId=${currentAssignment.id}&amount=${paymentStatus.paymentAmount || 0.5}`);
-          }, 2000);
+          console.log('🔒 Payment required for assignment:', {
+            assignmentId: currentAssignment.id,
+            paymentAmount: paymentStatus.paymentAmount,
+            requiresPayment: paymentStatus.requiresPayment,
+            hasPaid: paymentStatus.hasPaid
+          });
+
+          toast.error('This assignment requires payment to access', {
+            duration: 2000,
+            icon: '💳'
+          });
+
+          // Immediate redirect to prevent multiple calls
+          navigate(`/payment?assignmentId=${currentAssignment.id}&amount=${paymentStatus.paymentAmount || 0.5}`);
+          return; // Exit early to prevent further execution
+        } else if (paymentStatus.requiresPayment && paymentStatus.hasPaid) {
+          console.log('✅ Payment verified for assignment:', currentAssignment.id);
+          toast.success('Payment verified! You have access to this premium assignment', {
+            duration: 3000,
+            icon: '✅'
+          });
         }
       } catch (error) {
         console.error('Error checking payment status:', error);
@@ -1085,6 +1151,8 @@ const PlayAssignment = ({
     });
   }, [configureFemaleVoice, ttsEnabled]);
 
+
+
   // Generate personalized greeting
   const generatePersonalizedGreeting = useCallback(() => {
     const userName = getUserName();
@@ -1262,10 +1330,6 @@ const PlayAssignment = ({
     }
   }, [hasPlayedGreeting, generatePersonalizedGreeting, speakWithFemaleVoice]);
 
-  // Create a stable ref for the speakQuestion function
-  const speakQuestionRef = useRef(speakQuestion);
-  speakQuestionRef.current = speakQuestion;
-
   // TTS scheduling function that doesn't cause re-renders - made more stable
   const scheduleTTSForQuestion = useCallback((questionId: string, questionIndex: number) => {
     console.log(`🎤 scheduleTTSForQuestion called for question ${questionIndex} (${questionId})`);
@@ -1324,7 +1388,7 @@ const PlayAssignment = ({
         if (!isTTSActive && ttsEnabled && ttsScheduledRef.current && currentQuestionTTSRef.current === questionId && document.visibilityState === 'visible') {
           try {
             console.log('🎤 Starting scheduled TTS...');
-            await speakQuestionRef.current(currentQuestion, isFirstQuestion);
+            await speakQuestion(currentQuestion, isFirstQuestion);
             console.log('🎤 Scheduled TTS completed successfully');
             // Mark this question as completed
             completedTTSQuestionsRef.current.add(questionId);
@@ -1704,6 +1768,8 @@ const PlayAssignment = ({
     return null;
   }
 
+
+
   // Get current question - memoized to prevent unnecessary re-renders
   const currentQuestion = currentAssignment?.questions?.[currentQuestionIndex];
 
@@ -1742,14 +1808,38 @@ const PlayAssignment = ({
 
   return (
     <div
-      className="container mx-auto py-8 px-4"
+      className={`${isMobile ? 'mobile-assignment-container' : 'container mx-auto py-8 px-4'}`}
       onClick={() => {
         // Initialize sound system on first user interaction
         initializeSoundSystem();
       }}
     >
-      {/* Assignment Header */}
-      <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl shadow-xl p-4 md:p-6 mb-6 border border-indigo-100">
+      {/* Mobile Progress Indicator - Fixed at top */}
+      {isMobile && currentAssignment?.questions && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+          <div className="text-center">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+              {currentAssignment?.title}
+            </h2>
+            <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+              Question {currentQuestionIndex + 1} of {currentAssignment?.questions.length}
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+              <div
+                className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                style={{ width: `${((currentQuestionIndex + 1) / currentAssignment?.questions.length) * 100}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assignment Header - Responsive */}
+      <div className={`${
+        isMobile
+          ? 'mobile-question-card p-4 mx-4 mt-20'
+          : 'bg-gradient-to-br from-indigo-50 via-white to-purple-50 rounded-2xl shadow-xl p-4 md:p-6 mb-6 border border-indigo-100'
+      }`}>
         {/* User Info Banner for Anonymous Users - Enhanced */}
         {anonymousUser && (
           <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4 mb-6 shadow-sm">
@@ -1892,45 +1982,84 @@ const PlayAssignment = ({
           )}
         </div>
 
-        {/* Direct Link */}
-        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center text-sm text-gray-500">
-          <span className="mr-2">Direct link:</span>
-          <div className="flex-1 overflow-hidden">
-            <input
-              type="text"
-              value={`${window.location.origin}/play/assignment/${assignmentId}`}
-              readOnly
-              className="w-full bg-gray-50 border border-gray-200 rounded px-3 py-1 text-gray-700 text-sm"
-              onClick={(e) => {
-                (e.target as HTMLInputElement).select();
-                navigator.clipboard.writeText((e.target as HTMLInputElement).value);
+        {/* Direct Link - Desktop only */}
+        {!isMobile && (
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center text-sm text-gray-500">
+            <span className="mr-2">Direct link:</span>
+            <div className="flex-1 overflow-hidden">
+              <input
+                type="text"
+                value={`${window.location.origin}/play/assignment/${assignmentId}`}
+                readOnly
+                className="w-full bg-gray-50 border border-gray-200 rounded px-3 py-1 text-gray-700 text-sm"
+                onClick={(e) => {
+                  (e.target as HTMLInputElement).select();
+                  navigator.clipboard.writeText((e.target as HTMLInputElement).value);
+                  toast.success('Link copied to clipboard!');
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/play/assignment/${assignmentId}`);
                 toast.success('Link copied to clipboard!');
               }}
-            />
+              className="ml-2 bg-gray-100 hover:bg-gray-200 text-gray-700 p-1 rounded"
+              title="Copy link"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+              </svg>
+            </button>
           </div>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(`${window.location.origin}/play/assignment/${assignmentId}`);
-              toast.success('Link copied to clipboard!');
-            }}
-            className="ml-2 bg-gray-100 hover:bg-gray-200 text-gray-700 p-1 rounded"
-            title="Copy link"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-            </svg>
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* Progress Display */}
-      {currentAssignment?.questions && (
+      {/* Progress Display - Desktop only (mobile uses fixed top indicator) */}
+      {!isMobile && currentAssignment?.questions && (
         <ProgressDisplay
           currentQuestion={currentQuestionIndex + 1}
           totalQuestions={currentAssignment?.questions.length || 0}
           score={score || 0}
           timeSpent={timeSpent}
         />
+      )}
+
+      {/* Mobile Question Navigation - Simplified */}
+      {isMobile && currentAssignment?.questions && (
+        <div className="mx-4 mb-4 mt-20">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-center space-x-2 flex-wrap">
+              {currentAssignment.questions.slice(0, 8).map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    if (index !== currentQuestionIndex && !isSubmitted) {
+                      setCurrentQuestionIndex(index);
+                      playSound('click');
+                      setTimeout(() => scrollToQuestion(), 100);
+                    }
+                  }}
+                  disabled={isSubmitted}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium transition-all duration-300 ${
+                    index === currentQuestionIndex
+                      ? 'bg-indigo-500 text-white'
+                      : responses[currentAssignment?.questions?.[index]?.id || '']?.isCorrect
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  } ${isSubmitted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+              {currentAssignment.questions.length > 8 && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 self-center">
+                  +{currentAssignment.questions.length - 8}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* TTS Enablement Notice */}
@@ -1951,19 +2080,26 @@ const PlayAssignment = ({
 
       {/* Current Question */}
       {currentQuestion ? (
-        <motion.div
-          key={currentQuestion.id || 'unknown-question'}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.3 }}
-          data-testid="question-container"
-          data-question-index={currentQuestionIndex}
-          id="current-question"
-          className="question-container"
-        >
-          {renderQuestion(currentQuestion)}
-        </motion.div>
+        <div className={`${isMobile ? 'mx-4 mb-20' : ''}`}>
+          <div className={`${
+            isMobile
+              ? 'bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700'
+              : ''
+          } question-container`}>
+            <motion.div
+              key={currentQuestion.id || 'unknown-question'}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.3 }}
+              data-testid="question-container"
+              data-question-index={currentQuestionIndex}
+              id="current-question"
+            >
+              {renderQuestion(currentQuestion)}
+            </motion.div>
+          </div>
+        </div>
       ) : (
         <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 p-6 rounded-xl my-6">
           <h3 className="text-xl font-bold mb-4">No Question Available</h3>
@@ -1977,84 +2113,179 @@ const PlayAssignment = ({
         </div>
       )}
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between mt-6">
-        <button
-          data-navigation="true"
-          data-testid="previous-button"
-          onClick={() => {
-            if (currentQuestionIndex > 0) {
-              setCurrentQuestionIndex(prev => prev - 1);
-              playSound('click');
+      {/* Navigation Buttons - Desktop only */}
+      {!isMobile && (
+        <div className="flex justify-between mt-6">
+          <button
+            data-navigation="true"
+            data-testid="previous-button"
+            onClick={() => {
+              if (currentQuestionIndex > 0) {
+                setCurrentQuestionIndex(prev => prev - 1);
+                playSound('click');
 
-              // Scroll to question container for better UX
-              setTimeout(() => scrollToQuestion(), 100);
-            }
-          }}
-          disabled={currentQuestionIndex === 0 || isSubmitted}
-          className={`py-3 px-6 rounded-xl font-medium transition-colors ${
-            currentQuestionIndex === 0 || isSubmitted
-              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          Previous
-        </button>
+                // Scroll to question container for better UX
+                setTimeout(() => scrollToQuestion(), 100);
+              }
+            }}
+            disabled={currentQuestionIndex === 0 || isSubmitted}
+            className={`py-3 px-6 rounded-xl font-medium transition-colors ${
+              currentQuestionIndex === 0 || isSubmitted
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Previous
+          </button>
 
-        <button
-          data-navigation="true"
-          data-testid={currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1 ? "next-button" : "finish-button"}
-          onClick={() => {
-            // Check if current question is completed before allowing navigation
-            if (!isCurrentQuestionCompleted()) {
-              toast.error('Please submit your answer before proceeding.', {
-                duration: 3000,
-                icon: '⚠️'
-              });
-              return;
-            }
+          <button
+            data-navigation="true"
+            data-testid={currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1 ? "next-button" : "finish-button"}
+            onClick={() => {
+              // Check if current question is completed before allowing navigation
+              if (!isCurrentQuestionCompleted()) {
+                toast.error('Please submit your answer before proceeding.', {
+                  duration: 3000,
+                  icon: '⚠️'
+                });
+                return;
+              }
 
-            if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
-              setCurrentQuestionIndex(prev => prev + 1);
-              playSound('click');
+              if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
+                setCurrentQuestionIndex(prev => prev + 1);
+                playSound('click');
 
-              // Scroll to question container for better UX
-              setTimeout(() => scrollToQuestion(), 100);
-            } else {
-              console.log('🎯 Finish button clicked - calling handleManualSubmit');
-              handleManualSubmit();
-            }
-          }}
-          disabled={isSubmitted || isSubmitting}
-          className={`py-3 px-6 rounded-xl font-medium transition-colors flex items-center space-x-2 ${
-            isSubmitted || isSubmitting
-              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              : !isCurrentQuestionCompleted()
-              ? 'bg-gray-300 text-gray-600 hover:bg-gray-400'
-              : 'bg-blue-500 text-white hover:bg-blue-600'
-          }`}
-        >
-          {/* Enhanced loader with better animation when submitting */}
-          {isSubmitting && (
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-              <div className="flex space-x-1">
-                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                // Scroll to question container for better UX
+                setTimeout(() => scrollToQuestion(), 100);
+              } else {
+                console.log('🎯 Finish button clicked - calling handleManualSubmit');
+                handleManualSubmit();
+              }
+            }}
+            disabled={isSubmitted || isSubmitting}
+            className={`py-3 px-6 rounded-xl font-medium transition-colors flex items-center space-x-2 ${
+              isSubmitted || isSubmitting
+                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                : !isCurrentQuestionCompleted()
+                ? 'bg-gray-300 text-gray-600 hover:bg-gray-400'
+                : 'bg-blue-500 text-white hover:bg-blue-600'
+            }`}
+          >
+            {/* Enhanced loader with better animation when submitting */}
+            {isSubmitting && (
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                <div className="flex space-x-1">
+                  <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-1 h-1 bg-white rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
+                </div>
               </div>
-            </div>
-          )}
-          <span className={isSubmitting ? 'ml-2' : ''}>
-            {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
-              ? 'Next'
-              : isSubmitting
-              ? 'Processing...'
-              : 'Finish'
-            }
-          </span>
-        </button>
-      </div>
+            )}
+            <span className={isSubmitting ? 'ml-2' : ''}>
+              {currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1
+                ? 'Next'
+                : isSubmitting
+                ? 'Processing...'
+                : 'Finish'
+              }
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Mobile Bottom Navigation - Simplified */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-r from-slate-900 via-gray-900 to-slate-900 backdrop-filter backdrop-blur-lg border-t border-gray-700 p-4">
+          <div className="flex items-center justify-between space-x-4">
+            {/* Previous Button */}
+            <button
+              onClick={() => {
+                if (currentQuestionIndex > 0) {
+                  setCurrentQuestionIndex(prev => prev - 1);
+                  playSound('click');
+                  setTimeout(() => scrollToQuestion(), 100);
+                }
+              }}
+              disabled={currentQuestionIndex === 0 || isSubmitted}
+              className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
+                currentQuestionIndex === 0 || isSubmitted
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-600 text-white hover:bg-gray-500'
+              }`}
+            >
+              ← Previous
+            </button>
+
+            {/* Speak Button */}
+            <button
+              onClick={() => {
+                if (currentQuestion && isTTSAvailable()) {
+                  playSound('click');
+                  const isFirstQuestion = currentQuestionIndex === 0;
+                  speakQuestion(currentQuestion, isFirstQuestion);
+                }
+              }}
+              className="w-12 h-12 rounded-full bg-gradient-to-r from-green-500 to-emerald-600 text-white flex items-center justify-center"
+              title="Speak Question"
+            >
+              🔊
+            </button>
+
+            {/* Audio Button */}
+            {audioInstructions && (
+              <button
+                onClick={() => setShowAudioPlayer(true)}
+                className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white flex items-center justify-center"
+                title="Play Audio"
+              >
+                🎵
+              </button>
+            )}
+
+            {/* Next/Finish Button */}
+            <button
+              onClick={() => {
+                const isLastQuestion = currentQuestionIndex >= (currentAssignment?.questions?.length || 0) - 1;
+
+                if (isLastQuestion) {
+                  console.log('🎯 Finish button clicked - calling handleManualSubmit');
+                  handleManualSubmit();
+                } else {
+                  if (!isCurrentQuestionCompleted()) {
+                    toast.error('Please submit your answer before proceeding.', {
+                      duration: 3000,
+                      icon: '⚠️'
+                    });
+                    return;
+                  }
+
+                  if (currentAssignment?.questions && currentQuestionIndex < (currentAssignment?.questions?.length || 0) - 1) {
+                    setCurrentQuestionIndex(prev => prev + 1);
+                    playSound('click');
+                    setTimeout(() => scrollToQuestion(), 100);
+                  }
+                }
+              }}
+              disabled={isSubmitted || isSubmitting}
+              className={`flex-1 py-3 px-4 rounded-xl font-medium transition-all duration-300 ${
+                isSubmitted || isSubmitting
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700'
+              }`}
+            >
+              {isSubmitting ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                  <span>Processing...</span>
+                </div>
+              ) : (
+                currentQuestionIndex >= (currentAssignment?.questions?.length || 0) - 1 ? 'Finish' : 'Next →'
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* We'll handle anonymous user registration in the PlayAssignmentPage component instead */}
 
@@ -2070,70 +2301,75 @@ const PlayAssignment = ({
         assignmentOrganizationId={currentAssignment?.organizationId}
       />
 
-      {/* Text-to-Speech Button (only show if TTS is available and no audio instructions) */}
-      {!audioInstructions && isTTSAvailable() && currentQuestion && (
-        <button
-          onClick={() => {
-            playSound('click');
-            const isFirstQuestion = currentQuestionIndex === 0;
-            speakQuestion(currentQuestion, isFirstQuestion);
-          }}
-          className="fixed bottom-6 left-6 bg-green-500 hover:bg-green-600 text-white rounded-full p-3 shadow-lg z-50"
-          aria-label="Read Question Aloud"
-          title="Read Question Aloud"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-          </svg>
-        </button>
-      )}
-
-      {/* Floating Audio Button (only show if there are audio instructions) */}
-      {audioInstructions && (
+      {/* Desktop Floating Buttons */}
+      {!isMobile && (
         <>
-          <button
-            onClick={() => setShowAudioPlayer(true)}
-            className="fixed bottom-6 right-6 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow-lg z-50"
-            aria-label="Play Audio Instructions"
-            title="Play Audio Instructions"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.465a5 5 0 001.06-7.072l5.658-5.657a1 1 0 011.414 0l5.657 5.657a1 1 0 010 1.414l-5.657 5.657a1 1 0 01-1.414 0l-5.657-5.657a1 1 0 010-1.414z" />
-            </svg>
-          </button>
-
-          {/* Audio Instructions Modal - Only show sound controls */}
-          {showAudioPlayer && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-4">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold">Audio</h3>
-                  <button
-                    onClick={() => setShowAudioPlayer(false)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                {/* Only show the audio player controls */}
-                <SimpleAudioPlayer
-                  audioUrl={currentAssignment?.audioInstructions || ''}
-                  autoPlay={true}
-                  showLabel={false}
-                  onAutoPlayBlocked={() => {
-                    // Callback handled by SimpleAudioPlayer component internally
-                  }}
-                />
-              </div>
-            </div>
+          {/* Text-to-Speech Button (only show if TTS is available and no audio instructions) */}
+          {!audioInstructions && isTTSAvailable() && currentQuestion && (
+            <button
+              onClick={() => {
+                playSound('click');
+                const isFirstQuestion = currentQuestionIndex === 0;
+                speakQuestion(currentQuestion, isFirstQuestion);
+              }}
+              className="fixed bottom-6 left-6 bg-green-500 hover:bg-green-600 text-white rounded-full p-3 shadow-lg z-50"
+              aria-label="Read Question Aloud"
+              title="Read Question Aloud"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+            </button>
           )}
+
+          {/* Floating Audio Button (only show if there are audio instructions) */}
+          {audioInstructions && (
+            <button
+              onClick={() => setShowAudioPlayer(true)}
+              className="fixed bottom-6 right-6 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-3 shadow-lg z-50"
+              aria-label="Play Audio Instructions"
+              title="Play Audio Instructions"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.465a5 5 0 001.06-7.072l5.658-5.657a1 1 0 011.414 0l5.657 5.657a1 1 0 010 1.414l-5.657 5.657a1 1 0 01-1.414 0l-5.657-5.657a1 1 0 010-1.414z" />
+              </svg>
+            </button>
+          )}
+
+          {/* Certificate Floating Button for Anonymous Users */}
+          <CertificateFloatingButton />
         </>
       )}
 
-      {/* Certificate Floating Button for Anonymous Users */}
-      <CertificateFloatingButton />
+      {/* Audio Instructions Modal - Show for both mobile and desktop */}
+      {audioInstructions && showAudioPlayer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-sm w-full p-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                {commonTranslate('audio', 'Audio')}
+              </h3>
+              <button
+                onClick={() => setShowAudioPlayer(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Only show the audio player controls */}
+            <SimpleAudioPlayer
+              audioUrl={currentAssignment?.audioInstructions || ''}
+              autoPlay={true}
+              showLabel={false}
+              onAutoPlayBlocked={() => {
+                // Callback handled by SimpleAudioPlayer component internally
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Progress Overlay for Submission Feedback */}
       <ProgressOverlay

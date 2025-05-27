@@ -5,9 +5,11 @@ import { motion } from 'framer-motion';
 import SupabaseAuth from '../auth/SupabaseAuth';
 import Layout from '../layout/Layout';
 import { useConfiguration } from '../../context/ConfigurationContext';
+import { useTranslations } from '../../hooks/useTranslations';
 
 const SignUpPage: React.FC = () => {
   const { config } = useConfiguration();
+  const { authTranslate, commonTranslate } = useTranslations();
 
   return (
     <Layout hideNavigation={true}>
@@ -22,22 +24,41 @@ const SignUpPage: React.FC = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="w-full max-w-md mb-8 text-center"
+            className="w-full max-w-md mb-6 text-center"
           >
             <div className="inline-block mb-4 p-3 bg-white dark:bg-gray-800 rounded-full shadow-md">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 md:h-10 md:w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <h1 className="text-4xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600"
+            <h1 className="text-2xl md:text-4xl font-bold mb-2 md:mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600"
                 style={{
-                  backgroundImage: `linear-gradient(to right, ${config.primaryColor}, ${config.secondaryColor})`
+                  backgroundImage: `linear-gradient(to right, ${config.primaryColor}, ${config.secondaryColor})`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
                 }}>
-              Interactive Assignments
+              Start Your Free Trial
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
-              Create an account to start your learning journey
+            <p className="text-base md:text-lg text-gray-600 dark:text-gray-300 mb-4">
+              Join 1,200+ organizations transforming education
             </p>
+
+            {/* SaaS Benefits */}
+            <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 text-xs md:text-sm text-gray-500 dark:text-gray-400">
+              <div className="text-center">
+                <div className="text-lg md:text-xl mb-1">🚀</div>
+                <span>2-min Setup</span>
+              </div>
+              <div className="text-center">
+                <div className="text-lg md:text-xl mb-1">📱</div>
+                <span>Mobile-First</span>
+              </div>
+              <div className="text-center">
+                <div className="text-lg md:text-xl mb-1">🎯</div>
+                <span>No Card Required</span>
+              </div>
+            </div>
           </motion.div>
 
           <SupabaseAuth mode="signUp" />
@@ -46,9 +67,21 @@ const SignUpPage: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3, duration: 0.5 }}
-            className="mt-8 text-center"
+            className="mt-6 md:mt-8 text-center"
           >
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
+            {/* Trust indicators */}
+            <div className="mb-4 text-xs md:text-sm text-gray-500 dark:text-gray-400">
+              <p className="mb-2">✅ No credit card required • ✅ 14-day free trial • ✅ Cancel anytime</p>
+              <div className="flex justify-center items-center gap-3 text-xs">
+                <span>🔒 SOC 2 Compliant</span>
+                <span>•</span>
+                <span>🌍 GDPR Ready</span>
+                <span>•</span>
+                <span>📱 Mobile Optimized</span>
+              </div>
+            </div>
+
+            <p className="text-sm md:text-base text-gray-600 dark:text-gray-300 mb-4">
               Already have an account?{' '}
               <Link to="/sign-in" className="text-blue-500 hover:text-blue-600 font-medium transition-colors"
                     style={{ color: config.accentColor }}>

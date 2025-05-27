@@ -27,6 +27,8 @@ const mapRowToAssignment = (row: any): InteractiveAssignment => {
     hasCelebration: row.has_celebration,
     ageGroup: row.age_group,
     requiresHelp: row.requires_help,
+    requiresPayment: row.requires_payment || false, // Payment field mapping
+    paymentAmount: row.payment_amount || 0, // Payment amount field mapping
     shareableLink: row.shareable_link,
     shareableLinkExpiresAt: row.shareable_link_expires_at ? new Date(row.shareable_link_expires_at) : undefined,
   };
@@ -64,6 +66,8 @@ const mapAssignmentToRow = (assignment: Partial<InteractiveAssignment>) => {
     has_celebration: assignment.hasCelebration,
     age_group: assignment.ageGroup,
     requires_help: assignment.requiresHelp,
+    requires_payment: assignment.requiresPayment || false, // Payment field mapping
+    payment_amount: assignment.paymentAmount || 0, // Payment amount field mapping
     shareable_link: assignment.shareableLink,
     shareable_link_expires_at: assignment.shareableLinkExpiresAt?.toISOString(),
   };
