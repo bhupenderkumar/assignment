@@ -6,6 +6,7 @@ import PlayAssignment from '../assignments/PlayAssignment';
 import AnonymousUserRegistration from '../auth/AnonymousUserRegistration';
 import { useInteractiveAssignment } from '../../context/InteractiveAssignmentContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
+import { useConfiguration } from '../../context/ConfigurationContext';
 import { createEnhancedInteractiveAssignmentService } from '../../lib/services/enhancedInteractiveAssignmentService';
 import { getCachedItem, setCachedItem } from '../../lib/utils/cacheUtils';
 import { generateMetaTags, getSocialShareUrl } from '../../lib/utils/ogUtils';
@@ -25,6 +26,7 @@ const PlayAssignmentPage = () => {
   const [assignmentOrganization, setAssignmentOrganization] = useState<any | null>(null);
   const { anonymousUser } = useInteractiveAssignment();
   const { user, isSupabaseLoading } = useSupabaseAuth();
+  const { config, appDefaults } = useConfiguration();
   const navigate = useNavigate();
 
   // Reference to track if navigation was confirmed
@@ -263,7 +265,7 @@ const PlayAssignmentPage = () => {
     generateMetaTags(currentAssignment, assignmentOrganization, 'assignment', assignmentId) : null;
 
   const socialShareUrl = assignmentId ? getSocialShareUrl('assignment', assignmentId) : '';
-  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const baseUrl = appDefaults.appUrl;
   const currentUrl = `${baseUrl}/play/assignment/${assignmentId}`;
 
   return (
@@ -292,7 +294,7 @@ const PlayAssignmentPage = () => {
             <meta property="og:title" content={metaTags?.title || currentAssignment.title} />
             <meta property="og:description" content={metaTags?.description || currentAssignment.description} />
             <meta property="og:url" content={currentUrl} />
-            <meta property="og:site_name" content={assignmentOrganization?.name || 'First Step School'} />
+            <meta property="og:site_name" content={assignmentOrganization?.name || config.companyName} />
             <meta property="og:image" content={assignmentOrganization?.logo_url || `${baseUrl}/og-default.png`} />
             <meta property="og:image:width" content="1200" />
             <meta property="og:image:height" content="630" />
@@ -306,13 +308,13 @@ const PlayAssignmentPage = () => {
             <meta name="twitter:image:alt" content={`${currentAssignment.title} - Interactive Assignment`} />
 
             {/* Additional Meta Tags for Better SEO */}
-            <meta name="author" content={assignmentOrganization?.name || 'First Step School'} />
+            <meta name="author" content={assignmentOrganization?.name || config.companyName} />
             <meta name="robots" content="index, follow" />
             <link rel="canonical" href={currentUrl} />
 
             {/* WhatsApp specific meta tags */}
             <meta property="og:locale" content="en_US" />
-            <meta property="article:author" content={assignmentOrganization?.name || 'First Step School'} />
+            <meta property="article:author" content={assignmentOrganization?.name || config.companyName} />
           </>
         )}
 

@@ -1,33 +1,36 @@
 :root {
-  /* Default theme colors - will be overridden by ConfigurationContext */
-  --primary-color: #0891b2; /* cyan-600 */
-  --secondary-color: #7e22ce; /* purple-700 */
-  --accent-color: #06b6d4; /* cyan-500 */
+  /* Modern, beautiful and accessible theme colors */
+  --primary-color: #6366F1; /* Modern indigo - professional and vibrant */
+  --secondary-color: #EC4899; /* Vibrant pink - creates beautiful gradients */
+  --accent-color: #10B981; /* Emerald green - fresh and modern */
 
-  /* Other theme variables */
-  --text-color: #1f2937; /* Default text color for light mode */
+  /* Modern text colors with good contrast */
+  --text-color: #1F2937; /* Rich dark gray for excellent readability */
+  --text-color-secondary: #4B5563; /* Medium gray for secondary text */
+  --text-color-muted: #6B7280; /* Light gray for muted text */
 
-  /* Dark mode background */
-  --dark-background-start: #0f172a; /* slate-900 */
-  --dark-background-middle: #581c87; /* purple-950 */
-  --dark-background-end: #0f172a; /* slate-900 */
+  /* Beautiful gradient backgrounds for dark mode */
+  --dark-background-start: #0F172A; /* Deep slate */
+  --dark-background-middle: #1E293B; /* Slate gray */
+  --dark-background-end: #334155; /* Lighter slate */
 
-  /* Light mode background */
-  --light-background-start: #f0f9ff; /* sky-50 */
-  --light-background-middle: #e0f2fe; /* sky-100 */
-  --light-background-end: #f0f9ff; /* sky-50 */
+  /* Clean, modern light mode backgrounds */
+  --light-background-start: #F8FAFC; /* Very light blue-gray */
+  --light-background-middle: #F1F5F9; /* Light blue-gray */
+  --light-background-end: #E2E8F0; /* Soft blue-gray */
 
   /* Default to light mode backgrounds */
   --background-start: var(--light-background-start);
   --background-middle: var(--light-background-middle);
   --background-end: var(--light-background-end);
 
-  --card-bg: rgba(255, 255, 255, 0.8);
-  --card-border: rgba(6, 182, 212, 0.1);
-  --card-shadow: rgba(0, 0, 0, 0.1);
-  --card-hover-shadow: rgba(0, 0, 0, 0.2);
-  --card-hover-border: rgba(6, 182, 212, 0.3);
-  --card-hover-glow: rgba(6, 182, 212, 0.3);
+  /* Beautiful modern card and UI colors */
+  --card-bg: rgba(255, 255, 255, 0.9); /* Clean white with slight transparency */
+  --card-border: rgba(99, 102, 241, 0.1); /* Subtle indigo border */
+  --card-shadow: rgba(0, 0, 0, 0.1); /* Soft shadow for depth */
+  --card-hover-shadow: rgba(99, 102, 241, 0.2); /* Indigo shadow on hover */
+  --card-hover-border: rgba(99, 102, 241, 0.3); /* Stronger indigo border on hover */
+  --card-hover-glow: rgba(99, 102, 241, 0.15); /* Subtle indigo glow */
 }
 
 #root {
@@ -60,11 +63,11 @@
 
 @keyframes glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(var(--accent-color-rgb, 6, 182, 212), 0.5);
+    box-shadow: 0 0 5px rgba(var(--accent-color-rgb, 16, 185, 129), 0.5);
   }
   50% {
-    box-shadow: 0 0 20px rgba(var(--accent-color-rgb, 6, 182, 212), 0.8),
-                0 0 30px rgba(var(--accent-color-rgb, 6, 182, 212), 0.6);
+    box-shadow: 0 0 20px rgba(var(--accent-color-rgb, 16, 185, 129), 0.8),
+                0 0 30px rgba(var(--accent-color-rgb, 16, 185, 129), 0.6);
   }
 }
 
@@ -184,8 +187,8 @@
 /* Neon text effect */
 .neon-text {
   color: #fff;
-  text-shadow: 0 0 5px rgba(var(--accent-color-rgb, 6, 182, 212), 0.7),
-               0 0 10px rgba(var(--accent-color-rgb, 6, 182, 212), 0.5);
+  text-shadow: 0 0 5px rgba(var(--accent-color-rgb, 16, 185, 129), 0.7),
+               0 0 10px rgba(var(--accent-color-rgb, 16, 185, 129), 0.5);
 }
 
 /* Theme text gradient */
@@ -242,4 +245,101 @@
 .sidebar-overlay {
   background-color: rgba(0, 0, 0, 0.5);
   transition: opacity 0.3s ease-in-out;
+}
+
+/* Modern, beautiful utility classes */
+.text-modern-primary {
+  color: #6366F1 !important; /* Modern indigo */
+}
+
+.text-modern-secondary {
+  color: #EC4899 !important; /* Vibrant pink */
+}
+
+.text-modern-success {
+  color: #10B981 !important; /* Emerald green */
+}
+
+.text-modern-error {
+  color: #EF4444 !important; /* Modern red */
+}
+
+.text-modern-warning {
+  color: #F59E0B !important; /* Modern amber */
+}
+
+.bg-modern-primary {
+  background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%) !important;
+  color: white !important;
+}
+
+.bg-modern-secondary {
+  background: linear-gradient(135deg, #EC4899 0%, #F97316 100%) !important;
+  color: white !important;
+}
+
+.bg-modern-success {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%) !important;
+  color: white !important;
+}
+
+.bg-modern-error {
+  background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%) !important;
+  color: white !important;
+}
+
+.bg-modern-warning {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%) !important;
+  color: white !important;
+}
+
+/* Modern focus states with beautiful styling */
+*:focus {
+  outline: 2px solid #6366F1 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Beautiful button focus states */
+button:focus,
+.btn-primary:focus,
+.btn-success:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3), 0 10px 25px rgba(99, 102, 241, 0.2) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Modern link styles */
+a {
+  color: #6366F1 !important;
+  text-decoration: none !important;
+  transition: all 0.2s ease !important;
+}
+
+a:hover {
+  color: #4F46E5 !important;
+  text-decoration: underline !important;
+}
+
+.dark-theme a {
+  color: #A5B4FC !important; /* Light indigo for dark mode */
+}
+
+.dark-theme a:hover {
+  color: #C7D2FE !important; /* Even lighter indigo on hover */
+}
+
+/* Beautiful shimmer animation for header accent line */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
 }

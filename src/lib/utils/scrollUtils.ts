@@ -194,3 +194,62 @@ export const enableScroll = () => {
     window.scrollTo(0, parseInt(scrollY || '0') * -1);
   }
 };
+
+/**
+ * Smooth scroll to top with enhanced easing and callback support
+ * @param options Configuration options for the scroll animation
+ */
+export const smoothScrollToTop = (options: {
+  offset?: number;
+  duration?: number;
+  easing?: 'easeInOut' | 'easeOut' | 'easeIn' | 'linear';
+  onComplete?: () => void;
+  onProgress?: (progress: number) => void;
+} = {}) => {
+  const {
+    offset = 0,
+    duration = 600,
+    easing = 'easeInOut',
+    onComplete,
+    onProgress
+  } = options;
+
+  const startPosition = window.pageYOffset;
+  const targetPosition = offset;
+  const distance = targetPosition - startPosition;
+  const startTime = performance.now();
+
+  // Different easing functions
+  const easingFunctions = {
+    linear: (t: number) => t,
+    easeIn: (t: number) => t * t,
+    easeOut: (t: number) => t * (2 - t),
+    easeInOut: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+  };
+
+  const easingFunction = easingFunctions[easing];
+
+  const animateScroll = (currentTime: number) => {
+    const timeElapsed = currentTime - startTime;
+    const progress = Math.min(timeElapsed / duration, 1);
+    const ease = easingFunction(progress);
+
+    window.scrollTo(0, startPosition + distance * ease);
+
+    // Call progress callback if provided
+    if (onProgress) {
+      onProgress(progress);
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(animateScroll);
+    } else {
+      // Call completion callback if provided
+      if (onComplete) {
+        onComplete();
+      }
+    }
+  };
+
+  requestAnimationFrame(animateScroll);
+};

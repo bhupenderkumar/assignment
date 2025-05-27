@@ -18,6 +18,7 @@ const AdminDashboard = () => {
   const [editingAssignment, setEditingAssignment] = useState<InteractiveAssignment | null>(null);
   const [sharingAssignment, setSharingAssignment] = useState<InteractiveAssignment | null>(null);
   const [activeTab, setActiveTab] = useState<'assignments' | 'progress' | 'activity' | 'all-activity' | 'database'>('assignments');
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set(['assignments'])); // Track which tabs have been loaded
   const {
     createAssignment,
     updateAssignment,
@@ -90,6 +91,13 @@ const AdminDashboard = () => {
       setEditingAssignment(null);
     }
   }, [currentAssignment, assignmentId, editingAssignment]);
+
+  // Handle tab switching with lazy loading
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId as any);
+    // Mark this tab as loaded when it becomes active
+    setLoadedTabs(prev => new Set([...prev, tabId]));
+  };
 
   // Debug log to help diagnose rendering issues
   useEffect(() => {
@@ -177,28 +185,57 @@ const AdminDashboard = () => {
       {/* Tab Navigation */}
       {!isCreating && !editingAssignment && (
         <div className="mb-8">
-          <nav className="flex space-x-8 border-b border-gray-200">
-            {[
-              { id: 'assignments', label: 'Assignments', icon: '📝' },
-              { id: 'progress', label: 'User Progress', icon: '📊' },
-              { id: 'activity', label: 'Anonymous Activity', icon: '👤' },
-              { id: 'all-activity', label: 'All User Activity', icon: '👥' },
-              { id: 'database', label: 'Database', icon: '🗄️' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+          {/* Desktop Tab Navigation */}
+          <div className="hidden md:block">
+            <nav className="flex space-x-8 border-b border-gray-200 dark:border-gray-700">
+              {[
+                { id: 'assignments', label: 'Assignments', icon: '📝' },
+                { id: 'progress', label: 'User Progress', icon: '📊' },
+                { id: 'activity', label: 'Anonymous Activity', icon: '👤' },
+                { id: 'all-activity', label: 'All User Activity', icon: '👥' },
+                { id: 'database', label: 'Database', icon: '🗄️' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`py-3 px-1 border-b-2 font-medium text-sm transition-all duration-200 flex items-center space-x-2 ${
+                    activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <span className="text-lg">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          {/* Mobile Tab Navigation - Horizontal Scroll */}
+          <div className="md:hidden">
+            <div className="flex space-x-1 overflow-x-auto pb-2 scrollbar-hide mobile-tab-scroll">
+              {[
+                { id: 'assignments', label: 'Assignments', icon: '📝' },
+                { id: 'progress', label: 'User Progress', icon: '📊' },
+                { id: 'activity', label: 'Anonymous Activity', icon: '👤' },
+                { id: 'all-activity', label: 'All User Activity', icon: '👥' },
+                { id: 'database', label: 'Database', icon: '🗄️' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`flex-shrink-0 px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 flex items-center space-x-2 ${
+                    activeTab === tab.id
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  <span className="text-base">{tab.icon}</span>
+                  <span className="whitespace-nowrap">{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -271,20 +308,49 @@ const AdminDashboard = () => {
               />
             )}
 
-            {activeTab === 'progress' && (
-              <UserProgressDashboard />
+            {activeTab === 'progress' && loadedTabs.has('progress') && (
+              <UserProgressDashboard shouldLoad={loadedTabs.has('progress')} />
             )}
 
-            {activeTab === 'activity' && (
-              <AnonymousUserActivity />
+            {activeTab === 'activity' && loadedTabs.has('activity') && (
+              <AnonymousUserActivity shouldLoad={loadedTabs.has('activity')} />
             )}
 
-            {activeTab === 'all-activity' && (
-              <AllUserActivity />
+            {activeTab === 'all-activity' && loadedTabs.has('all-activity') && (
+              <AllUserActivity shouldLoad={loadedTabs.has('all-activity')} />
             )}
 
-            {activeTab === 'database' && (
+            {activeTab === 'database' && loadedTabs.has('database') && (
               <DatabaseMigrationRunner />
+            )}
+
+            {/* Loading states for tabs that haven't been loaded yet */}
+            {activeTab === 'progress' && !loadedTabs.has('progress') && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading user progress...</span>
+              </div>
+            )}
+
+            {activeTab === 'activity' && !loadedTabs.has('activity') && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading anonymous activity...</span>
+              </div>
+            )}
+
+            {activeTab === 'all-activity' && !loadedTabs.has('all-activity') && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading all user activity...</span>
+              </div>
+            )}
+
+            {activeTab === 'database' && !loadedTabs.has('database') && (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <span className="ml-3 text-gray-600">Loading database tools...</span>
+              </div>
             )}
           </motion.div>
         )}

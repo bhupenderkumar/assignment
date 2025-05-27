@@ -1,5 +1,48 @@
 // src/lib/utils/ogUtils.ts - Utilities for Open Graph link generation
 
+// Safe environment variable access
+const getEnvVar = (key: string, defaultValue: string): string => {
+  try {
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      // In browser, check for Vite environment variables
+      const viteVar = (window as any).__VITE_ENV__?.[key];
+      if (viteVar) return viteVar;
+
+      // Check for injected environment variables
+      const injectedVar = (window as any).__ENV__?.[key];
+      if (injectedVar) return injectedVar;
+    }
+
+    // Check for process.env if available (build time)
+    if (typeof process !== 'undefined' && process.env) {
+      const envVar = process.env[key];
+      if (envVar) return envVar;
+    }
+
+    // Return default value
+    return defaultValue;
+  } catch (error) {
+    return defaultValue;
+  }
+};
+
+// Get app defaults for configuration
+let appDefaults: any = null;
+try {
+  // Dynamically import to avoid circular dependencies
+  import('../../context/ConfigurationContext').then(module => {
+    appDefaults = module.getAppDefaults();
+  });
+} catch (error) {
+  console.warn('Could not load app defaults, using fallback values');
+}
+
+// Fallback function to get base URL
+const getBaseUrl = (): string => {
+  return appDefaults?.appUrl || getEnvVar('REACT_APP_URL', 'https://interactive-assignment-one.vercel.app');
+};
+
 /**
  * Generate a shareable URL with Open Graph meta tags for social media
  * @param type - Type of content ('assignment' or 'share')
@@ -7,7 +50,7 @@
  * @returns URL that will show proper preview in social media
  */
 export const generateOGUrl = (type: 'assignment' | 'share', id: string): string => {
-  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const baseUrl = getBaseUrl();
   return `${baseUrl}/og/${type}/${id}`;
 };
 
@@ -17,7 +60,7 @@ export const generateOGUrl = (type: 'assignment' | 'share', id: string): string 
  * @returns Regular assignment URL
  */
 export const generateAssignmentUrl = (assignmentId: string): string => {
-  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const baseUrl = getBaseUrl();
   return `${baseUrl}/play/assignment/${assignmentId}`;
 };
 
@@ -27,7 +70,7 @@ export const generateAssignmentUrl = (assignmentId: string): string => {
  * @returns Regular shareable URL
  */
 export const generateShareableUrl = (shareableLink: string): string => {
-  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const baseUrl = getBaseUrl();
   return `${baseUrl}/play/share/${shareableLink}`;
 };
 
@@ -79,6 +122,11 @@ export const isSocialMediaCrawler = (userAgent: string): boolean => {
   );
 };
 
+// Fallback function to get default organization name
+const getDefaultOrgName = (): string => {
+  return appDefaults?.defaultOrganizationName || getEnvVar('REACT_APP_DEFAULT_ORG_NAME', 'Interactive Learning Platform');
+};
+
 /**
  * Generate meta tags object for a given assignment
  * @param assignment - Assignment data
@@ -93,7 +141,7 @@ export const generateMetaTags = (
   type: 'assignment' | 'share',
   id: string
 ) => {
-  const baseUrl = 'https://interactive-assignment-one.vercel.app';
+  const baseUrl = getBaseUrl();
   const url = type === 'assignment'
     ? `${baseUrl}/play/assignment/${assignment.id}`
     : `${baseUrl}/play/share/${id}`;
@@ -106,7 +154,7 @@ export const generateMetaTags = (
     `Take the interactive assignment "${assignment.title}" ${organization?.name ? `from ${organization.name}` : ''}. Complete exercises, get instant feedback, and earn your certificate!`;
 
   const image = organization?.logo_url || `${baseUrl}/og-default.svg`;
-  const siteName = organization?.name || 'First Step School';
+  const siteName = organization?.name || getDefaultOrgName();
 
   return {
     title,

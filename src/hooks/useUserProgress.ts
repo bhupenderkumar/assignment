@@ -255,7 +255,9 @@ export const useUserProgress = (): UseUserProgressReturn => {
 
   const getProgressPercentage = useCallback((): number => {
     if (!currentJourney || currentJourney.totalQuestions <= 0) {
-      console.warn('🎯 getProgressPercentage: Invalid journey data', { currentJourney });
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('🎯 getProgressPercentage: Invalid journey data', { currentJourney });
+      }
       return 0;
     }
 
@@ -264,12 +266,23 @@ export const useUserProgress = (): UseUserProgressReturn => {
 
     const percentage = Math.round((answeredQuestions / currentJourney.totalQuestions) * 100);
 
-    console.log('🎯 Progress calculation:', {
-      answeredQuestions,
-      totalQuestions: currentJourney.totalQuestions,
-      percentage,
-      questionsProgress: Object.keys(currentJourney.questionsProgress)
-    });
+    // Only log in development and throttle the logging
+    if (process.env.NODE_ENV === 'development') {
+      // Use a simple throttling mechanism to reduce log spam
+      const now = Date.now();
+      const lastLogKey = 'lastProgressLog';
+      const lastLog = (window as any)[lastLogKey] || 0;
+
+      if (now - lastLog > 2000) { // Log at most every 2 seconds
+        console.log('🎯 Progress calculation:', {
+          answeredQuestions,
+          totalQuestions: currentJourney.totalQuestions,
+          percentage,
+          questionsProgress: Object.keys(currentJourney.questionsProgress)
+        });
+        (window as any)[lastLogKey] = now;
+      }
+    }
 
     return percentage;
   }, [currentJourney]);

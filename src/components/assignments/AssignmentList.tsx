@@ -6,6 +6,7 @@ import { useInteractiveAssignment } from '../../context/InteractiveAssignmentCon
 import { useDatabaseState } from '../../context/DatabaseStateContext';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useConfiguration } from '../../context/ConfigurationContext';
+import { useTranslations } from '../../hooks/useTranslations';
 import { InteractiveAssignment } from '../../types/interactiveAssignment';
 
 interface AssignmentListProps {
@@ -17,6 +18,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
   const { isReady: isDatabaseReady, executeWhenReady } = useDatabaseState();
   const { isAuthenticated } = useSupabaseAuth();
   const { config } = useConfiguration();
+  const { commonTranslate, assignmentTranslate } = useTranslations();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string | null>(null);
   const [localLoading, setLocalLoading] = useState(false);
@@ -43,7 +45,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
           })
           .catch(error => {
             console.error('Error fetching assignments:', error);
-            setLocalError(error instanceof Error ? error.message : 'Failed to load assignments');
+            setLocalError(error instanceof Error ? error.message : assignmentTranslate('loadingAssignments', 'Failed to load assignments'));
           })
           .finally(() => {
             setLocalLoading(false);
@@ -56,7 +58,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
       // User is not authenticated, no need to fetch
       console.log('AssignmentList: User not authenticated, skipping fetch');
     }
-  }, [fetchAssignments, isDatabaseReady, executeWhenReady, assignments.length, loading, isAuthenticated]);
+  }, [isDatabaseReady, executeWhenReady, assignments.length, loading, isAuthenticated]); // Removed fetchAssignments from dependencies
 
   // Filter assignments based on search term and filter type
   // Also filter out template assignments that don't belong to the organization
@@ -84,7 +86,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
     return (
       <div className="flex justify-center items-center min-h-[200px]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        <p className="ml-4 text-gray-600">Loading assignments...</p>
+        <p className="ml-4 text-gray-600">{assignmentTranslate('loadingAssignments')}</p>
       </div>
     );
   }
@@ -93,11 +95,11 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
   if (!isDatabaseReady) {
     return (
       <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-xl my-4">
-        <h3 className="font-bold text-lg">Database Initializing</h3>
-        <p>The database connection is being established. Please wait a moment.</p>
+        <h3 className="font-bold text-lg">{commonTranslate('databaseInitializing', 'Database Initializing')}</h3>
+        <p>{commonTranslate('databaseConnectionEstablishing', 'The database connection is being established. Please wait a moment.')}</p>
         <div className="mt-3 flex items-center">
           <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-yellow-700 mr-3"></div>
-          <span>Connecting to database...</span>
+          <span>{commonTranslate('connectingToDatabase', 'Connecting to database...')}</span>
         </div>
       </div>
     );
@@ -123,13 +125,13 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
             }}
             className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300"
           >
-            Try Again
+            {commonTranslate('tryAgain', 'Try Again')}
           </button>
           <button
             onClick={() => window.location.reload()}
             className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded-lg transition-colors duration-300"
           >
-            Refresh Page
+            {commonTranslate('refreshPage')}
           </button>
         </div>
       </div>
@@ -146,7 +148,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
           <div className="flex-1">
             <input
               type="text"
-              placeholder="Search assignments..."
+              placeholder={assignmentTranslate('searchAssignments', 'Search assignments...')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
@@ -159,7 +161,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
               onChange={(e) => setFilterType(e.target.value || null)}
               className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
             >
-              <option value="">All Types</option>
+              <option value="">{assignmentTranslate('allTypes', 'All Types')}</option>
               {assignmentTypes.map(type => (
                 <option key={type} value={type}>
                   {type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (l: string) => l.toUpperCase())}
@@ -172,7 +174,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
         {/* Assignment List */}
         {filteredAssignments.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-500 text-lg">No assignments found</p>
+            <p className="text-gray-500 text-lg">{assignmentTranslate('noAssignments')}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -225,7 +227,7 @@ const AssignmentList = ({ onSelectAssignment }: AssignmentListProps) => {
                         onClick={() => onSelectAssignment(assignment)}
                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300"
                       >
-                        Play Assignment
+                        {assignmentTranslate('play')}
                       </button>
                       <button
                         onClick={(e) => {

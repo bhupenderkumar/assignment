@@ -1,44 +1,81 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useConfiguration } from '../../context/ConfigurationContext';
+import { useTranslations } from '../../hooks/useTranslations';
+import { hexToRgba } from '../../utils/colorUtils';
 
 const Footer: React.FC = () => {
   // Use React Router's navigation hook
   const navigate = useNavigate();
   const { config } = useConfiguration();
+  const { commonTranslate, navTranslate } = useTranslations();
 
   return (
-    <footer className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 text-white w-full mt-auto relative overflow-hidden">
-      {/* Futuristic accent line */}
-      <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-blue-500 to-transparent animate-pulse"></div>
+    <footer
+      className="w-full mt-auto relative overflow-hidden"
+      style={{
+        background: config.darkMode
+          ? `linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%)`
+          : `linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)`,
+        backdropFilter: 'blur(10px)',
+        borderTop: config.darkMode
+          ? `1px solid ${hexToRgba('#64748b', 0.3)}`
+          : `1px solid ${hexToRgba('#cbd5e1', 0.5)}`
+      }}
+    >
+      {/* Animated accent line */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[2px] animate-pulse"
+        style={{
+          background: config.darkMode
+            ? `linear-gradient(90deg, transparent 0%, #3b82f6 50%, transparent 100%)`
+            : `linear-gradient(90deg, transparent 0%, #6366f1 50%, transparent 100%)`
+        }}
+      ></div>
 
-      <div className="container mx-auto px-4 py-6 relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div className="container mx-auto px-3 py-4 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
           {/* Brand Section */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-cyan-400">
+          <div className="space-y-2 text-center md:text-left">
+            <h3 className={`text-base md:text-lg font-bold ${
+              config.darkMode
+                ? 'bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400'
+                : 'text-gray-800'
+            }`}>
               {config.companyName}
             </h3>
-            <p className="text-gray-300 text-sm font-light leading-relaxed">
-              Engaging educational platform for interactive learning experiences.
+            <p className={`text-xs md:text-sm font-light leading-relaxed ${
+              config.darkMode ? 'text-gray-300' : 'text-gray-600'
+            }`}>
+              {commonTranslate('platformDescription', 'Engaging educational platform for interactive learning experiences.')}
             </p>
           </div>
 
           {/* Quick Links */}
-          <div className="space-y-3">
-            <h3 className="text-base font-semibold text-gray-100">Quick Links</h3>
-            <ul className="space-y-2">
+          <div className="space-y-2 text-center md:text-left">
+            <h3 className={`text-sm md:text-base font-semibold ${
+              config.darkMode ? 'text-gray-100' : 'text-gray-800'
+            }`}>
+              {navTranslate('quickLinks')}
+            </h3>
+            <ul className="space-y-1">
               {[
-                { text: 'Home', path: '/' },
-                { text: 'Assignments', path: '/manage-assignments' },
-                { text: 'Certificates', path: '/certificates' }
+                { text: navTranslate('home'), path: '/' },
+                { text: navTranslate('assignments'), path: '/manage-assignments' },
+                { text: navTranslate('certificates'), path: '/certificates' }
               ].map((link) => (
                 <li key={link.text}>
                   <button
                     onClick={() => navigate(link.path)}
-                    className="text-sm text-gray-300 hover:text-cyan-400 transition-all duration-300 flex items-center group cursor-pointer"
+                    className={`text-xs md:text-sm transition-all duration-300 flex items-center justify-center md:justify-start group cursor-pointer ${
+                      config.darkMode
+                        ? 'text-gray-300 hover:text-blue-400'
+                        : 'text-gray-600 hover:text-indigo-600'
+                    }`}
                   >
-                    <span className="w-0 group-hover:w-2 h-[1px] bg-cyan-400 transition-all duration-300 mr-2"></span>
+                    <span className={`w-0 group-hover:w-2 h-[1px] transition-all duration-300 mr-2 ${
+                      config.darkMode ? 'bg-blue-400' : 'bg-indigo-600'
+                    }`}></span>
                     {link.text}
                   </button>
                 </li>
@@ -47,20 +84,30 @@ const Footer: React.FC = () => {
           </div>
 
           {/* Support Section */}
-          <div className="space-y-3">
-            <h3 className="text-base font-semibold text-gray-100">Support</h3>
-            <ul className="space-y-2">
+          <div className="space-y-2 text-center md:text-left">
+            <h3 className={`text-sm md:text-base font-semibold ${
+              config.darkMode ? 'text-gray-100' : 'text-gray-800'
+            }`}>
+              {navTranslate('support')}
+            </h3>
+            <ul className="space-y-1">
               {[
-                { text: 'Help Center', path: '/help' },
-                { text: 'Privacy Policy', path: '/privacy' },
-                { text: 'Terms of Service', path: '/terms' }
+                { text: navTranslate('help'), path: '/help' },
+                { text: navTranslate('privacy'), path: '/privacy' },
+                { text: navTranslate('terms'), path: '/terms' }
               ].map((item) => (
                 <li key={item.text}>
                   <button
                     onClick={() => navigate(item.path)}
-                    className="text-sm text-gray-300 hover:text-cyan-400 transition-all duration-300 flex items-center group cursor-pointer"
+                    className={`text-xs md:text-sm transition-all duration-300 flex items-center justify-center md:justify-start group cursor-pointer ${
+                      config.darkMode
+                        ? 'text-gray-300 hover:text-blue-400'
+                        : 'text-gray-600 hover:text-indigo-600'
+                    }`}
                   >
-                    <span className="w-0 group-hover:w-2 h-[1px] bg-cyan-400 transition-all duration-300 mr-2"></span>
+                    <span className={`w-0 group-hover:w-2 h-[1px] transition-all duration-300 mr-2 ${
+                      config.darkMode ? 'bg-blue-400' : 'bg-indigo-600'
+                    }`}></span>
                     {item.text}
                   </button>
                 </li>
@@ -70,13 +117,19 @@ const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Section */}
-        <div className="border-t border-gray-700/50 mt-6 pt-4 flex flex-col md:flex-row justify-between items-center relative">
-          <p className="text-sm text-gray-400 text-center md:text-left mb-3 md:mb-0 font-light">
+        <div className={`mt-4 pt-3 flex flex-col md:flex-row justify-between items-center relative ${
+          config.darkMode
+            ? 'border-t border-gray-600/30'
+            : 'border-t border-gray-300/50'
+        }`}>
+          <p className={`text-xs md:text-sm text-center md:text-left mb-2 md:mb-0 font-light ${
+            config.darkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
             {config.footerText}
           </p>
 
           {/* Social Links */}
-          <div className="flex space-x-4">
+          <div className="flex space-x-3">
             {[
               {
                 name: 'Facebook',
@@ -99,10 +152,14 @@ const Footer: React.FC = () => {
                 href={social.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-gray-400 hover:text-cyan-400 transition-colors duration-300 transform hover:scale-110"
+                className={`transition-colors duration-300 transform hover:scale-110 ${
+                  config.darkMode
+                    ? 'text-gray-400 hover:text-blue-400'
+                    : 'text-gray-500 hover:text-indigo-600'
+                }`}
                 aria-label={social.name}
               >
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <svg className="h-4 w-4 md:h-5 md:w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path fillRule="evenodd" d={social.path} clipRule="evenodd" />
                 </svg>
               </a>
@@ -111,10 +168,13 @@ const Footer: React.FC = () => {
         </div>
       </div>
 
-      {/* Futuristic decorative elements */}
-      <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-20 right-1/4 w-20 h-20 bg-purple-500/10 rounded-full blur-3xl"></div>
+      {/* Subtle decorative elements */}
+      <div className={`absolute bottom-0 left-0 w-16 h-16 rounded-full blur-2xl ${
+        config.darkMode ? 'bg-blue-500/5' : 'bg-indigo-500/5'
+      }`}></div>
+      <div className={`absolute top-0 right-0 w-20 h-20 rounded-full blur-2xl ${
+        config.darkMode ? 'bg-indigo-500/5' : 'bg-blue-500/5'
+      }`}></div>
     </footer>
   );
 };

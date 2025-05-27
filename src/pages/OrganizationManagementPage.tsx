@@ -127,7 +127,7 @@ const OrganizationManagementPage: React.FC = () => {
     }
   }, [organizationId, organizations, currentOrganization, navigate, isLoadingUserOrgs, setCurrentOrganization, userOrganizations, hasProcessedOrganization, organization]);
 
-  // Fetch user organization roles
+  // Fetch user organization roles - only when user changes
   useEffect(() => {
     const fetchUserOrganizations = async () => {
       if (!supabase || !user) {
@@ -137,12 +137,25 @@ const OrganizationManagementPage: React.FC = () => {
 
       // Prevent duplicate API calls
       if (userOrgsRequestInProgress.current) {
-        console.log('OrganizationManagementPage: User organizations fetch already in progress, skipping');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('OrganizationManagementPage: User organizations fetch already in progress, skipping');
+        }
+        return;
+      }
+
+      // Only fetch if we don't have data for this user yet
+      if (userOrganizations.length > 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('OrganizationManagementPage: User organizations already loaded, skipping fetch');
+        }
+        setIsLoadingUserOrgs(false);
         return;
       }
 
       userOrgsRequestInProgress.current = true;
-      console.log('OrganizationManagementPage: Fetching user organizations');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('OrganizationManagementPage: Fetching user organizations for user:', user.id);
+      }
 
       try {
         const { data, error } = await supabase
@@ -165,7 +178,9 @@ const OrganizationManagementPage: React.FC = () => {
             updatedAt: new Date(item.updated_at)
           }));
           setUserOrganizations(userOrgs);
-          console.log('OrganizationManagementPage: User organizations fetched successfully:', userOrgs.length);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('OrganizationManagementPage: User organizations fetched successfully:', userOrgs.length);
+          }
         }
       } catch (err) {
         console.error('Error in fetchUserOrganizations:', err);
@@ -176,11 +191,8 @@ const OrganizationManagementPage: React.FC = () => {
       }
     };
 
-    // Only fetch if we haven't already or if the user changes
-    if (!userOrganizations.length || userOrgsRequestInProgress.current === false) {
-      fetchUserOrganizations();
-    }
-  }, [supabase, user, userOrganizations.length]);
+    fetchUserOrganizations();
+  }, [supabase, user?.id]); // Removed userOrganizations.length from dependencies
 
   // Check if user has permission to access this page
   const userRole = userOrganizations.find(
@@ -399,10 +411,10 @@ const OrganizationManagementPage: React.FC = () => {
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   Configure payment options for premium assignments in your organization.
-                  Students can pay using Solana cryptocurrency to access premium content.  
+                  Students can pay using Solana cryptocurrency to access premium content.
                 </p>
               </div>
-              
+
               <Suspense fallback={
                 <div className="animate-pulse" id="payment-settings-placeholder">
                   <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-4"></div>
@@ -413,7 +425,7 @@ const OrganizationManagementPage: React.FC = () => {
               }>
                 <OrganizationPaymentSettings organizationId={organization.id} />
               </Suspense>
-              
+
               <div className="border-t border-gray-200 dark:border-gray-700 pt-6 mt-8">
                 <h3 className="text-lg font-semibold mb-4 dark:text-white">
                   Payment Transactions

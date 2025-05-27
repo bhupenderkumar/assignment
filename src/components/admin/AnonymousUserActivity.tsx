@@ -1,9 +1,13 @@
 // src/components/admin/AnonymousUserActivity.tsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSupabaseAuth } from '../../context/SupabaseAuthContext';
 import { useUserRole } from '../../hooks/useUserRole';
+import { usePageVisibility } from '../../hooks/usePageVisibility';
 import toast from 'react-hot-toast';
 import CertificateViewer from '../certificates/CertificateViewer';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useConfiguration } from '../../context/ConfigurationContext';
+import { hexToRgba } from '../../utils/colorUtils';
 
 interface AnonymousUserData {
   id: string;
@@ -42,17 +46,99 @@ interface AnonymousActivity {
 // - DetailedResponse: was declared but never used
 // - AssignmentFilters: was declared but never used
 
-const AnonymousUserActivity = () => {
+interface AnonymousUserActivityProps {
+  shouldLoad?: boolean;
+}
+
+const AnonymousUserActivity: React.FC<AnonymousUserActivityProps> = ({ shouldLoad = true }) => {
   const [anonymousUsers, setAnonymousUsers] = useState<AnonymousUserData[]>([]);
   const [activities, setActivities] = useState<AnonymousActivity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'score' | 'assignments' | 'date'>('date');
+  const [filterOrg, setFilterOrg] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const { user, supabase } = useSupabaseAuth();
   const { isAdmin, isOwner, isLoading: roleLoading } = useUserRole();
+  const { config } = useConfiguration();
   const [showCertificate, setShowCertificate] = useState(false);
   const [selectedCertificateData, setSelectedCertificateData] = useState<any>(null);
   const [isGlobalAdmin, setIsGlobalAdmin] = useState(false);
+  const [dataCache, setDataCache] = useState<Map<string, { data: any; timestamp: number }>>(new Map());
+
+  // Page visibility for performance optimization
+  const { shouldPauseApiCalls } = usePageVisibility({
+    onVisible: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ AnonymousUserActivity: Page visible, resuming API calls');
+      }
+    },
+    onHidden: () => {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🚫 AnonymousUserActivity: Page hidden, pausing API calls');
+      }
+    }
+  });
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // Cache management
+  const CACHE_EXPIRATION = 5 * 60 * 1000; // 5 minutes
+
+  const getCachedData = useCallback((key: string) => {
+    const cached = dataCache.get(key);
+    if (cached && Date.now() - cached.timestamp < CACHE_EXPIRATION) {
+      return cached.data;
+    }
+    return null;
+  }, [dataCache]);
+
+  const setCachedData = useCallback((key: string, data: any) => {
+    setDataCache(prev => new Map(prev.set(key, { data, timestamp: Date.now() })));
+  }, []);
+
+  // Memoized filtered and sorted users
+  const filteredAndSortedUsers = useMemo(() => {
+    let filtered = anonymousUsers.filter(user => {
+      const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (user.contactInfo && user.contactInfo.toLowerCase().includes(searchTerm.toLowerCase()));
+
+      const matchesOrg = filterOrg === 'all' ||
+                        (user.organizationNames && user.organizationNames.some(org =>
+                          org.toLowerCase().includes(filterOrg.toLowerCase())
+                        ));
+
+      return matchesSearch && matchesOrg;
+    });
+
+    // Sort users
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'score':
+          return b.averageScore - a.averageScore;
+        case 'assignments':
+          return b.totalAssignments - a.totalAssignments;
+        case 'date':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+
+    return filtered;
+  }, [anonymousUsers, searchTerm, filterOrg, sortBy]);
+
+  // Get unique organizations for filter
+  const availableOrganizations = useMemo(() => {
+    const orgs = new Set<string>();
+    anonymousUsers.forEach(user => {
+      user.organizationNames?.forEach(org => orgs.add(org));
+    });
+    return Array.from(orgs).sort();
+  }, [anonymousUsers]);
 
   // Check if user is a global admin (owner of any organization)
   useEffect(() => {
@@ -132,46 +218,45 @@ const AnonymousUserActivity = () => {
 
 
 
-  // Fetch anonymous users with enhanced data
-  useEffect(() => {
-    const fetchAnonymousUsers = async () => {
-      if (!supabase || roleLoading) {
-        console.log('Supabase not available yet or role loading');
-        return;
-      }
+  // Optimized fetch function with caching
+  const fetchAnonymousUsersOptimized = useCallback(async (forceRefresh = false) => {
+    if (!supabase || roleLoading || shouldPauseApiCalls) {
+      return;
+    }
 
-      // Check if user has permission to view this data
-      if (!isGlobalAdmin && !isAdmin && !isOwner) {
-        setError('You do not have permission to view anonymous user activity. Only organization owners and admins can access this data.');
+    // Check cache first
+    const cacheKey = 'anonymous_users_data';
+    if (!forceRefresh) {
+      const cachedData = getCachedData(cacheKey);
+      if (cachedData) {
+        setAnonymousUsers(cachedData);
         setLoading(false);
         return;
       }
+    }
 
-      setLoading(true);
-      setError(null);
-      try {
-        console.log('Fetching anonymous users...');
+    // Check permissions
+    if (!isGlobalAdmin && !isAdmin && !isOwner) {
+      setError('You do not have permission to view anonymous user activity.');
+      setLoading(false);
+      return;
+    }
 
-        // First, let's check if the table exists and get basic data
-        const { data: users, error: usersError } = await supabase
-          .from('anonymous_user')
-          .select('*')
-          .order('created_at', { ascending: false });
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: users, error: usersError } = await supabase
+        .from('anonymous_user')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        console.log('Anonymous users query result:', { users, usersError });
-
-        if (usersError) {
-          console.error('Error fetching anonymous users:', usersError);
-          throw usersError;
-        }
-
-        if (!users || users.length === 0) {
-          console.log('No anonymous users found in database');
-          setAnonymousUsers([]);
-          return;
-        }
-
-        console.log(`Found ${users.length} anonymous users`);
+      if (usersError) throw usersError;
+      if (!users || users.length === 0) {
+        setAnonymousUsers([]);
+        setCachedData(cacheKey, []);
+        setLoading(false);
+        return;
+      }
 
         // Get submission statistics for each user with organization information
         const usersWithStats = await Promise.all(
@@ -238,6 +323,8 @@ const AnonymousUserActivity = () => {
 
         console.log('Users with stats:', usersWithStats);
         setAnonymousUsers(usersWithStats);
+        setCachedData(cacheKey, usersWithStats);
+        setHasInitialized(true);
       } catch (err) {
         console.error('Error fetching anonymous users:', err);
         const errorMessage = err instanceof Error ? err.message : 'Failed to load anonymous users';
@@ -246,10 +333,14 @@ const AnonymousUserActivity = () => {
       } finally {
         setLoading(false);
       }
-    };
+  }, [supabase, isGlobalAdmin, isAdmin, isOwner, roleLoading, shouldLoad, hasInitialized, getCachedData, setCachedData]);
 
-    fetchAnonymousUsers();
-  }, [supabase, isGlobalAdmin, isAdmin, isOwner, roleLoading]);
+  // Effect to fetch anonymous users
+  useEffect(() => {
+    if (shouldLoad && !hasInitialized) {
+      fetchAnonymousUsersOptimized();
+    }
+  }, [shouldLoad, hasInitialized, fetchAnonymousUsersOptimized]);
 
   // Fetch activities for a selected user with enhanced data
   useEffect(() => {

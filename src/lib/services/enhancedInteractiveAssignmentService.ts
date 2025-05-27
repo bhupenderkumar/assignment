@@ -36,6 +36,8 @@ const mapRowToAssignment = (row: any): InteractiveAssignment => {
     hasCelebration: row.has_celebration,
     ageGroup: row.age_group,
     requiresHelp: row.requires_help,
+    requiresPayment: row.requires_payment || false, // Payment field mapping
+    paymentAmount: row.payment_amount || 0, // Payment amount field mapping
     shareableLink: row.shareable_link,
     shareableLinkExpiresAt: row.shareable_link_expires_at ? new Date(row.shareable_link_expires_at) : undefined,
     // Gallery fields
@@ -87,6 +89,8 @@ const mapAssignmentToRow = (assignment: Partial<InteractiveAssignment>) => {
     has_celebration: assignment.hasCelebration,
     age_group: assignment.ageGroup,
     requires_help: assignment.requiresHelp,
+    requires_payment: assignment.requiresPayment || false, // Payment field mapping
+    payment_amount: assignment.paymentAmount || 0, // Payment amount field mapping
     shareable_link: assignment.shareableLink,
     shareable_link_expires_at: assignment.shareableLinkExpiresAt?.toISOString(),
     // Gallery fields
@@ -257,14 +261,73 @@ export const createEnhancedInteractiveAssignmentService = (user: User | null = n
 
   // Create assignment
   async createAssignment(assignment: Partial<InteractiveAssignment>): Promise<InteractiveAssignment> {
-    const data = await insertRecord<any>('interactive_assignment', mapAssignmentToRow(assignment), user);
-    return mapRowToAssignment(data);
+    // 🔍 DEBUG: Log payment fields before mapping
+    console.log('💰 Creating assignment with payment fields:', {
+      requiresPayment: assignment.requiresPayment,
+      paymentAmount: assignment.paymentAmount
+    });
+
+    const mappedRow = mapAssignmentToRow(assignment);
+
+    // 🔍 DEBUG: Log mapped database row
+    console.log('💰 Mapped database row payment fields:', {
+      requires_payment: mappedRow.requires_payment,
+      payment_amount: mappedRow.payment_amount
+    });
+
+    const data = await insertRecord<any>('interactive_assignment', mappedRow, user);
+
+    // 🔍 DEBUG: Log returned data
+    console.log('💰 Database returned payment fields:', {
+      requires_payment: data.requires_payment,
+      payment_amount: data.payment_amount
+    });
+
+    const result = mapRowToAssignment(data);
+
+    // 🔍 DEBUG: Log final result
+    console.log('💰 Final assignment object payment fields:', {
+      requiresPayment: result.requiresPayment,
+      paymentAmount: result.paymentAmount
+    });
+
+    return result;
   },
 
   // Update assignment
   async updateAssignment(id: string, assignment: Partial<InteractiveAssignment>): Promise<InteractiveAssignment> {
-    const data = await updateRecord<any>('interactive_assignment', id, mapAssignmentToRow(assignment), user);
-    return mapRowToAssignment(data);
+    // 🔍 DEBUG: Log payment fields before mapping
+    console.log('💰 Updating assignment with payment fields:', {
+      id,
+      requiresPayment: assignment.requiresPayment,
+      paymentAmount: assignment.paymentAmount
+    });
+
+    const mappedRow = mapAssignmentToRow(assignment);
+
+    // 🔍 DEBUG: Log mapped database row
+    console.log('💰 Mapped database row payment fields for update:', {
+      requires_payment: mappedRow.requires_payment,
+      payment_amount: mappedRow.payment_amount
+    });
+
+    const data = await updateRecord<any>('interactive_assignment', id, mappedRow, user);
+
+    // 🔍 DEBUG: Log returned data
+    console.log('💰 Database returned payment fields after update:', {
+      requires_payment: data.requires_payment,
+      payment_amount: data.payment_amount
+    });
+
+    const result = mapRowToAssignment(data);
+
+    // 🔍 DEBUG: Log final result
+    console.log('💰 Final updated assignment object payment fields:', {
+      requiresPayment: result.requiresPayment,
+      paymentAmount: result.paymentAmount
+    });
+
+    return result;
   },
 
   // Delete assignment

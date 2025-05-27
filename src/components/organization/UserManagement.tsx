@@ -28,10 +28,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ organization, userOrgan
   const [localUserOrganizations, setLocalUserOrganizations] = useState<UserOrganization[]>(userOrganizations);
   const [isLoadingUserOrgs, setIsLoadingUserOrgs] = useState(userOrganizations.length === 0);
 
-  // Fetch user organizations if not provided
+  // Fetch user organizations if not provided - only when user or organization changes
   useEffect(() => {
     const fetchUserOrganizations = async () => {
-      if (!supabase || userOrganizations.length > 0) return;
+      if (!supabase || !user || userOrganizations.length > 0) {
+        setIsLoadingUserOrgs(false);
+        return;
+      }
 
       setIsLoadingUserOrgs(true);
 
@@ -41,7 +44,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ organization, userOrgan
           .from('user_organization')
           .select('id, organization_id, user_id, role')
           .eq('organization_id', organization.id)
-          .eq('user_id', user?.id);
+          .eq('user_id', user.id);
 
         if (error) throw error;
 
@@ -72,7 +75,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ organization, userOrgan
     };
 
     fetchUserOrganizations();
-  }, [supabase, organization.id, user?.id, userOrganizations.length]);
+  }, [supabase, organization.id, user?.id]); // Removed userOrganizations.length from dependencies
 
   // Current user's role in this organization
   const currentUserRole = localUserOrganizations.find(
